@@ -4,7 +4,10 @@ import com.courier.modules.finance.application.command.BookingDebitCommand;
 import com.courier.modules.finance.application.command.CodDeliveryDebitCommand;
 import com.courier.modules.finance.application.command.CommissionCreditCommand;
 import com.courier.modules.finance.application.command.CreditCommand;
+import com.courier.modules.finance.application.command.CustomerBookingDebitCommand;
+import com.courier.modules.finance.application.command.CustomerBookingRefundCommand;
 import com.courier.modules.finance.application.command.CustomerCreditCommand;
+import com.courier.modules.finance.application.command.CustomerDebitCommand;
 import com.courier.modules.finance.application.command.CustomerRechargeOrderCommand;
 import com.courier.modules.finance.application.command.DebitCommand;
 import com.courier.modules.finance.application.command.DeliveryWeightCommissionCreditCommand;
@@ -150,6 +153,30 @@ public interface WalletService {
      * another company is 404.
      */
     WalletTransaction creditForCustomer(CustomerCreditCommand command);
+
+    // -------------------------------------------------------- customer wallets (money out)
+
+    /**
+     * Pays for a portal booking from the signed-in customer's wallet ({@code SBK}, referenced to the
+     * booking). Refused if the balance is short. Idempotent: a booking already debited returns its
+     * entry instead of debiting twice. {@code CUSTOMER} accounts only.
+     */
+    WalletTransaction debitForCustomerBooking(CustomerBookingDebitCommand command);
+
+    /**
+     * Credits back ({@code SRF}) a portal booking's debit that has not been refunded yet. Empty when the
+     * booking was never debited or already refunded, so it is safe to call twice. No user is required:
+     * the tracking-sync job calls it for a courier-cancelled shipment. It reverses only an entry the
+     * booking itself wrote, never a caller-chosen amount.
+     */
+    List<WalletTransaction> refundCustomerBooking(CustomerBookingRefundCommand command);
+
+    /**
+     * A company admin debits a customer's wallet by hand. Writes the ledger entry and lowers the balance
+     * in one transaction; refused if the balance is short. The reason defaults to {@code MDB} and must be
+     * debitable. {@code COMPANY_ADMIN} only; a customer of another company is 404.
+     */
+    WalletTransaction debitForCustomer(CustomerDebitCommand command);
 
     /** Manual credit by a company admin. */
     WalletTransaction credit(CreditCommand command);

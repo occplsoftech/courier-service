@@ -16,6 +16,9 @@ public enum ReferenceType {
     /** A shipment: booking charge, refund, COD. */
     SHIPMENT,
 
+    /** A customer-portal booking (a courier booked from the e-commerce portal): its debit and refund. */
+    PORTAL_BOOKING,
+
     /** A settlement or payout batch. */
     SETTLEMENT,
 

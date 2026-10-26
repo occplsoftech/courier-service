@@ -1,7 +1,10 @@
 package com.courier.modules.finance.application;
 
 import com.courier.modules.finance.application.command.CustomerRechargeOrderCommand;
+import com.courier.modules.finance.application.command.CustomerBookingDebitCommand;
+import com.courier.modules.finance.application.command.CustomerBookingRefundCommand;
 import com.courier.modules.finance.application.command.CustomerCreditCommand;
+import com.courier.modules.finance.application.command.CustomerDebitCommand;
 import com.courier.modules.finance.application.command.BookingDebitCommand;
 import com.courier.modules.finance.application.command.CodDeliveryDebitCommand;
 import com.courier.modules.finance.application.command.CommissionCreditCommand;
@@ -111,6 +114,10 @@ public class WalletServiceImpl implements WalletService {
 
         static Owner customer(UUID customerId) {
             return new Owner(null, customerId);
+        }
+
+        static Owner of(Wallet wallet) {
+            return wallet.getCustomerId() != null ? customer(wallet.getCustomerId()) : branch(wallet.getBranchId());
         }
 
         static Owner of(RechargeOrder order) {
@@ -678,6 +685,91 @@ public class WalletServiceImpl implements WalletService {
                 command.referenceType(), command.referenceId(), command.remarks());
     }
 
+    // ------------------------------------------------------ customer wallets (money out)
+
+    @Override
+    @Transactional
+    @PreAuthorize(CUSTOMER_ONLY)
+    public WalletTransaction debitForCustomerBooking(CustomerBookingDebitCommand command) {
+        UUID companyId = requireCompany();
+        BigDecimal amount = requirePositiveAmount(command.amount());
+        String bookingRef = command.bookingId().toString();
+        SubTransactionType reason = SubTransactionType.SBK;
+        reason.requireSupports(TransactionType.DR);
+
+        // The row lock is taken first so two callers for one booking serialise, and the second sees the first's entry.
+        Wallet wallet = lockOwned(Owner.customer(command.customerId()), companyId);
+        requireOperational(wallet);
+        Optional<WalletTransaction> already = transactionRepository
+                .findSettledByReferenceWithinCompany(ReferenceType.PORTAL_BOOKING, bookingRef, companyId).stream()
+                .filter(t -> t.getSubTransactionType() == reason)
+                .findFirst();
+        if (already.isPresent()) {
+            return already.get();
+        }
+
+        WalletTransaction entry = post(wallet, companyId, TransactionType.DR, reason, amount,
+                ReferenceType.PORTAL_BOOKING, bookingRef, command.remarks(), null, null);
+
+        log.info("Wallet {} debited {} {} for portal booking {} by {}", wallet.getWalletNumber(),
+                wallet.getCurrency(), amount.toPlainString(), bookingRef, currentActor());
+        auditService.record(AuditAction.WALLET_DEBITED, ENTITY, wallet.getId(), ledgerDetails(wallet, entry));
+        eventPublisher.publishEvent(new WalletEvent.WalletDebited(
+                wallet.getId(), companyId, null, entry.getId(), reason, amount,
+                entry.getBalanceAfter(), Instant.now()));
+
+        return entry;
+    }
+
+    @Override
+    @Transactional
+    public List<WalletTransaction> refundCustomerBooking(CustomerBookingRefundCommand command) {
+        UUID companyId = requireCompany();
+        List<WalletTransaction> originals = new java.util.ArrayList<>(
+                transactionRepository.findSettledByReferenceWithinCompany(
+                        ReferenceType.PORTAL_BOOKING, command.bookingId().toString(), companyId));
+        java.util.Set<UUID> alreadyRefunded = refundedBookingDebitIds(originals);
+        List<WalletTransaction> refunds = new java.util.ArrayList<>();
+        for (WalletTransaction original : originals) {
+            if (original.getSubTransactionType() == SubTransactionType.SBK
+                    && !alreadyRefunded.contains(original.getId())) {
+                refunds.add(postReversal(original, companyId, command.remarks()));
+            }
+        }
+        return refunds;
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(COMPANY_ADMIN_ONLY)
+    public WalletTransaction debitForCustomer(CustomerDebitCommand command) {
+        UUID companyId = requireCompany();
+        // 404 for a customer of another company, and opens the wallet of one that predates wallets.
+        customerWallets.getForCustomer(command.customerId());
+
+        BigDecimal amount = requirePositiveAmount(command.amount());
+        SubTransactionType reason = command.subTransactionType() == null
+                ? SubTransactionType.MDB : command.subTransactionType();
+        reason.requireSupports(TransactionType.DR);
+
+        Wallet wallet = lockOwned(Owner.customer(command.customerId()), companyId);
+        requireOperational(wallet);
+
+        // Wallet.applyDebit refuses an overdraft; the ledger entry is only written if it succeeds.
+        WalletTransaction entry = post(wallet, companyId, TransactionType.DR, reason, amount,
+                command.referenceType() == null ? ReferenceType.MANUAL : command.referenceType(),
+                command.referenceId(), command.remarks(), null, null);
+
+        log.info("Wallet {} debited {} {} ({}) by {}", wallet.getWalletNumber(),
+                wallet.getCurrency(), amount.toPlainString(), reason, currentActor());
+        auditService.record(AuditAction.WALLET_DEBITED, ENTITY, wallet.getId(), ledgerDetails(wallet, entry));
+        eventPublisher.publishEvent(new WalletEvent.WalletDebited(
+                wallet.getId(), companyId, null, entry.getId(), reason, amount,
+                entry.getBalanceAfter(), Instant.now()));
+
+        return entry;
+    }
+
     /** A manual credit once the owner is known. Shared by a branch's and a customer's wallet. */
     private WalletTransaction creditOwned(UUID companyId, Owner owner, BigDecimal requested,
                                           SubTransactionType requestedReason, ReferenceType referenceType,
@@ -1022,15 +1114,17 @@ public class WalletServiceImpl implements WalletService {
     private WalletTransaction postReversal(WalletTransaction original, UUID companyId, String remarks) {
         Wallet source = walletRepository.findByIdWithinCompany(original.getWalletId(), companyId)
                 .orElseThrow(() -> new ResourceNotFoundException(ENTITY, original.getWalletId()));
-        Wallet wallet = lockOrThrow(source.getBranchId(), companyId);
+        // Locked through the wallet's own owner: a customer's wallet has no branch.
+        Wallet wallet = lockOwned(Owner.of(source), companyId);
         requireOperational(wallet);
 
         boolean creditBack = original.isDebit();
         TransactionType type = creditBack ? TransactionType.CR : TransactionType.DR;
         SubTransactionType reason = creditBack ? SubTransactionType.SRF : SubTransactionType.ADJ;
 
+        // The reversal carries the original's own reference, so a portal booking's refund stays with the booking.
         WalletTransaction entry = post(wallet, companyId, type, reason, original.getAmount(),
-                ReferenceType.SHIPMENT, original.getReferenceId(),
+                original.getReferenceType(), original.getReferenceId(),
                 remarks + " — reversing " + original.getTransactionNo(), null, null);
 
         log.info("Wallet {} {} {} {} reversing {} {} for shipment {} by {}",

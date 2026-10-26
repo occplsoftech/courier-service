@@ -1,7 +1,7 @@
 # Module: customer wallet (finance)
 
-**Status:** parts 1 and 2 of 4 built 2026-10-26 (V136, V137): ownership, automatic wallet for business customers, balance and ledger reads,
-and money in (online recharge, top-up requests, manual credit). Booking payments/refunds and the screens are later parts — see "Parts".
+**Status:** parts 1-3 of 4 built 2026-10-26 (V136, V137): ownership, automatic wallet for business customers, balance and ledger reads,
+money in (online recharge, top-up requests, manual credit) and money out (portal booking payment, refunds, manual debit). The screens are part 4 — see "Parts".
 **Package:** `com.courier.modules.finance` (same module as the branch wallet). Small extensions in `customer` (event) and
 `customerportal` (wallet endpoints).
 
@@ -47,6 +47,7 @@ to a customer wallet.
 | POST | `/api/v1/customer-portal/wallet/topup-requests/upload-proof` (multipart `file`) | same |
 | POST / GET | `/api/v1/customer-portal/wallet/topup-requests` | same (raise / list own) |
 | POST | `/api/v1/customers/{customerId}/wallet/credit` `{amount, subTransactionType?, referenceId?, remarks?}` | `COMPANY_ADMIN` |
+| POST | `/api/v1/customers/{customerId}/wallet/debit` `{amount, subTransactionType?, referenceId?, remarks?}` | `COMPANY_ADMIN` |
 | PATCH | `/api/v1/branch-wallet/topup-requests/{id}/approve` \| `/reject` | `COMPANY_ADMIN` (existing endpoints; work for customer requests too) |
 
 ## Money in (part 2)
@@ -62,16 +63,30 @@ to a customer wallet.
   staff reads/credits are `COMPANY_ADMIN` (`FINANCE_USER` for reads). `checkRechargeAttempt` on a customer's attempt is company-wide staff only.
 - **Statements**: a customer's recharges appear in the company-wide recharge report (with `customerId`, no branch); a branch caller never sees them.
 
+## Money out (part 3)
+
+- **Paying for a portal booking** (`PortalBookingService.book`): the wallet is debited *before* the courier is called (ledger first), refunded only if the
+  courier **certainly** refused, and kept if the outcome is unknown. The debit is `SBK` with `ReferenceType.PORTAL_BOOKING` and the booking id as reference, so the
+  customer's statement shows one line per booking and branch/shipment reversals (`reverseForShipment`, which looks up `SHIPMENT`) can never pick it up.
+- **Refunds**: `refundCustomerBooking` credits back the booking's own `SBK` debit once (matched oldest-first by amount, the same rule `refundBookingDebit` uses).
+  Triggers: a courier refusal at booking time; `TrackingSyncService` seeing stage `CANCELLED` (courier webhook or the job). A courier-cancelled
+  shipment is refunded in full — if a courier ever charges a cancellation fee, that is a manual debit. RTO / returned shipments are **not** refunded.
+- **Switch**: `app.customer-portal.wallet-payment.enabled` (env `CUSTOMER_PORTAL_WALLET_PAYMENT_ENABLED`), default **off**. When on, every booking on a covered provider is
+  paid from the wallet, including by customers who never topped up (they get a clear "Insufficient wallet balance" failure). `excluded-providers` defaults to
+  `OCCPL_NETWORK`: that provider only creates a pickup request which the branch bills at the counter, so a wallet debit would double-charge.
+- **Manual debit**: `debitForCustomer` (`MDB` default, `ADJ` allowed), admin only, no overdraft.
+- **Reversal for any owner**: `postReversal` locks via the wallet's owner (branch or customer) and keeps the original's reference type.
+
 ## Parts
 
 1. **Foundation (this)**: ownership, automatic wallet, reads.
 2. **Money in (built, V137)**: online recharge (company Razorpay config, webhook and reconcile), top-up requests with admin approval, manual credit.
-3. **Money out**: debit a customer wallet for a portal booking, refund on cancellation; admin credit / debit adjustments.
+3. **Money out (built, no migration)**: portal booking debit, refund on refusal / courier cancellation, manual debit.
 4. **Screens**: e-commerce portal wallet page; customer wallet tab in the staff app.
 
 ## Verification status
 
 Unit tests only (part 1: `CustomerWalletTest`, `CustomerWalletServiceImplTest`, `CustomerWalletProvisioningListenerTest`,
-`CustomerServiceImplTest`; part 2: `CustomerWalletMoneyInTest`, `WalletTopupRequestServiceImplTest`, `RazorpayWebhookControllerTest`). `V136` was applied by
+`CustomerServiceImplTest`; part 2: `CustomerWalletMoneyInTest`, `WalletTopupRequestServiceImplTest`, `RazorpayWebhookControllerTest`; part 3: `CustomerWalletMoneyOutTest`, plus cases in `PortalBookingServiceTest` and `TrackingSyncServiceTest`). `V136` was applied by
 the dev deploy of part 1 (the deploy stayed healthy). The `V137` migration (two tables, same pattern) has not been run against MySQL yet. The `V136` migration (nullable `branch_id` under an FK, new CHECK and unique key) and the repository
 queries have **not** been run against MySQL; CI's integration tests must confirm them before merge.

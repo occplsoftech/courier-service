@@ -8,6 +8,33 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-26 — Customer wallets, part 3: money out (portal bookings, refunds, manual debit)
+
+Third of four parts (see `MEMORY/modules/customer-wallet.md`). A portal booking can now be paid from the customer's wallet.
+
+- **Pay**: `WalletService.debitForCustomerBooking` — an `SBK` debit referenced to the portal booking (`ReferenceType.PORTAL_BOOKING`, so it never
+  mixes with the branch/shipment ledger). Idempotent per booking, row-locked, no overdraft.
+- **Order in `PortalBookingService.book`**: SUBMITTING row committed → **wallet debited** → courier called → outcome. A short balance or
+  suspended wallet ends the booking `FAILED` (unpaid) and the courier is never called. A courier that **certainly refused** (REJECTED, or a
+  local failure that created nothing) is refunded. An **unknown** outcome stays paid: the courier may have accepted it, so operations reconcile.
+- **Refund**: `WalletService.refundCustomerBooking` (`SRF`) credits back exactly the booking's own debit, once; safe to repeat; needs no signed-in
+  user. Called on a refusal and by `TrackingSyncService` when a courier reports the shipment **cancelled** (covers push webhooks and the job).
+  A failed refund is logged for manual return; it never fails the booking or the sync.
+- **Manual debit**: `WalletService.debitForCustomer` + `POST /api/v1/customers/{id}/wallet/debit` (`COMPANY_ADMIN`; reason defaults to `MDB`,
+  `ADJ` allowed; no overdraft; another company's customer is 404).
+- **Reversal generalised**: `postReversal` locked the wallet through `getBranchId()`; it now locks through the wallet's own owner and keeps the original's
+  reference type. Branch/shipment reversals behave as before (existing tests unchanged).
+- **Off by default**: `app.customer-portal.wallet-payment.enabled` (`CUSTOMER_PORTAL_WALLET_PAYMENT_ENABLED`, default `false`). Merging changes no behaviour
+  until it is set. `excluded-providers` defaults to `OCCPL_NETWORK` — OCCPL's own network creates a pickup that the branch bills when the parcel
+  is collected, so debiting the wallet here too would charge twice.
+- Tests: `CustomerWalletMoneyOutTest` (17), 7 new in `PortalBookingServiceTest`, 3 new in `TrackingSyncServiceTest`.
+  **Not run here: anything against MySQL.** No migration in this part (`PORTAL_BOOKING` fits the existing `reference_type VARCHAR(20)`).
+- Known gaps (logged, not silent): a crash between the debit and the courier's outcome leaves a `SUBMITTING` booking that is paid; a refund that
+  fails after a refusal is logged for manual return. Both are the same "reconcile" class the portal already has for `SUBMITTING`/`OUTCOME_UNKNOWN`.
+- Not in this part: the portal and staff screens (part 4).
+
+---
+
 ## 2026-10-26 — Customer wallets, part 2: money in (online recharge, top-up requests, manual credit)
 
 Second of four parts (see `MEMORY/modules/customer-wallet.md`). A customer's wallet can now be filled the same ways a branch wallet can.

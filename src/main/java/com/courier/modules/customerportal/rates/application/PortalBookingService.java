@@ -8,6 +8,9 @@ import com.courier.modules.customerportal.rates.domain.CourierProviderAdapter;
 import com.courier.modules.customerportal.rates.domain.PortalBooking;
 import com.courier.modules.customerportal.rates.domain.RateQuote;
 import com.courier.modules.customerportal.rates.domain.RateRequest;
+import com.courier.modules.finance.application.WalletService;
+import com.courier.modules.finance.application.command.CustomerBookingDebitCommand;
+import com.courier.modules.finance.application.command.CustomerBookingRefundCommand;
 import com.courier.shared.audit.application.AuditService;
 import com.courier.shared.audit.domain.AuditAction;
 import com.courier.shared.exception.BusinessRuleException;
@@ -48,13 +51,18 @@ public class PortalBookingService {
     private final PortalBookingStore store;
     private final List<CourierProviderAdapter> adapters;
     private final AuditService auditService;
+    private final WalletService walletService;
+    private final CustomerPortalProperties properties;
 
     public PortalBookingService(CurrentCustomerResolver resolver, PortalBookingStore store,
-                                List<CourierProviderAdapter> adapters, AuditService auditService) {
+                                List<CourierProviderAdapter> adapters, AuditService auditService,
+                                WalletService walletService, CustomerPortalProperties properties) {
         this.resolver = resolver;
         this.store = store;
         this.adapters = adapters;
         this.auditService = auditService;
+        this.walletService = walletService;
+        this.properties = properties;
     }
 
     public BookingView book(UUID quoteId, UUID optionId, String idempotencyKey) {
@@ -87,6 +95,12 @@ public class PortalBookingService {
                 Map.of("quoteId", quoteId.toString(), "provider", booking.getProviderCode(),
                         "total", booking.getTotalAmount().toPlainString()));
         CourierProviderAdapter adapter = adapter(booking.getProviderCode());
+        // Ledger first, courier second: the money leaves the wallet before anything is promised to the courier, and
+        // comes back only if the courier certainly refused. A booking whose outcome is unknown stays paid.
+        boolean paidFromWallet = properties.getWalletPayment().covers(booking.getProviderCode());
+        if (paidFromWallet) {
+            payFromWallet(acting, booking);
+        }
         BookingRequest request = request(acting, booking, start.quote(), start.option().getServiceCode());
 
         BookingOutcome outcome;
@@ -99,6 +113,9 @@ public class PortalBookingService {
                     ? BookingOutcome.unknown(null, "We could not confirm this booking with " + adapter.displayName() + ". Our team will check it.")
                     : BookingOutcome.rejected("INTERNAL_ERROR", "The booking could not be created. Nothing was booked; please try again.");
         }
+        if (paidFromWallet && outcome.result() == BookingOutcome.Result.REJECTED) {
+            refundToWallet(booking, "Courier did not accept the booking");
+        }
         PortalBooking finished = store.finish(acting, booking.getId(), outcome, Instant.now());
         AuditAction action = switch (finished.getStatus()) {
             case BOOKED -> AuditAction.PORTAL_BOOKING_BOOKED;
@@ -109,6 +126,31 @@ public class PortalBookingService {
                 "providerRef", String.valueOf(finished.getProviderOrderRef()), "awb", String.valueOf(finished.getAwbNumber())));
         log.info("Portal booking {} -> {} ({})", finished.getId(), finished.getStatus(), finished.getProviderCode());
         return view(finished, outcome.message());
+    }
+
+    /** Debits the wallet for this booking. A refusal (short balance, suspended wallet) ends the booking as FAILED, unpaid. */
+    private void payFromWallet(ActingCustomer acting, PortalBooking booking) {
+        try {
+            walletService.debitForCustomerBooking(new CustomerBookingDebitCommand(acting.customerId(), booking.getId(),
+                    booking.getTotalAmount(), "Courier booking " + booking.getProviderCode()));
+        } catch (BusinessRuleException e) {
+            PortalBooking failed = store.finish(acting, booking.getId(),
+                    BookingOutcome.rejected("WALLET_PAYMENT_REFUSED", e.getMessage()), Instant.now());
+            auditService.record(AuditAction.PORTAL_BOOKING_FAILED, "PortalBooking", failed.getId(),
+                    Map.of("provider", failed.getProviderCode(), "reason", "WALLET_PAYMENT_REFUSED"));
+            throw e;
+        }
+    }
+
+    /** Credits the debit back. If that fails the booking is still marked FAILED; the money is for operations to return. */
+    private void refundToWallet(PortalBooking booking, String why) {
+        try {
+            walletService.refundCustomerBooking(new CustomerBookingRefundCommand(booking.getId(),
+                    why + " — booking " + booking.getId()));
+        } catch (RuntimeException e) {
+            log.error("Booking {} was refused by {} but its wallet debit could not be refunded; return the money manually",
+                    booking.getId(), booking.getProviderCode(), e);
+        }
     }
 
     private BookingRequest request(ActingCustomer acting, PortalBooking booking, RateQuote q, String serviceCode) {

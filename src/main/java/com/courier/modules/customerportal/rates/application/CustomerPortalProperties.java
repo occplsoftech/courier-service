@@ -34,9 +34,30 @@ public class CustomerPortalProperties {
      */
     private BigDecimal occplNetworkGstPercent = new BigDecimal("18");
 
+    private WalletPayment walletPayment = new WalletPayment();
     private Shiprocket shiprocket = new Shiprocket();
     private Delhivery delhivery = new Delhivery();
     private TrackingSync trackingSync = new TrackingSync();
+
+    /**
+     * {@code app.customer-portal.wallet-payment.*}: paying for portal bookings from the customer's wallet.
+     * Off by default so deploying the code changes nothing; switch it on once customers have funded wallets.
+     */
+    @Getter
+    @Setter
+    public static class WalletPayment {
+        /** On: a booking is debited from the customer's wallet before the courier is asked, and refunded if refused. */
+        private boolean enabled = false;
+        /**
+         * Providers that are not paid from the wallet. OCCPL's own network is billed through the branch when the parcel
+         * is collected, so debiting it here as well would charge twice.
+         */
+        private java.util.List<String> excludedProviders = new java.util.ArrayList<>(java.util.List.of("OCCPL_NETWORK"));
+
+        public boolean covers(String providerCode) {
+            return enabled && (excludedProviders == null || excludedProviders.stream().noneMatch(p -> p.equalsIgnoreCase(providerCode)));
+        }
+    }
 
     /** {@code app.customer-portal.tracking-sync.*}: keeping booked shipments' delivery status fresh (V135). */
     @Getter

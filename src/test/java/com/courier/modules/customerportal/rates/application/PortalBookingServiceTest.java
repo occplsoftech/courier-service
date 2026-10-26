@@ -10,6 +10,9 @@ import com.courier.modules.customerportal.rates.domain.ProviderResult;
 import com.courier.modules.customerportal.rates.domain.RateQuote;
 import com.courier.modules.customerportal.rates.domain.RateQuoteOption;
 import com.courier.modules.customerportal.rates.domain.RateRequest;
+import com.courier.modules.finance.application.WalletService;
+import com.courier.modules.finance.application.command.CustomerBookingDebitCommand;
+import com.courier.modules.finance.application.command.CustomerBookingRefundCommand;
 import com.courier.shared.audit.application.AuditService;
 import com.courier.shared.exception.ApiException;
 import com.courier.shared.exception.BusinessRuleException;
@@ -46,6 +49,8 @@ class PortalBookingServiceTest {
     private final UUID quoteId = UUID.randomUUID();
     private final UUID optionId = UUID.randomUUID();
     private final AtomicInteger calls = new AtomicInteger();
+    private final WalletService walletService = mock(WalletService.class);
+    private final CustomerPortalProperties properties = new CustomerPortalProperties();
 
     @BeforeEach
     void setUp() {
@@ -64,7 +69,7 @@ class PortalBookingServiceTest {
     }
 
     private PortalBookingService service(CourierProviderAdapter adapter) {
-        return new PortalBookingService(resolver, store, List.of(adapter), mock(AuditService.class));
+        return new PortalBookingService(resolver, store, List.of(adapter), mock(AuditService.class), walletService, properties);
     }
 
     private PortalBooking booking(PortalBooking.Status status, String hash) {
@@ -162,5 +167,150 @@ class PortalBookingServiceTest {
         assertThatThrownBy(() -> s.book(quoteId, optionId, null)).isInstanceOf(BusinessRuleException.class);
         assertThatThrownBy(() -> s.book(quoteId, optionId, "short")).isInstanceOf(BusinessRuleException.class);
         verify(store, never()).start(any(), any(), any(), any(), any(), any());
+    }
+
+    // ------------------------------------------------------------ paying from the customer's wallet
+
+    private PortalBooking submitting() {
+        PortalBooking b = booking(PortalBooking.Status.SUBMITTING, PortalBookingService.hash(quoteId + ":" + optionId));
+        startsNew(b);
+        when(store.finish(eq(ACTING), eq(b.getId()), any(), any())).thenAnswer(i -> {
+            BookingOutcome o = i.getArgument(2);
+            b.setStatus(switch (o.result()) {
+                case BOOKED -> PortalBooking.Status.BOOKED;
+                case REJECTED -> PortalBooking.Status.FAILED;
+                case UNKNOWN -> PortalBooking.Status.OUTCOME_UNKNOWN;
+            });
+            return b;
+        });
+        return b;
+    }
+
+    @Test
+    @DisplayName("wallet payment off (the default): the wallet is never touched")
+    void walletOffByDefault() {
+        submitting();
+
+        service(adapter(true, r -> BookingOutcome.booked("SR-1", "AWB1", null, "ok"))).book(quoteId, optionId, KEY);
+
+        verify(walletService, never()).debitForCustomerBooking(any());
+        verify(walletService, never()).refundCustomerBooking(any());
+    }
+
+    @Test
+    @DisplayName("on: the wallet is debited the booking's frozen total before the courier is asked, and a booking stays paid")
+    void debitsBeforeCourier() {
+        properties.getWalletPayment().setEnabled(true);
+        PortalBooking b = submitting();
+        java.util.List<String> order = new java.util.ArrayList<>();
+        when(walletService.debitForCustomerBooking(any())).thenAnswer(i -> {
+            order.add("debit");
+            return null;
+        });
+
+        var view = service(adapter(true, r -> {
+            order.add("courier");
+            return BookingOutcome.booked("SR-1", "AWB1", null, "ok");
+        })).book(quoteId, optionId, KEY);
+
+        assertThat(order).containsExactly("debit", "courier");
+        assertThat(view.status()).isEqualTo("BOOKED");
+        verify(walletService).debitForCustomerBooking(org.mockito.ArgumentMatchers.argThat(
+                (CustomerBookingDebitCommand c) -> c.customerId().equals(ACTING.customerId())
+                        && c.bookingId().equals(b.getId()) && c.amount().compareTo(new BigDecimal("111.80")) == 0));
+        verify(walletService, never()).refundCustomerBooking(any());
+    }
+
+    @Test
+    @DisplayName("a short balance ends the booking FAILED, unpaid, and the courier is never called")
+    void insufficientBalance() {
+        properties.getWalletPayment().setEnabled(true);
+        PortalBooking b = submitting();
+        when(walletService.debitForCustomerBooking(any()))
+                .thenThrow(new BusinessRuleException("Insufficient wallet balance. Available INR 10.00, required INR 111.80."));
+
+        assertThatThrownBy(() -> service(adapter(true, r -> {
+            throw new AssertionError("courier called without payment");
+        })).book(quoteId, optionId, KEY))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("Insufficient wallet balance");
+
+        verify(store).finish(eq(ACTING), eq(b.getId()), org.mockito.ArgumentMatchers.argThat(
+                (BookingOutcome o) -> o.result() == BookingOutcome.Result.REJECTED
+                        && "WALLET_PAYMENT_REFUSED".equals(o.failureCode())), any());
+        verify(walletService, never()).refundCustomerBooking(any());
+    }
+
+    @Test
+    @DisplayName("a courier that certainly refused gives the money back")
+    void refusedIsRefunded() {
+        properties.getWalletPayment().setEnabled(true);
+        PortalBooking b = submitting();
+
+        var view = service(adapter(true, r -> BookingOutcome.rejected("BAD_PINCODE", "Pincode not serviceable")))
+                .book(quoteId, optionId, KEY);
+
+        assertThat(view.status()).isEqualTo("FAILED");
+        verify(walletService).refundCustomerBooking(org.mockito.ArgumentMatchers.argThat(
+                (CustomerBookingRefundCommand c) -> c.bookingId().equals(b.getId())));
+    }
+
+    @Test
+    @DisplayName("an unknown outcome keeps the money taken: the courier may have accepted the booking")
+    void unknownIsNotRefunded() {
+        properties.getWalletPayment().setEnabled(true);
+        submitting();
+
+        var view = service(adapter(true, r -> { throw new IllegalStateException("socket closed"); }))
+                .book(quoteId, optionId, KEY);
+
+        assertThat(view.status()).isEqualTo("OUTCOME_UNKNOWN");
+        verify(walletService).debitForCustomerBooking(any());
+        verify(walletService, never()).refundCustomerBooking(any());
+    }
+
+    @Test
+    @DisplayName("a local failure with nothing created (non-external adapter) is refunded")
+    void localFailureIsRefunded() {
+        properties.getWalletPayment().setEnabled(true);
+        submitting();
+
+        var view = service(adapter(false, r -> { throw new IllegalStateException("rolled back"); }))
+                .book(quoteId, optionId, KEY);
+
+        assertThat(view.status()).isEqualTo("FAILED");
+        verify(walletService).refundCustomerBooking(any());
+    }
+
+    @Test
+    @DisplayName("a refund that fails still ends the booking FAILED")
+    void refundFailureStillFinishes() {
+        properties.getWalletPayment().setEnabled(true);
+        PortalBooking b = submitting();
+        when(walletService.refundCustomerBooking(any())).thenThrow(new IllegalStateException("db down"));
+
+        var view = service(adapter(true, r -> BookingOutcome.rejected("X", "no"))).book(quoteId, optionId, KEY);
+
+        assertThat(view.status()).isEqualTo("FAILED");
+        verify(store).finish(eq(ACTING), eq(b.getId()), any(), any());
+    }
+
+    @Test
+    @DisplayName("OCCPL's own network is excluded: the branch bills it, so the wallet is not debited")
+    void occplNetworkNotDebited() {
+        properties.getWalletPayment().setEnabled(true);
+        PortalBooking b = submitting();
+        CourierProviderAdapter occpl = new CourierProviderAdapter() {
+            @Override public String code() { return "OCCPL_NETWORK"; }
+            @Override public String displayName() { return "OCCPL Network"; }
+            @Override public boolean external() { return false; }
+            @Override public boolean configured() { return true; }
+            @Override public ProviderResult getRates(RateRequest r) { return null; }
+            @Override public BookingOutcome book(BookingRequest r) { return BookingOutcome.booked("PU-1", null, null, "ok"); }
+        };
+        b.setProviderCode("OCCPL_NETWORK");
+
+        service(occpl).book(quoteId, optionId, KEY);
+
+        verify(walletService, never()).debitForCustomerBooking(any());
     }
 }
