@@ -4,6 +4,8 @@ import com.courier.modules.finance.application.command.BookingDebitCommand;
 import com.courier.modules.finance.application.command.CodDeliveryDebitCommand;
 import com.courier.modules.finance.application.command.CommissionCreditCommand;
 import com.courier.modules.finance.application.command.CreditCommand;
+import com.courier.modules.finance.application.command.CustomerCreditCommand;
+import com.courier.modules.finance.application.command.CustomerRechargeOrderCommand;
 import com.courier.modules.finance.application.command.DebitCommand;
 import com.courier.modules.finance.application.command.DeliveryWeightCommissionCreditCommand;
 import com.courier.modules.finance.application.command.DrsChargeCreditCommand;
@@ -117,6 +119,37 @@ public interface WalletService {
      */
     WalletTransaction settleFromWebhook(UUID companyId, UUID branchId, String gatewayOrderId,
                                         String paymentId);
+
+    // ------------------------------------------------------- customer wallets (money in)
+
+    /**
+     * Step one of an online recharge of the signed-in customer's own wallet. The customer comes
+     * from the portal's authenticated account, never from the request. Same rules as
+     * {@link #openRecharge}: the amount is fixed at the gateway, and nothing is credited here.
+     * {@code CUSTOMER} accounts only.
+     */
+    PaymentGatewayPort.GatewayOrder openRechargeForCustomer(CustomerRechargeOrderCommand command);
+
+    /**
+     * Step two: settles the payment checkout produced, for a customer. The signature is verified
+     * and the gateway is asked what was actually paid; that figure is credited. Idempotent on
+     * the payment reference. {@code CUSTOMER} accounts only.
+     */
+    WalletTransaction completeRechargeForCustomer(UUID customerId, String gatewayOrderId,
+                                                  String paymentReference, String signature);
+
+    /** {@link #settleFromWebhook} for a customer's recharge; same caller contract (no user, the
+     *  webhook controller has already verified the payload signature). */
+    WalletTransaction settleFromWebhookForCustomer(UUID companyId, UUID customerId, String gatewayOrderId,
+                                                   String paymentId);
+
+    /**
+     * A company admin credits a customer's wallet by hand (a bank transfer received, a goodwill
+     * credit). Writes the ledger entry and raises the balance in one transaction. The reason
+     * defaults to {@code MCR} and must be creditable. {@code COMPANY_ADMIN} only; a customer of
+     * another company is 404.
+     */
+    WalletTransaction creditForCustomer(CustomerCreditCommand command);
 
     /** Manual credit by a company admin. */
     WalletTransaction credit(CreditCommand command);

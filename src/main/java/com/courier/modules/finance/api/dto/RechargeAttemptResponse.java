@@ -11,6 +11,8 @@ public record RechargeAttemptResponse(
         UUID id,
         String transactionNo,
         UUID branchId,
+        @io.swagger.v3.oas.annotations.media.Schema(description = "Set instead of branchId when the recharge is a customer's")
+        UUID customerId,
         String branchCode,
         String branchName,
         BigDecimal amount,

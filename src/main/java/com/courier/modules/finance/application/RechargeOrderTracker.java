@@ -43,6 +43,31 @@ public class RechargeOrderTracker {
         return repository.save(order);
     }
 
+    /** Step 1 for a customer's recharge — same as {@link #begin} with the customer as owner. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public RechargeOrder beginForCustomer(UUID companyId, UUID walletId, UUID customerId, BigDecimal amount,
+                                          String currency, String gateway, String transactionNo) {
+        RechargeOrder order = RechargeOrder.builder()
+                .walletId(walletId).customerId(customerId).transactionNo(transactionNo)
+                .amount(amount).currency(currency).mode(RechargeMode.ONLINE).gateway(gateway)
+                .status(PaymentStatus.PENDING).build();
+        order.setCompanyId(companyId);
+        return repository.save(order);
+    }
+
+    /** A manual recharge of a customer's wallet: born {@code SUCCESS}, like {@link #recordManual}. */
+    @Transactional
+    public RechargeOrder recordManualForCustomer(UUID companyId, UUID walletId, UUID customerId,
+                                                 BigDecimal amount, String currency, String transactionNo,
+                                                 String remarks) {
+        RechargeOrder order = RechargeOrder.builder()
+                .walletId(walletId).customerId(customerId).transactionNo(transactionNo)
+                .amount(amount).currency(currency).mode(RechargeMode.MANUAL).gateway("MANUAL")
+                .status(PaymentStatus.SUCCESS).remarks(remarks).settledAt(Instant.now()).build();
+        order.setCompanyId(companyId);
+        return repository.save(order);
+    }
+
     /** A manual recharge: no gateway, so the row is born {@code SUCCESS}. Joins the caller's
      *  transaction — the recharge row and the ledger entry it leads to commit together. */
     @Transactional

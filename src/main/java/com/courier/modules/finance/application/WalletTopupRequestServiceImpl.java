@@ -1,5 +1,6 @@
 package com.courier.modules.finance.application;
 
+import com.courier.modules.finance.application.command.CustomerCreditCommand;
 import com.courier.modules.finance.application.command.CreateTopupRequestCommand;
 import com.courier.modules.finance.application.command.CreditCommand;
 import com.courier.modules.finance.domain.BranchDirectoryPort;
@@ -56,6 +57,9 @@ public class WalletTopupRequestServiceImpl implements WalletTopupRequestService 
     private static final String BRANCH_WRITERS =
             "hasAnyRole('" + Roles.COMPANY_ADMIN + "', '" + Roles.BRANCH_MANAGER + "')";
 
+    /** A customer acting on their own requests, through the customer portal. */
+    private static final String CUSTOMER_ONLY = "hasRole('" + Roles.CUSTOMER + "')";
+
     private static final Set<String> PROOF_IMAGE_EXTENSIONS = Set.of("jpg", "jpeg", "png", "webp", "heic");
 
     private final WalletTopupRequestRepository repository;
@@ -63,6 +67,7 @@ public class WalletTopupRequestServiceImpl implements WalletTopupRequestService 
     private final BranchDirectoryPort branchDirectory;
     private final AuditService auditService;
     private final FileStoragePort fileStoragePort;
+    private final CustomerWalletService customerWallets;
 
     @Override
     @Transactional
@@ -140,10 +145,15 @@ public class WalletTopupRequestServiceImpl implements WalletTopupRequestService 
                 .orElseThrow(() -> new ResourceNotFoundException(ENTITY, id));
         requirePending(request);
 
-        WalletTransaction entry = walletService.credit(new CreditCommand(
-                request.getBranchId(), request.getRequestedAmount(), SubTransactionType.MCR,
-                ReferenceType.MANUAL, request.getId().toString(),
-                "Top-up request approved" + (hasText(decisionRemarks) ? ": " + decisionRemarks.trim() : "")));
+        String creditRemarks = "Top-up request approved"
+                + (hasText(decisionRemarks) ? ": " + decisionRemarks.trim() : "");
+        WalletTransaction entry = request.getCustomerId() != null
+                ? walletService.creditForCustomer(new CustomerCreditCommand(
+                        request.getCustomerId(), request.getRequestedAmount(), SubTransactionType.MCR,
+                        ReferenceType.MANUAL, request.getId().toString(), creditRemarks))
+                : walletService.credit(new CreditCommand(
+                        request.getBranchId(), request.getRequestedAmount(), SubTransactionType.MCR,
+                        ReferenceType.MANUAL, request.getId().toString(), creditRemarks));
 
         AuthenticatedUser caller = SecurityUtils.requireCurrentUser();
         request.setStatus(TopupRequestStatus.APPROVED);
@@ -156,7 +166,7 @@ public class WalletTopupRequestServiceImpl implements WalletTopupRequestService 
         log.info("Top-up request {} approved, credited {} by {}",
                 saved.getId(), entry.getAmount().toPlainString(), currentActor());
         auditService.record(AuditAction.WALLET_TOPUP_APPROVED, ENTITY, saved.getId(),
-                Map.of("branchId", saved.getBranchId().toString(),
+                Map.of(ownerKey(saved), ownerId(saved).toString(),
                         "amount", saved.getRequestedAmount().toPlainString(),
                         "transactionNo", entry.getTransactionNo()));
 
@@ -181,7 +191,7 @@ public class WalletTopupRequestServiceImpl implements WalletTopupRequestService 
 
         log.info("Top-up request {} rejected by {}", saved.getId(), currentActor());
         auditService.record(AuditAction.WALLET_TOPUP_REJECTED, ENTITY, saved.getId(),
-                Map.of("branchId", saved.getBranchId().toString(),
+                Map.of(ownerKey(saved), ownerId(saved).toString(),
                         "amount", saved.getRequestedAmount().toPlainString()));
 
         return saved;
@@ -189,9 +199,63 @@ public class WalletTopupRequestServiceImpl implements WalletTopupRequestService 
 
     @Override
     @Transactional
+    @PreAuthorize(CUSTOMER_ONLY)
+    public WalletTopupRequest createForCustomer(UUID customerId, BigDecimal requested, String remarks,
+                                                String proofImageUrl) {
+        UUID companyId = requireCompany();
+        BigDecimal amount = requirePositiveAmount(requested);
+        String proof = requireProofImage(proofImageUrl);
+
+        Wallet wallet = customerWallets.provisionForCustomer(companyId, customerId);
+        AuthenticatedUser caller = SecurityUtils.requireCurrentUser();
+
+        WalletTopupRequest saved = repository.save(WalletTopupRequest.builder()
+                .walletId(wallet.getId())
+                .customerId(customerId)
+                .requestedAmount(amount)
+                .remarks(trimOrNull(remarks))
+                .proofImageUrl(proof)
+                .status(TopupRequestStatus.PENDING)
+                .requestedBy(caller.userId())
+                .build());
+
+        log.info("Top-up request {} raised for customer wallet {} ({} {}) by {}",
+                saved.getId(), wallet.getWalletNumber(), wallet.getCurrency(),
+                amount.toPlainString(), currentActor());
+        auditService.record(AuditAction.WALLET_TOPUP_REQUESTED, ENTITY, saved.getId(),
+                Map.of("walletNumber", wallet.getWalletNumber(),
+                        "customerId", customerId.toString(),
+                        "amount", amount.toPlainString()));
+        return saved;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize(CUSTOMER_ONLY)
+    public Page<WalletTopupRequest> searchForCustomer(UUID customerId, int page, int size) {
+        UUID companyId = requireCompany();
+        int bounded = size <= 0 ? 20 : Math.min(size, 100);
+        return repository.pageByCustomerWithinCompany(customerId, companyId,
+                org.springframework.data.domain.PageRequest.of(Math.max(page, 0), bounded,
+                        org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC,
+                                "createdAt")));
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(CUSTOMER_ONLY)
+    public String uploadProofImageForCustomer(UploadProofImageCommand command) {
+        return storeProofImage(requireCompany(), command);
+    }
+
+    @Override
+    @Transactional
     @PreAuthorize(BRANCH_WRITERS)
     public String uploadProofImage(UploadProofImageCommand command) {
-        UUID companyId = requireCompany();
+        return storeProofImage(requireCompany(), command);
+    }
+
+    private String storeProofImage(UUID companyId, UploadProofImageCommand command) {
 
         String extension = extensionOf(command.filename());
         if (!PROOF_IMAGE_EXTENSIONS.contains(extension)) {
@@ -267,6 +331,15 @@ public class WalletTopupRequestServiceImpl implements WalletTopupRequestService 
     }
 
     // ------------------------------------------------------------------ helpers
+
+    /** "branchId" or "customerId", whichever owns the request — for the audit trail. */
+    private static String ownerKey(WalletTopupRequest r) {
+        return r.getCustomerId() != null ? "customerId" : "branchId";
+    }
+
+    private static UUID ownerId(WalletTopupRequest r) {
+        return r.getCustomerId() != null ? r.getCustomerId() : r.getBranchId();
+    }
 
     private static void requirePending(WalletTopupRequest request) {
         if (!request.isPending()) {

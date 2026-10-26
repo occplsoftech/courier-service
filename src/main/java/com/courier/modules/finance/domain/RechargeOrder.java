@@ -48,9 +48,15 @@ public class RechargeOrder extends CompanyOwnedEntity {
     @Column(name = "wallet_id", columnDefinition = "BINARY(16)", nullable = false, updatable = false)
     private UUID walletId;
 
+    /** The branch the recharge is for. Null when it is a customer's (exactly one owner, see V137). */
     @JdbcTypeCode(SqlTypes.BINARY)
-    @Column(name = "branch_id", columnDefinition = "BINARY(16)", nullable = false, updatable = false)
+    @Column(name = "branch_id", columnDefinition = "BINARY(16)", updatable = false)
     private UUID branchId;
+
+    /** The customer the recharge is for. Null when it is a branch's. */
+    @JdbcTypeCode(SqlTypes.BINARY)
+    @Column(name = "customer_id", columnDefinition = "BINARY(16)", updatable = false)
+    private UUID customerId;
 
     @Column(name = "transaction_no", nullable = false, updatable = false, length = 40)
     private String transactionNo;

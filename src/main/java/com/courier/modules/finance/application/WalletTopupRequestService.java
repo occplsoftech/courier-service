@@ -43,4 +43,21 @@ public interface WalletTopupRequestService {
 
     record UploadProofImageCommand(byte[] content, String filename, String contentType) {
     }
+
+    // ------------------------------------------------------- a customer's own requests
+
+    /**
+     * The signed-in customer asks the courier company to credit their wallet (a bank transfer or
+     * cash handed over). Moves nothing; a company admin decides with {@link #approve} /
+     * {@link #reject}. The customer comes from the portal's authenticated account. Proof of
+     * payment is mandatory, like a branch's. {@code CUSTOMER} accounts only.
+     */
+    WalletTopupRequest createForCustomer(UUID customerId, java.math.BigDecimal amount, String remarks,
+                                         String proofImageUrl);
+
+    /** The customer's own requests, newest first. {@code CUSTOMER} accounts only. */
+    Page<WalletTopupRequest> searchForCustomer(UUID customerId, int page, int size);
+
+    /** {@link #uploadProofImage} for a customer. {@code CUSTOMER} accounts only. */
+    String uploadProofImageForCustomer(UploadProofImageCommand command);
 }

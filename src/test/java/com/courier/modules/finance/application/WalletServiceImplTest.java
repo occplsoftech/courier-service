@@ -87,6 +87,7 @@ class WalletServiceImplTest {
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private RechargeOrderTracker rechargeOrders;
     @Mock private RechargeOrderRepository rechargeOrderRepository;
+    @Mock private CustomerWalletService customerWallets;
 
     private WalletServiceImpl service;
     private Wallet wallet;
@@ -95,7 +96,7 @@ class WalletServiceImplTest {
     void setUp() {
         service = new WalletServiceImpl(walletRepository, transactionRepository, branchDirectory,
                 pendingCommission, paymentGatewayResolver, auditService, eventPublisher,
-                rechargeOrders, rechargeOrderRepository);
+                rechargeOrders, rechargeOrderRepository, customerWallets);
         when(paymentGatewayResolver.resolve(any())).thenReturn(paymentGateway);
         when(paymentGateway.name()).thenReturn("RAZORPAY");
         when(rechargeOrders.begin(any(), any(), any(), any(), any(), any(), any())).thenAnswer(inv -> {
