@@ -7,6 +7,8 @@ import com.courier.modules.customerportal.rates.domain.PortalBookingRepository;
 import com.courier.modules.customerportal.rates.domain.ShipmentRef;
 import com.courier.modules.customerportal.rates.domain.TrackingEvent;
 import com.courier.modules.customerportal.rates.domain.TrackingResult;
+import com.courier.modules.finance.application.WalletService;
+import com.courier.modules.finance.application.command.CustomerBookingRefundCommand;
 import com.courier.shared.company.CompanyContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -41,9 +43,12 @@ public class TrackingSyncService {
     private final List<CourierProviderAdapter> adapters;
     private final CustomerPortalProperties properties;
     private final TransactionTemplate tx;
+    private final WalletService walletService;
 
     public TrackingSyncService(PortalBookingRepository bookings, List<CourierProviderAdapter> adapters,
-                               CustomerPortalProperties properties, TransactionTemplate tx) {
+                               CustomerPortalProperties properties, TransactionTemplate tx,
+                               WalletService walletService) {
+        this.walletService = walletService;
         this.bookings = bookings;
         this.adapters = adapters;
         this.properties = properties;
@@ -134,6 +139,23 @@ public class TrackingSyncService {
     private void store(UUID id, UUID companyId, DeliveryStage stage, String text, String location, Instant at, Instant now,
                        Instant next) {
         tx.executeWithoutResult(s -> bookings.recordDelivery(id, companyId, stage, trim(text, 150), trim(location, 150), at, now, next));
+        if (stage == DeliveryStage.CANCELLED) {
+            refundCancelled(id, companyId);
+        }
+    }
+
+    /**
+     * The courier cancelled the shipment: whatever the wallet paid for it goes back. Safe to repeat and a no-op for a
+     * booking that was never paid from the wallet. A failure is logged for operations rather than failing the sync.
+     */
+    private void refundCancelled(UUID bookingId, UUID companyId) {
+        try {
+            CompanyContext.runAs(companyId, () -> walletService.refundCustomerBooking(
+                    new CustomerBookingRefundCommand(bookingId, "Courier cancelled the shipment — booking " + bookingId)));
+        } catch (RuntimeException e) {
+            log.error("Booking {} was cancelled by its courier but its wallet debit could not be refunded; "
+                    + "return the money manually", bookingId, e);
+        }
     }
 
     private void attempt(UUID id, UUID companyId, Instant now, Instant next) {

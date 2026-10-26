@@ -133,6 +133,10 @@ app:
     default-markup-percent: ${CUSTOMER_PORTAL_DEFAULT_MARKUP_PERCENT:10}
     markup-gst-percent: ${CUSTOMER_PORTAL_MARKUP_GST_PERCENT:18}
     occpl-network-gst-percent: ${CUSTOMER_PORTAL_OCCPL_NETWORK_GST_PERCENT:18}
+    # Pay portal bookings from the customer's wallet (debit before the courier call, refund if refused or cancelled).
+    # Off until customers have funded wallets. OCCPL's own network is billed at the branch and never debited here.
+    wallet-payment:
+      enabled: ${CUSTOMER_PORTAL_WALLET_PAYMENT_ENABLED:false}
     shiprocket:
       enabled: ${SHIPROCKET_ENABLED:false}
       base-url: ${SHIPROCKET_BASE_URL:https://apiv2.shiprocket.in}

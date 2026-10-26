@@ -7,6 +7,8 @@ import com.courier.modules.customerportal.rates.domain.PortalBookingRepository;
 import com.courier.modules.customerportal.rates.domain.ShipmentRef;
 import com.courier.modules.customerportal.rates.domain.TrackingEvent;
 import com.courier.modules.customerportal.rates.domain.TrackingResult;
+import com.courier.modules.finance.application.WalletService;
+import com.courier.modules.finance.application.command.CustomerBookingRefundCommand;
 import com.courier.shared.company.CompanyContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -38,13 +40,14 @@ class TrackingSyncServiceTest {
     private final CourierProviderAdapter delhivery = mock(CourierProviderAdapter.class);
     private final CustomerPortalProperties properties = new CustomerPortalProperties();
     private final AtomicReference<UUID> companySeen = new AtomicReference<>();
+    private final WalletService walletService = mock(WalletService.class);
     private TrackingSyncService service;
 
     @BeforeEach
     void setUp() {
         when(delhivery.code()).thenReturn("DELHIVERY");
         service = new TrackingSyncService(bookings, List.of(delhivery), properties,
-                new TransactionTemplate(mock(PlatformTransactionManager.class)));
+                new TransactionTemplate(mock(PlatformTransactionManager.class)), walletService);
     }
 
     private PortalBooking booked(Instant bookedAt) {
@@ -89,6 +92,50 @@ class TrackingSyncServiceTest {
 
         verify(bookings).recordDelivery(eq(b.getId()), eq(COMPANY), eq(DeliveryStage.DELIVERED), eq("Delivered"), eq("Delhi"),
                 isNull(), eq(NOW), isNull());
+    }
+
+    @Test
+    @DisplayName("a courier-cancelled shipment credits its wallet debit back, inside the booking's company")
+    void cancelledRefundsWallet() {
+        PortalBooking b = booked(NOW.minus(Duration.ofDays(1)));
+        when(bookings.findDueForTrackingSyncAcrossCompanies(eq(NOW), any())).thenReturn(List.of(b));
+        courierSays(TrackingResult.of("Cancelled", "AWB1", "Delhi", List.of()));
+        AtomicReference<UUID> refundCompany = new AtomicReference<>();
+        when(walletService.refundCustomerBooking(any())).thenAnswer(i -> {
+            refundCompany.set(CompanyContext.getCompanyId().orElse(null));
+            return List.of();
+        });
+
+        service.syncDue(NOW);
+
+        verify(walletService).refundCustomerBooking(org.mockito.ArgumentMatchers.argThat(
+                (CustomerBookingRefundCommand c) -> c.bookingId().equals(b.getId())));
+        assertThat(refundCompany.get()).isEqualTo(COMPANY);
+    }
+
+    @Test
+    @DisplayName("stages other than cancelled never touch the wallet")
+    void otherStagesDoNotRefund() {
+        PortalBooking b = booked(NOW.minus(Duration.ofDays(1)));
+        when(bookings.findDueForTrackingSyncAcrossCompanies(eq(NOW), any())).thenReturn(List.of(b));
+        courierSays(TrackingResult.of("RTO Initiated", "AWB1", "Delhi", List.of()));
+
+        service.syncDue(NOW);
+
+        verify(walletService, never()).refundCustomerBooking(any());
+    }
+
+    @Test
+    @DisplayName("a refund that fails is logged and does not fail the sync")
+    void refundFailureDoesNotBreakSync() {
+        PortalBooking b = booked(NOW.minus(Duration.ofDays(1)));
+        when(bookings.findDueForTrackingSyncAcrossCompanies(eq(NOW), any())).thenReturn(List.of(b));
+        courierSays(TrackingResult.of("Cancelled", "AWB1", "Delhi", List.of()));
+        when(walletService.refundCustomerBooking(any())).thenThrow(new IllegalStateException("db down"));
+
+        assertThat(service.syncDue(NOW)).isEqualTo(1);
+
+        verify(bookings, never()).recordSyncAttempt(any(), any(), any(), any());
     }
 
     @Test

@@ -1,6 +1,8 @@
 package com.courier.modules.finance.api;
 
 import com.courier.modules.finance.application.command.CustomerCreditCommand;
+import com.courier.modules.finance.application.command.CustomerDebitCommand;
+import com.courier.modules.finance.api.dto.CustomerWalletDebitRequest;
 import com.courier.modules.finance.api.dto.CustomerWalletCreditRequest;
 import com.courier.modules.finance.api.dto.CustomerWalletResponse;
 import com.courier.modules.finance.api.dto.WalletTransactionResponse;
@@ -55,6 +57,19 @@ public class CustomerWalletController {
         return ApiResponse.success(mapper.toResponse(walletService.creditForCustomer(
                 new CustomerCreditCommand(customerId, request.amount(), request.subTransactionType(),
                         ReferenceType.MANUAL, request.referenceId(), request.remarks()))), "Wallet credited");
+    }
+
+    @PostMapping("/debit")
+    @Operation(summary = "Debit a customer's wallet",
+            description = "`COMPANY_ADMIN` only. Writes a DR entry and lowers the balance in one "
+                    + "transaction (a correction, or a charge raised outside the portal). The reason "
+                    + "defaults to MDB and must be debitable. Refused when the balance is short "
+                    + "(no overdraft). 404 for a customer of another company.")
+    public ApiResponse<WalletTransactionResponse> debit(@PathVariable UUID customerId,
+                                                        @Valid @RequestBody CustomerWalletDebitRequest request) {
+        return ApiResponse.success(mapper.toResponse(walletService.debitForCustomer(
+                new CustomerDebitCommand(customerId, request.amount(), request.subTransactionType(),
+                        ReferenceType.MANUAL, request.referenceId(), request.remarks()))), "Wallet debited");
     }
 
     @GetMapping("/transactions")
