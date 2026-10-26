@@ -15,6 +15,8 @@ public record TopupRequestResponse(
         UUID companyId,
         UUID walletId,
         UUID branchId,
+        @io.swagger.v3.oas.annotations.media.Schema(description = "Set instead of branchId when the request is a customer's")
+        UUID customerId,
 
         BigDecimal requestedAmount,
         String remarks,

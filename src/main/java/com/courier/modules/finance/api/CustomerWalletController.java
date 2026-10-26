@@ -1,8 +1,15 @@
 package com.courier.modules.finance.api;
 
+import com.courier.modules.finance.application.command.CustomerCreditCommand;
+import com.courier.modules.finance.api.dto.CustomerWalletCreditRequest;
 import com.courier.modules.finance.api.dto.CustomerWalletResponse;
 import com.courier.modules.finance.api.dto.WalletTransactionResponse;
 import com.courier.modules.finance.application.CustomerWalletService;
+import com.courier.modules.finance.application.WalletService;
+import com.courier.modules.finance.domain.ReferenceType;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import com.courier.shared.api.ApiResponse;
 import com.courier.shared.api.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -26,6 +33,7 @@ import java.util.UUID;
 public class CustomerWalletController {
 
     private final CustomerWalletService service;
+    private final WalletService walletService;
     private final WalletMapper mapper;
 
     @GetMapping
@@ -35,6 +43,18 @@ public class CustomerWalletController {
                     + "of another company.")
     public ApiResponse<CustomerWalletResponse> wallet(@PathVariable UUID customerId) {
         return ApiResponse.success(CustomerWalletResponse.of(service.getForCustomer(customerId)));
+    }
+
+    @PostMapping("/credit")
+    @Operation(summary = "Credit a customer's wallet",
+            description = "`COMPANY_ADMIN` only. Writes a CR entry and raises the balance in one "
+                    + "transaction (for example a bank transfer received). The reason defaults to "
+                    + "MCR and must be creditable. 404 for a customer of another company.")
+    public ApiResponse<WalletTransactionResponse> credit(@PathVariable UUID customerId,
+                                                         @Valid @RequestBody CustomerWalletCreditRequest request) {
+        return ApiResponse.success(mapper.toResponse(walletService.creditForCustomer(
+                new CustomerCreditCommand(customerId, request.amount(), request.subTransactionType(),
+                        ReferenceType.MANUAL, request.referenceId(), request.remarks()))), "Wallet credited");
     }
 
     @GetMapping("/transactions")

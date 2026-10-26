@@ -1,5 +1,7 @@
 package com.courier.modules.finance.application;
 
+import com.courier.modules.finance.application.command.CustomerRechargeOrderCommand;
+import com.courier.modules.finance.application.command.CustomerCreditCommand;
 import com.courier.modules.finance.application.command.BookingDebitCommand;
 import com.courier.modules.finance.application.command.CodDeliveryDebitCommand;
 import com.courier.modules.finance.application.command.CommissionCreditCommand;
@@ -91,6 +93,39 @@ public class WalletServiceImpl implements WalletService {
     private static final String COMPANY_ADMIN_ONLY = "hasRole('" + Roles.COMPANY_ADMIN + "')";
     private static final String AUTHENTICATED = "isAuthenticated()";
 
+    /** A customer acting on their own wallet, through the customer portal. The portal passes the
+     *  customer it authenticated; this gate is the second lock, so a staff token can never reach
+     *  these entry points even if one were wired to a controller by mistake. */
+    private static final String CUSTOMER_ONLY = "hasRole('" + Roles.CUSTOMER + "')";
+
+    /**
+     * Whose wallet a money path is acting on: a branch's or a customer's, never both. The branch
+     * paths build {@link #branch}; the customer paths build {@link #customer}. Everything after
+     * the wallet is located — the row lock, {@link #post}, the audit and the events — is shared.
+     */
+    private record Owner(UUID branchId, UUID customerId) {
+
+        static Owner branch(UUID branchId) {
+            return new Owner(branchId, null);
+        }
+
+        static Owner customer(UUID customerId) {
+            return new Owner(null, customerId);
+        }
+
+        static Owner of(RechargeOrder order) {
+            return order.getCustomerId() != null ? customer(order.getCustomerId()) : branch(order.getBranchId());
+        }
+
+        boolean isCustomer() {
+            return customerId != null;
+        }
+
+        UUID id() {
+            return isCustomer() ? customerId : branchId;
+        }
+    }
+
     /** Company-wide financial reach — restricted to the two roles the Finance Report's
      *  nav entry itself is gated on, not every company user with wallet read access. */
     private static final String FINANCE_READERS = "hasAnyRole('" + Roles.COMPANY_ADMIN
@@ -122,6 +157,7 @@ public class WalletServiceImpl implements WalletService {
     private final ApplicationEventPublisher eventPublisher;
     private final RechargeOrderTracker rechargeOrders;
     private final RechargeOrderRepository rechargeOrderRepository;
+    private final CustomerWalletService customerWallets;
 
     // ------------------------------------------------------------- provisioning
 
@@ -308,19 +344,42 @@ public class WalletServiceImpl implements WalletService {
         Wallet wallet = getOrCreateForBranch(branchId);
         requireOperational(wallet);
 
-        BigDecimal amount = requirePositiveAmount(command.amount());
+        return startRecharge(companyId, paymentGateway, wallet, Owner.branch(branchId), command.amount());
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(CUSTOMER_ONLY)
+    public PaymentGatewayPort.GatewayOrder openRechargeForCustomer(CustomerRechargeOrderCommand command) {
+        UUID companyId = requireCompany();
+        UUID customerId = command.customerId();
+        PaymentGatewayPort paymentGateway = paymentGatewayResolver.resolve(companyId);
+        Wallet wallet = customerWallets.provisionForCustomer(companyId, customerId);
+        requireOperational(wallet);
+
+        return startRecharge(companyId, paymentGateway, wallet, Owner.customer(customerId), command.amount());
+    }
+
+    /** Steps shared by a branch's and a customer's recharge once the wallet is known. */
+    private PaymentGatewayPort.GatewayOrder startRecharge(UUID companyId, PaymentGatewayPort paymentGateway,
+                                                          Wallet wallet, Owner owner, BigDecimal requested) {
+        BigDecimal amount = requirePositiveAmount(requested);
 
         // Our own record first, with our own transaction number — committed before the
         // gateway is called, so an attempt is never lost to a gateway timeout or a crash,
         // and the number is the gateway receipt. It is a recharge-order row, deliberately not
         // a ledger entry: a ledger entry is a record of money that moved (see V102).
         String transactionNo = WalletNumberGenerator.transactionNumber();
-        RechargeOrder attempt = rechargeOrders.begin(companyId, wallet.getId(), branchId, amount,
-                wallet.getCurrency(), paymentGateway.name(), transactionNo);
+        RechargeOrder attempt = owner.isCustomer()
+                ? rechargeOrders.beginForCustomer(companyId, wallet.getId(), owner.customerId(), amount,
+                        wallet.getCurrency(), paymentGateway.name(), transactionNo)
+                : rechargeOrders.begin(companyId, wallet.getId(), owner.branchId(), amount,
+                        wallet.getCurrency(), paymentGateway.name(), transactionNo);
 
+        // The gateway echoes these notes back on the webhook; the webhook finds the wallet from them.
         Map<String, String> notes = new HashMap<>();
         notes.put("walletNumber", wallet.getWalletNumber());
-        notes.put("branchId", branchId.toString());
+        notes.put(owner.isCustomer() ? "customerId" : "branchId", owner.id().toString());
         notes.put("companyId", companyId.toString());
         notes.put("transactionNo", transactionNo);
 
@@ -354,9 +413,28 @@ public class WalletServiceImpl implements WalletService {
         PaymentGatewayPort paymentGateway = paymentGatewayResolver.resolve(companyId);
         UUID branchId = resolveBranchForWrite(command.branchId(), companyId);
 
-        String paymentId = required(command.paymentReference(), "paymentReference");
-        String orderId = required(command.gatewayOrderId(), "gatewayOrderId");
-        String signature = required(command.signature(), "signature");
+        return completeFor(companyId, paymentGateway, Owner.branch(branchId), command.paymentReference(),
+                command.gatewayOrderId(), command.signature(), command.remarks());
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(CUSTOMER_ONLY)
+    public WalletTransaction completeRechargeForCustomer(UUID customerId, String gatewayOrderId,
+                                                         String paymentReference, String signature) {
+        UUID companyId = requireCompany();
+        PaymentGatewayPort paymentGateway = paymentGatewayResolver.resolve(companyId);
+        return completeFor(companyId, paymentGateway, Owner.customer(customerId), paymentReference,
+                gatewayOrderId, signature, null);
+    }
+
+    /** Step two of a recharge, once the owner is known. The credited amount comes from the gateway. */
+    private WalletTransaction completeFor(UUID companyId, PaymentGatewayPort paymentGateway, Owner owner,
+                                          String paymentReference, String gatewayOrderId, String signatureValue,
+                                          String remarks) {
+        String paymentId = required(paymentReference, "paymentReference");
+        String orderId = required(gatewayOrderId, "gatewayOrderId");
+        String signature = required(signatureValue, "signature");
 
         // Idempotency, before anything else. A client that retries, a double-submitted
         // form and a webhook that fires twice must all credit the wallet exactly once.
@@ -383,8 +461,8 @@ public class WalletServiceImpl implements WalletService {
         //    client — and post it. Shared with the webhook path below, whose own
         //    authenticity check (the whole-payload webhook signature) happens before this
         //    is ever called, not via a per-payment HMAC.
-        return settlePayment(companyId, branchId, paymentGateway, orderId, paymentId,
-                command.remarks(), currentActor());
+        return settlePayment(companyId, owner, paymentGateway, orderId, paymentId,
+                remarks, currentActor());
     }
 
     /**
@@ -411,7 +489,17 @@ public class WalletServiceImpl implements WalletService {
     public WalletTransaction settleFromWebhook(UUID companyId, UUID branchId,
                                                String gatewayOrderId, String paymentId) {
         PaymentGatewayPort paymentGateway = paymentGatewayResolver.resolve(companyId);
-        return settlePayment(companyId, branchId, paymentGateway, gatewayOrderId, paymentId,
+        return settlePayment(companyId, Owner.branch(branchId), paymentGateway, gatewayOrderId, paymentId,
+                "Settled via gateway webhook — browser did not confirm", "webhook");
+    }
+
+    /** {@link #settleFromWebhook} for a customer's recharge. Same rules, same caller restrictions. */
+    @Override
+    @Transactional
+    public WalletTransaction settleFromWebhookForCustomer(UUID companyId, UUID customerId,
+                                                          String gatewayOrderId, String paymentId) {
+        PaymentGatewayPort paymentGateway = paymentGatewayResolver.resolve(companyId);
+        return settlePayment(companyId, Owner.customer(customerId), paymentGateway, gatewayOrderId, paymentId,
                 "Settled via gateway webhook — browser did not confirm", "webhook");
     }
 
@@ -421,7 +509,7 @@ public class WalletServiceImpl implements WalletService {
      * webhook that fires after (or before) the browser confirmation all credit the wallet
      * exactly once, whichever caller gets there first.
      */
-    private WalletTransaction settlePayment(UUID companyId, UUID branchId,
+    private WalletTransaction settlePayment(UUID companyId, Owner owner,
                                             PaymentGatewayPort paymentGateway,
                                             String orderId, String paymentId,
                                             String remarks, String actor) {
@@ -451,7 +539,7 @@ public class WalletServiceImpl implements WalletService {
             throw new BusinessRuleException("The payment does not belong to that order.");
         }
 
-        Wallet wallet = lockOrThrow(branchId, companyId);
+        Wallet wallet = lockOwned(owner, companyId);
         requireOperational(wallet);
         if (payment.currency() != null && !payment.currency().equalsIgnoreCase(wallet.getCurrency())) {
             throw new BusinessRuleException(
@@ -476,7 +564,7 @@ public class WalletServiceImpl implements WalletService {
                         "paymentReference", paymentId,
                         "balanceAfter", entry.getBalanceAfter().toPlainString()));
         eventPublisher.publishEvent(new WalletEvent.WalletRecharged(
-                wallet.getId(), companyId, branchId, entry.getId(), payment.gateway(), paymentId,
+                wallet.getId(), companyId, owner.branchId(), entry.getId(), payment.gateway(), paymentId,
                 payment.amount(), entry.getBalanceAfter(), Instant.now()));
 
         return entry;
@@ -493,7 +581,9 @@ public class WalletServiceImpl implements WalletService {
                 .orElseThrow(() -> new ResourceNotFoundException(ENTITY, rechargeOrderId));
         boolean companyWide = isAdmin(caller) || caller.hasRole(
                 com.courier.modules.company.domain.DefaultRoleCatalog.FINANCE_USER);
-        if (!companyWide && !ownBranch(caller, companyId).filter(order.getBranchId()::equals).isPresent()) {
+        // A customer's recharge has no branch: only company-wide staff may check it.
+        if (!companyWide && (order.getBranchId() == null
+                || !ownBranch(caller, companyId).filter(order.getBranchId()::equals).isPresent())) {
             throw new ResourceNotFoundException(ENTITY, rechargeOrderId);
         }
         reconcileRecharge(order.getId());
@@ -545,7 +635,7 @@ public class WalletServiceImpl implements WalletService {
         Optional<PaymentGatewayPort.OrderPayment> captured =
                 payments.stream().filter(PaymentGatewayPort.OrderPayment::captured).findFirst();
         if (captured.isPresent()) {
-            settlePayment(companyId, order.getBranchId(), gateway, order.getGatewayOrderId(),
+            settlePayment(companyId, Owner.of(order), gateway, order.getGatewayOrderId(),
                     captured.get().paymentId(), "Settled by reconciliation — no confirmation reached us",
                     "scheduler");
             return;
@@ -571,25 +661,49 @@ public class WalletServiceImpl implements WalletService {
         UUID companyId = requireCompany();
         UUID branchId = resolveBranchForWrite(command.branchId(), companyId);
 
-        BigDecimal amount = requirePositiveAmount(command.amount());
-        SubTransactionType reason = command.subTransactionType() == null
-                ? SubTransactionType.MCR : command.subTransactionType();
+        return creditOwned(companyId, Owner.branch(branchId), command.amount(), command.subTransactionType(),
+                command.referenceType(), command.referenceId(), command.remarks());
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(COMPANY_ADMIN_ONLY)
+    public WalletTransaction creditForCustomer(CustomerCreditCommand command) {
+        UUID companyId = requireCompany();
+        UUID customerId = command.customerId();
+        // 404 for a customer of another company, and opens the wallet of one that predates wallets.
+        customerWallets.getForCustomer(customerId);
+
+        return creditOwned(companyId, Owner.customer(customerId), command.amount(), command.subTransactionType(),
+                command.referenceType(), command.referenceId(), command.remarks());
+    }
+
+    /** A manual credit once the owner is known. Shared by a branch's and a customer's wallet. */
+    private WalletTransaction creditOwned(UUID companyId, Owner owner, BigDecimal requested,
+                                          SubTransactionType requestedReason, ReferenceType referenceType,
+                                          String referenceId, String remarks) {
+        BigDecimal amount = requirePositiveAmount(requested);
+        SubTransactionType reason = requestedReason == null ? SubTransactionType.MCR : requestedReason;
         reason.requireSupports(TransactionType.CR);
 
-        Wallet wallet = lockOrThrow(branchId, companyId);
+        Wallet wallet = lockOwned(owner, companyId);
         requireOperational(wallet);
 
         // A manual recharge is recorded in the recharge table first (born SUCCESS), then the
         // ledger entry is written — same order as an online one. Other manual credit reasons
         // (commission, adjustment...) are not recharges and touch only the ledger.
-        RechargeOrder manualRecharge = reason == SubTransactionType.MCR
-                ? rechargeOrders.recordManual(companyId, wallet.getId(), branchId, amount,
-                        wallet.getCurrency(), nextTransactionNumber(), command.remarks())
-                : null;
+        RechargeOrder manualRecharge = null;
+        if (reason == SubTransactionType.MCR) {
+            manualRecharge = owner.isCustomer()
+                    ? rechargeOrders.recordManualForCustomer(companyId, wallet.getId(), owner.customerId(), amount,
+                            wallet.getCurrency(), nextTransactionNumber(), remarks)
+                    : rechargeOrders.recordManual(companyId, wallet.getId(), owner.branchId(), amount,
+                            wallet.getCurrency(), nextTransactionNumber(), remarks);
+        }
 
         WalletTransaction entry = post(wallet, companyId, TransactionType.CR, reason, amount,
-                command.referenceType() == null ? ReferenceType.MANUAL : command.referenceType(),
-                command.referenceId(), command.remarks(), null, null);
+                referenceType == null ? ReferenceType.MANUAL : referenceType,
+                referenceId, remarks, null, null);
         if (manualRecharge != null) {
             rechargeOrders.linkLedger(manualRecharge.getId(), entry.getId());
         }
@@ -599,7 +713,7 @@ public class WalletServiceImpl implements WalletService {
         auditService.record(AuditAction.WALLET_CREDITED, ENTITY, wallet.getId(),
                 ledgerDetails(wallet, entry));
         eventPublisher.publishEvent(new WalletEvent.WalletCredited(
-                wallet.getId(), companyId, branchId, entry.getId(), reason, amount,
+                wallet.getId(), companyId, owner.branchId(), entry.getId(), reason, amount,
                 entry.getBalanceAfter(), Instant.now()));
 
         return entry;
@@ -1050,6 +1164,17 @@ public class WalletServiceImpl implements WalletService {
     }
 
     // ------------------------------------------------------------------ helpers
+
+    /** Locks the wallet of whichever owner this is, creating a customer's if it does not exist yet. */
+    private Wallet lockOwned(Owner owner, UUID companyId) {
+        if (!owner.isCustomer()) {
+            return lockOrThrow(owner.branchId(), companyId);
+        }
+        // Ensure the wallet exists before taking the row lock, for the same reason as lockOrThrow.
+        customerWallets.provisionForCustomer(companyId, owner.customerId());
+        return walletRepository.lockByCustomerIdWithinCompany(owner.customerId(), companyId)
+                .orElseThrow(() -> new ResourceNotFoundException(ENTITY, owner.customerId()));
+    }
 
     private Wallet lockOrThrow(UUID branchId, UUID companyId) {
         // Ensure the wallet exists before taking the row lock — FOR UPDATE on no rows

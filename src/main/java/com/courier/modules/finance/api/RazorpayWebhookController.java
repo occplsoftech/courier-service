@@ -106,17 +106,24 @@ public class RazorpayWebhookController {
         JsonNode notes = entity.path("notes");
         UUID companyId = uuidOrNull(notes, "companyId");
         UUID branchId = uuidOrNull(notes, "branchId");
+        // A customer's recharge carries customerId instead of branchId (see WalletServiceImpl.startRecharge).
+        UUID customerId = uuidOrNull(notes, "customerId");
 
-        if (paymentId == null || orderId == null || companyId == null || branchId == null) {
+        if (paymentId == null || orderId == null || companyId == null || (branchId == null && customerId == null)) {
             // Most likely an order this platform never opened (someone else's Razorpay
             // account sharing the same webhook URL by mistake) — nothing to settle.
-            log.warn("Razorpay payment.captured missing paymentId/orderId/companyId/branchId; ignoring");
+            log.warn("Razorpay payment.captured missing paymentId/orderId/companyId/branchId-or-customerId; ignoring");
             return ResponseEntity.ok().build();
         }
 
         try {
-            CompanyContext.runAs(companyId, () ->
-                    walletService.settleFromWebhook(companyId, branchId, orderId, paymentId));
+            CompanyContext.runAs(companyId, () -> {
+                if (branchId != null) {
+                    walletService.settleFromWebhook(companyId, branchId, orderId, paymentId);
+                } else {
+                    walletService.settleFromWebhookForCustomer(companyId, customerId, orderId, paymentId);
+                }
+            });
         } catch (BusinessRuleException e) {
             // A deterministic refusal (already recorded, wallet inactive, currency
             // mismatch...) — retrying will not change the outcome, so acknowledge it.

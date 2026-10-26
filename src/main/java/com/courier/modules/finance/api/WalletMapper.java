@@ -72,10 +72,10 @@ public class WalletMapper {
 
     public com.courier.modules.finance.api.dto.RechargeAttemptResponse toAttemptResponse(
             com.courier.modules.finance.domain.RechargeOrder o) {
-        BranchDirectoryPort.BranchRef branch =
-                branchDirectory.findBranch(o.getBranchId(), o.getCompanyId()).orElse(null);
+        BranchDirectoryPort.BranchRef branch = o.getBranchId() == null ? null
+                : branchDirectory.findBranch(o.getBranchId(), o.getCompanyId()).orElse(null);
         return new com.courier.modules.finance.api.dto.RechargeAttemptResponse(
-                o.getId(), o.getTransactionNo(), o.getBranchId(),
+                o.getId(), o.getTransactionNo(), o.getBranchId(), o.getCustomerId(),
                 branch == null ? null : branch.branchCode(),
                 branch == null ? null : branch.branchName(),
                 o.getAmount(), o.getCurrency(), o.getMode().name(), o.getGateway(), o.getGatewayOrderId(),

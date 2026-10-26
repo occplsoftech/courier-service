@@ -8,6 +8,34 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-26 — Customer wallets, part 2: money in (online recharge, top-up requests, manual credit)
+
+Second of four parts (see `MEMORY/modules/customer-wallet.md`). A customer's wallet can now be filled the same ways a branch wallet can.
+
+- **Schema (`V137`)**: `wallet_recharge_orders` and `wallet_topup_requests` get a nullable `branch_id`, a `customer_id`, and a CHECK
+  allowing exactly one owner. Existing rows (all branch) are unchanged.
+- **Online recharge (Razorpay)**: `WalletService.openRechargeForCustomer` / `completeRechargeForCustomer` / `settleFromWebhookForCustomer`.
+  Same rules as a branch's: the amount is fixed at the gateway, the gateway's figure is credited (not the client's), a payment settles once
+  (idempotent on the payment id), the webhook and the scheduler reconciliation settle what the browser never confirmed. The gateway order
+  notes carry `customerId` instead of `branchId`, and `RazorpayWebhookController` routes on whichever is present.
+- **Manual credit**: `WalletService.creditForCustomer` (`COMPANY_ADMIN`): an `MCR` credit is a recharge row first, then a ledger entry, like a
+  branch's. A customer of another company is 404.
+- **Top-up requests**: a customer raises one with proof of payment (`createForCustomer`, `searchForCustomer`, `uploadProofImageForCustomer`);
+  approving it credits the customer's wallet (`creditForCustomer`), rejecting it moves nothing. The existing approve/reject/list endpoints work
+  for both kinds; responses carry `customerId` (and `branchId` null).
+- **API**: `POST /customer-portal/wallet/recharge/order`, `POST /customer-portal/wallet/recharge`, `POST /customer-portal/wallet/topup-requests`
+  (+ `/upload-proof`), `GET /customer-portal/wallet/topup-requests`; staff `POST /customers/{id}/wallet/credit`.
+- **How it reuses the branch code**: `WalletServiceImpl` shares one internal `Owner` (branch or customer) through open / complete / settle /
+  reconcile / credit, so everything after the wallet is located (row lock, `post`, audit, events) is the branch code, unchanged. The 43
+  existing `WalletServiceImplTest` cases pass unmodified apart from the new constructor argument.
+- Guards: customer-initiated entry points are `@PreAuthorize("hasRole('CUSTOMER')")` and only take the customer the portal authenticated;
+  `checkRechargeAttempt` no longer assumes a branch (company-wide staff only for a customer's attempt).
+- Tests: `CustomerWalletMoneyInTest` (20), `WalletTopupRequestServiceImplTest` (11), `RazorpayWebhookControllerTest` (5).
+  **Not run here: the MySQL migration `V137` (two tables) and anything needing a database or a live Razorpay account.**
+- Not in this part: debits (paying for a portal booking, refunds on cancel, manual debit), the portal and staff screens (parts 3 and 4).
+
+---
+
 ## 2026-10-26 — Customer wallets, part 1: ownership, automatic wallet for business customers, balance and ledger reads
 
 First of four parts of "a customer gets a wallet with everything a branch wallet has" (see `MEMORY/modules/customer-wallet.md`).
