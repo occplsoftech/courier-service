@@ -51,11 +51,14 @@ import java.util.UUID;
         uniqueConstraints = {
                 @UniqueConstraint(name = "uk_wallets_company_branch",
                         columnNames = {"company_id", "branch_id"}),
+                @UniqueConstraint(name = "uk_wallets_company_customer",
+                        columnNames = {"company_id", "customer_id"}),
                 @UniqueConstraint(name = "uk_wallets_number",
                         columnNames = {"wallet_number"})
         },
         indexes = {
                 @Index(name = "idx_wallets_branch", columnList = "branch_id"),
+                @Index(name = "idx_wallets_customer", columnList = "customer_id"),
                 @Index(name = "idx_wallets_company_status", columnList = "company_id, status")
         })
 // Repeated deliberately: Hibernate does not inherit @Filter from a @MappedSuperclass.
@@ -78,10 +81,22 @@ public class Wallet extends CompanyOwnedEntity {
     @Column(name = "wallet_number", nullable = false, updatable = false, length = 30)
     private String walletNumber;
 
-    /** The owning branch. One wallet per branch; never reassigned. */
+    /** Who owns the wallet. Fixed for its life; see {@link WalletOwnerType}. */
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "owner_type", nullable = false, updatable = false, length = 10)
+    @Builder.Default
+    private WalletOwnerType ownerType = WalletOwnerType.BRANCH;
+
+    /** The owning branch. One wallet per branch; never reassigned. Null on a customer wallet. */
     @JdbcTypeCode(SqlTypes.BINARY)
-    @Column(name = "branch_id", columnDefinition = "BINARY(16)", nullable = false, updatable = false)
+    @Column(name = "branch_id", columnDefinition = "BINARY(16)", updatable = false)
     private UUID branchId;
+
+    /** The owning customer. One wallet per customer; never reassigned. Null on a branch wallet. */
+    @JdbcTypeCode(SqlTypes.BINARY)
+    @Column(name = "customer_id", columnDefinition = "BINARY(16)", updatable = false)
+    private UUID customerId;
 
     @Setter
     @Enumerated(EnumType.STRING)
@@ -113,6 +128,29 @@ public class Wallet extends CompanyOwnedEntity {
 
     public boolean isActive() {
         return status != null && status.isOperational();
+    }
+
+    public boolean isCustomerWallet() {
+        return ownerType == WalletOwnerType.CUSTOMER;
+    }
+
+    /**
+     * A new, empty, active wallet for a customer. The one way to build a customer wallet, so
+     * the "customer set, branch null" shape the database CHECK requires cannot be got wrong.
+     */
+    public static Wallet forCustomer(UUID customerId, String walletNumber) {
+        if (customerId == null) {
+            throw new BusinessRuleException("A customer wallet needs a customer.");
+        }
+        return Wallet.builder()
+                .ownerType(WalletOwnerType.CUSTOMER)
+                .customerId(customerId)
+                .walletNumber(walletNumber)
+                .status(WalletStatus.ACTIVE)
+                .availableBalance(ZERO)
+                .holdBalance(ZERO)
+                .currency(DEFAULT_CURRENCY)
+                .build();
     }
 
     /**

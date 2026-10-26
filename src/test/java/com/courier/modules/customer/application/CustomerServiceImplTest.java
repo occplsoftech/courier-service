@@ -48,12 +48,13 @@ class CustomerServiceImplTest {
 
     @Mock private CustomerRepository repository;
     @Mock private AuditService auditService;
+    @Mock private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     private CustomerServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new CustomerServiceImpl(repository, auditService);
+        service = new CustomerServiceImpl(repository, auditService, eventPublisher);
         CompanyContext.setCompanyId(COMPANY);
         signedIn(Roles.COMPANY_ADMIN);
 
@@ -74,6 +75,32 @@ class CustomerServiceImplTest {
         Customer created = service.create(command(null, CustomerType.INDIVIDUAL, "9876543210", null));
 
         assertThat(created.getCustomerCode()).isNotBlank().startsWith("CUST");
+    }
+
+    @Test
+    @DisplayName("creating a customer publishes CustomerCreated, with the type the wallet rule reads")
+    void publishesCustomerCreated() {
+        service.create(command(null, CustomerType.BUSINESS, "9876543210", "27ABCDE1234F1Z5"));
+
+        org.mockito.ArgumentCaptor<Object> event = org.mockito.ArgumentCaptor.forClass(Object.class);
+        verify(eventPublisher).publishEvent(event.capture());
+        assertThat(event.getValue()).isInstanceOfSatisfying(
+                com.courier.modules.customer.application.event.CustomerEvent.CustomerCreated.class, e -> {
+                    assertThat(e.companyId()).isEqualTo(COMPANY);
+                    assertThat(e.customerType()).isEqualTo(CustomerType.BUSINESS);
+                    assertThat(e.customerCode()).startsWith("CUST");
+                });
+    }
+
+    @Test
+    @DisplayName("a refused create publishes nothing")
+    void refusedCreatePublishesNothing() {
+        when(repository.isCodeTaken(COMPANY, "DUP", null)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.create(command("DUP", CustomerType.INDIVIDUAL, "9876543210", null)))
+                .isInstanceOf(DuplicateResourceException.class);
+
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 
     @Test

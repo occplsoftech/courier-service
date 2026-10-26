@@ -22,6 +22,8 @@ public class WalletEventListener {
         String detail = switch (event) {
             case WalletEvent.WalletCreated e ->
                     "created %s for branch %s".formatted(e.walletNumber(), e.branchId());
+            case WalletEvent.CustomerWalletCreated e ->
+                    "created %s for customer %s".formatted(e.walletNumber(), e.customerId());
             case WalletEvent.WalletCredited e ->
                     "credited %s (%s), balance %s".formatted(e.amount(), e.reason(), e.balanceAfter());
             case WalletEvent.WalletDebited e ->

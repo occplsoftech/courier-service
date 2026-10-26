@@ -98,8 +98,8 @@ public class WalletMapper {
     }
 
     public WalletResponse toResponse(Wallet w) {
-        BranchDirectoryPort.BranchRef branch =
-                branchDirectory.findBranch(w.getBranchId(), w.getCompanyId()).orElse(null);
+        BranchDirectoryPort.BranchRef branch = w.getBranchId() == null ? null
+                : branchDirectory.findBranch(w.getBranchId(), w.getCompanyId()).orElse(null);
         return new WalletResponse(
                 w.getId(), w.getCompanyId(), w.getWalletNumber(), w.getBranchId(),
                 branch == null ? null : branch.branchCode(),
@@ -135,7 +135,7 @@ public class WalletMapper {
     public WalletTransactionResponse toRechargeReportRow(WalletTransaction t) {
         Wallet wallet = walletRepository.findByIdWithinCompany(t.getWalletId(), t.getCompanyId())
                 .orElse(null);
-        BranchDirectoryPort.BranchRef branch = wallet == null ? null
+        BranchDirectoryPort.BranchRef branch = wallet == null || wallet.getBranchId() == null ? null
                 : branchDirectory.findBranch(wallet.getBranchId(), t.getCompanyId()).orElse(null);
         return toResponse(t, wallet == null ? null : wallet.getBranchId(),
                 branch == null ? null : branch.branchCode(),

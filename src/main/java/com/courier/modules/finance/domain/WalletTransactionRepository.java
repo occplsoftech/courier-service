@@ -30,6 +30,13 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
     Optional<WalletTransaction> findByIdWithinCompany(@Param("id") UUID id,
                                                      @Param("companyId") UUID companyId);
 
+    /** One wallet's statement, newest first by the caller's {@code Pageable}. The company
+     *  predicate is explicit, like every single-wallet read here. */
+    @Query("select t from WalletTransaction t where t.walletId = :walletId and t.companyId = :companyId")
+    org.springframework.data.domain.Page<WalletTransaction> pageByWalletWithinCompany(
+            @Param("walletId") UUID walletId, @Param("companyId") UUID companyId,
+            org.springframework.data.domain.Pageable pageable);
+
     Optional<WalletTransaction> findByTransactionNo(String transactionNo);
 
     boolean existsByTransactionNo(String transactionNo);

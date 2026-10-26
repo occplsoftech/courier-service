@@ -8,6 +8,32 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-26 — Customer wallets, part 1: ownership, automatic wallet for business customers, balance and ledger reads
+
+First of four parts of "a customer gets a wallet with everything a branch wallet has" (see `MEMORY/modules/customer-wallet.md`).
+
+- **Schema (`V136`)**: `wallets.branch_id` is nullable; new `owner_type` (`BRANCH` default | `CUSTOMER`) and `customer_id`
+  (FK to `customers`, unique per company). A CHECK allows only "branch set, customer null" or "customer set, branch null".
+  Existing rows are branch wallets and are unchanged. No backfill: a customer without a wallet gets one on first access.
+- **Automatic wallet**: `CustomerService.create` publishes `CustomerEvent.CustomerCreated`; Finance's
+  `CustomerWalletProvisioningListener` (AFTER_COMMIT, REQUIRES_NEW, never fails the customer) opens the wallet for
+  **BUSINESS customers only**. Individual customers, including the ones `findOrCreateForBooking` makes for every sender and
+  receiver, get none by default.
+- **Service**: `CustomerWalletService` / `CustomerWalletServiceImpl` — `provisionForCustomer` (idempotent, no `@PreAuthorize`,
+  internal), `getForCustomer` and `ledgerForCustomer` (`COMPANY_ADMIN`/`FINANCE_USER`, 404 for another company's customer),
+  `ledgerOfWallet` (company-checked, newest first, size capped at 100). No method changes a balance.
+- **API**: `GET /api/v1/customers/{id}/wallet` and `/wallet/transactions` (staff); `GET /api/v1/customer-portal/wallet` and
+  `/wallet/transactions` (the signed-in customer's own wallet; the customer id never comes from the request).
+- **Branch figures unchanged**: the Company Overview "Total Wallet Balance" and "Low Wallet Balance" tiles now count branch wallets
+  only (`ownerType = BRANCH`); customer wallets are excluded. `WalletMapper` tolerates a wallet with no branch.
+- Tests: `CustomerWalletTest`, `CustomerWalletServiceImplTest`, `CustomerWalletProvisioningListenerTest`, and two new cases in
+  `CustomerServiceImplTest`. **Not run here: the MySQL integration tests (no Docker in the authoring session) — the `V136` migration
+  in particular needs `mvn verify` / CI to confirm.**
+- Not in this part (next PRs): recharge (Razorpay) and top-up requests, paying for portal bookings from the wallet and refunds on
+  cancel, the e-commerce portal wallet page and the staff-app customer wallet tab.
+
+---
+
 ## 2026-10-22 — Fix: "Login as company" token carried no permissions
 
 - `AuthService.impersonateCompany` resolved the impersonated admin's permissions while the SUPER_ADMIN's own company was bound,

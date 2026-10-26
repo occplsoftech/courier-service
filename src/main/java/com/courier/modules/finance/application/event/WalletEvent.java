@@ -26,6 +26,11 @@ public sealed interface WalletEvent {
                          Instant occurredAt) implements WalletEvent {
     }
 
+    /** A customer's wallet was opened. Separate from {@link WalletCreated}, which is a branch's. */
+    record CustomerWalletCreated(UUID walletId, UUID companyId, UUID customerId, String walletNumber,
+                                 Instant occurredAt) implements WalletEvent {
+    }
+
     /** Balance went up. {@code balanceAfter} is the available balance the entry left behind. */
     record WalletCredited(UUID walletId, UUID companyId, UUID branchId, UUID transactionId,
                           SubTransactionType reason, BigDecimal amount, BigDecimal balanceAfter,

@@ -46,6 +46,17 @@ public interface WalletRepository extends JpaRepository<Wallet, UUID>,
     Optional<Wallet> lockByBranchIdWithinCompany(@Param("branchId") UUID branchId,
                                                 @Param("companyId") UUID companyId);
 
+    @Query("select w from Wallet w where w.customerId = :customerId and w.companyId = :companyId")
+    Optional<Wallet> findByCustomerIdWithinCompany(@Param("customerId") UUID customerId,
+                                                   @Param("companyId") UUID companyId);
+
+    /** The customer-wallet twin of {@link #lockByBranchIdWithinCompany}: every money path on a
+     *  customer wallet loads it through here. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select w from Wallet w where w.customerId = :customerId and w.companyId = :companyId")
+    Optional<Wallet> lockByCustomerIdWithinCompany(@Param("customerId") UUID customerId,
+                                                   @Param("companyId") UUID companyId);
+
     Optional<Wallet> findByWalletNumber(String walletNumber);
 
     boolean existsByWalletNumber(String walletNumber);
@@ -57,10 +68,15 @@ public interface WalletRepository extends JpaRepository<Wallet, UUID>,
     long countByCompanyId(UUID companyId);
 
     /** Backs the Company Overview "Total Wallet Balance" tile — spendable balance summed
-     *  across every branch wallet in the company. */
-    @Query("select coalesce(sum(w.availableBalance), 0) from Wallet w where w.companyId = :companyId")
+     *  across every <em>branch</em> wallet in the company. Customer wallets are excluded: the
+     *  tile is about the branch network, and a client's prepaid money is not branch float. */
+    @Query("select coalesce(sum(w.availableBalance), 0) from Wallet w "
+            + "where w.companyId = :companyId and w.ownerType = com.courier.modules.finance.domain.WalletOwnerType.BRANCH")
     java.math.BigDecimal sumAvailableBalanceByCompanyId(@Param("companyId") UUID companyId);
 
-    /** Backs the Company Overview "Low Wallet Balance" action-required tile. */
-    long countByCompanyIdAndAvailableBalanceLessThan(UUID companyId, java.math.BigDecimal threshold);
+    /** Backs the Company Overview "Low Wallet Balance" action-required tile (branch wallets only). */
+    @Query("select count(w) from Wallet w where w.companyId = :companyId and w.availableBalance < :threshold "
+            + "and w.ownerType = com.courier.modules.finance.domain.WalletOwnerType.BRANCH")
+    long countByCompanyIdAndAvailableBalanceLessThan(@Param("companyId") UUID companyId,
+                                                     @Param("threshold") java.math.BigDecimal threshold);
 }
