@@ -78,6 +78,11 @@ public enum PermissionModule {
      */
     PRICING_ZONE("Pricing Zones", 125),
     CUSTOMER_RATE("Customer Rates", 127),
+    /**
+     * The company's own zone tariff (V138): zones of states/districts/cities/pincodes and, from Phase 2, the rate cards
+     * priced by them. One module for the whole tariff, to keep the permission list (and the JWT) small.
+     */
+    TARIFF("Zone Tariff", 126),
     /** Business customer invoices: generate (CREATE), record a payment (UPDATE), cancel (DELETE). */
     CUSTOMER_BILLING("Customer Billing", 128),
     ROUTE_MASTER("Route Master", 120),
