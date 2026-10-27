@@ -45,11 +45,12 @@ class DefaultPermissionCatalogTest {
         // DEACTIVATE, the same shape BRANCH already has), and V106 a further 18 (the new
         // PRICING_ZONE and CUSTOMER_RATE modules, 9 MASTER-shaped rights each), and V110 a further 7 (the new
         // CUSTOMER_BILLING module: CREATE/READ/UPDATE/DELETE/SEARCH/EXPORT/PRINT), and V115 a further 23
-        // (the new PDP, PDP_RATE and PDP_BILLING modules: 7 + 9 + 7). All generated
+        // (the new PDP, PDP_RATE and PDP_BILLING modules: 7 + 9 + 7), and V138 a further 9 (the new TARIFF
+        // module, MASTER shape). All generated
         // from this matrix.
         // If someone adds a module or action here without a follow-up migration, this is
         // the tripwire.
-        assertThat(DefaultPermissionCatalog.size()).isEqualTo(301);
+        assertThat(DefaultPermissionCatalog.size()).isEqualTo(310);
     }
 
     @Test

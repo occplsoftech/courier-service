@@ -8,6 +8,19 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-27 — Zone tariff, Phase 1: company zones and the places in them (V138)
+
+- New module `tariff` (see `MEMORY/modules/zone-tariff.md`) for OCCPL Courier's zone-based cash tariff.
+- `tariff_zones` (code, name, usage FROM/TO/BOTH, order, status) and `tariff_zone_locations` (state, district, city or pincode).
+- Rules: a place sits in only one zone per direction; the most specific location decides a pincode's zone (pincode, city, district,
+  state); inactive zones are skipped; adding locations is all or nothing.
+- API `/api/v1/tariff-zones` including `GET /resolve?pincode=&direction=`. New permission module `TARIFF` (9 codes, backfilled to
+  existing COMPANY_ADMIN roles), audit actions `TARIFF_ZONE_*`.
+- Tests: `TariffZoneServiceImplTest` (21), `TariffZoneTest` (4); permission catalogue count 301 → 310.
+  **V138 not run against MySQL.** No screens yet (courier-web is next), no rate cards yet (Phase 2).
+
+---
+
 ## 2026-10-27 — Shipyaari added as a courier partner (like Shiprocket)
 
 - **New adapter `SHIPYAARI`** (`ShipyaariAdapter`), built from Shipyaari's published API collection: rates (`checkServiceabilityV2`, one rate per

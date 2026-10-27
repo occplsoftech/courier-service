@@ -129,6 +129,7 @@ public final class DefaultPermissionCatalog {
         // without deleting it.
         MATRIX.put(PermissionModule.CHARGE, MASTER);
         MATRIX.put(PermissionModule.PRICING_ZONE, MASTER);
+        MATRIX.put(PermissionModule.TARIFF, MASTER);
         MATRIX.put(PermissionModule.CUSTOMER_RATE, MASTER);
         MATRIX.put(PermissionModule.CUSTOMER_BILLING,
                 EnumSet.of(CREATE, READ, UPDATE, DELETE, SEARCH, EXPORT, PRINT));
