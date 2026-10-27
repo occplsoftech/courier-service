@@ -418,6 +418,24 @@ class ShipyaariAdapterTest {
     }
 
     @Test
+    @DisplayName("JSON is read whatever content type Shipyaari labels it with (text/html, text/plain, none)")
+    void readsJsonWithAnyContentType() {
+        server.expect(requestTo("https://sy.test/api/v1/seller/signIn"))
+                .andRespond(withSuccess(LOGIN_OK, MediaType.TEXT_HTML));
+        assertThat(adapter.testConnection(UUID.randomUUID()).ok()).isTrue();
+
+        server.reset();
+        server.expect(requestTo("https://sy.test/api/v1/seller/signIn"))
+                .andRespond(withSuccess(LOGIN_OK, MediaType.APPLICATION_OCTET_STREAM));
+        assertThat(adapter.testConnection(UUID.randomUUID()).ok()).isTrue();
+
+        server.reset();
+        server.expect(requestTo("https://sy.test/api/v1/seller/signIn"))
+                .andRespond(withSuccess(LOGIN_OK, MediaType.parseMediaType("application/json; charset=utf-8")));
+        assertThat(adapter.testConnection(UUID.randomUUID()).ok()).isTrue();
+    }
+
+    @Test
     @DisplayName("the connection test says why it failed: slow, not reachable, unreadable, or no token")
     void connectionTestExplainsFailures() {
         server.expect(requestTo("https://sy.test/api/v1/seller/signIn")).andRespond(request -> {
@@ -437,7 +455,12 @@ class ShipyaariAdapterTest {
         server.reset();
         server.expect(requestTo("https://sy.test/api/v1/seller/signIn"))
                 .andRespond(withSuccess("<html>maintenance</html>", MediaType.TEXT_HTML));
-        assertThat(adapter.testConnection(UUID.randomUUID()).message()).contains("could not be read");
+        assertThat(adapter.testConnection(UUID.randomUUID()).message()).contains("web page instead of data").contains("IP address");
+
+        server.reset();
+        server.expect(requestTo("https://sy.test/api/v1/seller/signIn"))
+                .andRespond(withSuccess("not json at all", MediaType.TEXT_PLAIN));
+        assertThat(adapter.testConnection(UUID.randomUUID()).message()).contains("not in a format we can read");
 
         server.reset();
         server.expect(requestTo("https://sy.test/api/v1/seller/signIn"))

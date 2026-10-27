@@ -92,6 +92,42 @@ public class ShipyaariAdapter implements CourierProviderAdapter {
     @Override public boolean configured() { return env.configured(); }
     @Override public boolean configured(UUID companyId) { return settings.apply(companyId).configured(); }
 
+
+    /** Shipyaari's answer could not be read as JSON. {@code webPage}: it was HTML (a block page, a maintenance page), not data. */
+    static final class UnreadableAnswer extends RestClientException {
+        final boolean webPage;
+
+        UnreadableAnswer(String message, boolean webPage) {
+            super(message);
+            this.webPage = webPage;
+        }
+    }
+
+    private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper();
+
+    /**
+     * Sends the request and reads the answer as JSON whatever content type Shipyaari labels it with (the default reader refuses
+     * anything not labelled {@code application/json}). An answer that is not JSON is logged with its status, content type and,
+     * only when it is a web page, its first characters, never the body of a JSON answer (a login answer holds a token).
+     */
+    private static JsonNode exchange(RestClient.RequestHeadersSpec<?> request) {
+        org.springframework.http.ResponseEntity<String> response = request.retrieve().toEntity(String.class);
+        String body = response.getBody();
+        if (body == null || body.isBlank()) {
+            return null;
+        }
+        try {
+            return JSON.readTree(body);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            String trimmed = body.stripLeading();
+            boolean page = trimmed.startsWith("<");
+            log.warn("Shipyaari answered HTTP {} with content type {} that is not JSON ({} characters){}",
+                    response.getStatusCode().value(), response.getHeaders().getContentType(), body.length(),
+                    page ? ": " + trimmed.substring(0, Math.min(150, trimmed.length())).replaceAll("\\s+", " ") : "");
+            throw new UnreadableAnswer("Shipyaari's answer is not JSON", page);
+        }
+    }
+
     // ---------------------------------------------------------------- rates
 
     @Override
@@ -112,12 +148,10 @@ public class ShipyaariAdapter implements CourierProviderAdapter {
         body.put("orderType", "B2C");
         body.put("dimension", dimension);
         try {
-            JsonNode answer = http.post().uri("/api/v1/order/checkServiceabilityV2")
+            JsonNode answer = exchange(http.post().uri("/api/v1/order/checkServiceabilityV2")
                     .header("Authorization", "Bearer " + token(r.companyId()))
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(body)
-                    .retrieve()
-                    .body(JsonNode.class);
+                    .body(body));
             return ProviderResult.available(CODE, displayName(), parse(answer, r));
         } catch (RestClientResponseException e) {
             forgetLoginOnAuthFailure(e, r.companyId());
@@ -203,12 +237,10 @@ public class ShipyaariAdapter implements CourierProviderAdapter {
         }
         JsonNode answer;
         try {
-            answer = http.post().uri("/api/v1/order/placeOrderApiV3")
+            answer = exchange(http.post().uri("/api/v1/order/placeOrderApiV3")
                     .header("Authorization", "Bearer " + token(b.companyId()))
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(order)
-                    .retrieve()
-                    .body(JsonNode.class);
+                    .body(order));
         } catch (RestClientResponseException e) {
             int status = e.getStatusCode().value();
             forgetLoginOnAuthFailure(e, b.companyId());
@@ -339,11 +371,9 @@ public class ShipyaariAdapter implements CourierProviderAdapter {
             return TrackingResult.unavailable("No tracking number has been assigned yet.");
         }
         try {
-            JsonNode body = http.get().uri(u -> u.path("/api/v1/tracking/getTracking").queryParam("trackingNo", ref.awbNumber()).build())
+            JsonNode body = exchange(http.get().uri(u -> u.path("/api/v1/tracking/getTracking").queryParam("trackingNo", ref.awbNumber()).build())
                     .header("Authorization", "Bearer " + token(ref.companyId()))
-                    .accept(MediaType.APPLICATION_JSON)
-                    .retrieve()
-                    .body(JsonNode.class);
+                    .accept(MediaType.APPLICATION_JSON));
             return parseTracking(body, ref.awbNumber());
         } catch (RestClientResponseException e) {
             forgetLoginOnAuthFailure(e, ref.companyId());
@@ -393,12 +423,10 @@ public class ShipyaariAdapter implements CourierProviderAdapter {
             return LabelResult.notAvailable("The label is available once a tracking number is assigned.");
         }
         try {
-            JsonNode body = http.post().uri("/api/v1/labels/fetchLabels")
+            JsonNode body = exchange(http.post().uri("/api/v1/labels/fetchLabels")
                     .header("Authorization", "Bearer " + token(ref.companyId()))
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of("awbs", List.of(ref.awbNumber()), "source", "API"))
-                    .retrieve()
-                    .body(JsonNode.class);
+                    .body(Map.of("awbs", List.of(ref.awbNumber()), "source", "API")));
             String url = firstUrl(body);
             return url != null ? LabelResult.at(url)
                     : LabelResult.notAvailable("Shipyaari has not generated the label yet. Please try again shortly.");
@@ -458,11 +486,9 @@ public class ShipyaariAdapter implements CourierProviderAdapter {
         if (current != null && Instant.now().isBefore(current.expires())) {
             return current.token();
         }
-        JsonNode login = http.post().uri("/api/v1/seller/signIn")
+        JsonNode login = exchange(http.post().uri("/api/v1/seller/signIn")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("email", config.getEmail(), "password", config.getPassword()))
-                .retrieve()
-                .body(JsonNode.class);
+                .body(Map.of("email", config.getEmail(), "password", config.getPassword())));
         if (login != null && login.has("success") && !login.path("success").asBoolean(false)) {
             throw new LoginRefused("Shipyaari did not accept the login");
         }
@@ -502,6 +528,11 @@ public class ShipyaariAdapter implements CourierProviderAdapter {
             }
             return ConnectionTest.failed("This server could not connect to Shipyaari. Check that the server may make outgoing "
                     + "HTTPS calls to " + hostOf(env.getBaseUrl()) + " (network, firewall or DNS).");
+        } catch (UnreadableAnswer e) {
+            return ConnectionTest.failed(e.webPage
+                    ? "Shipyaari answered with a web page instead of data. This usually means it is blocking this server's requests "
+                            + "(firewall or bot protection) or is under maintenance. Ask Shipyaari support to allow this server's IP address."
+                    : "Shipyaari answered, but the answer is not in a format we can read. Please contact support.");
         } catch (RestClientException e) {
             log.warn("Shipyaari connection test: the answer could not be read ({})", rootCause(e).getClass().getSimpleName());
             return ConnectionTest.failed("Shipyaari answered, but the answer could not be read. Please contact support.");
