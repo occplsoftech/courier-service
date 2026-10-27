@@ -489,11 +489,42 @@ public class ShipyaariAdapter implements CourierProviderAdapter {
             return ConnectionTest.failed("Shipyaari did not accept the e-mail and password.");
         } catch (RestClientResponseException e) {
             int status = e.getStatusCode().value();
+            log.warn("Shipyaari connection test: HTTP {}", status);
             return ConnectionTest.failed(status >= 400 && status < 500
                     ? "Shipyaari did not accept the e-mail and password."
                     : "Shipyaari answered with an error. Please try again later.");
-        } catch (RestClientException | IllegalStateException e) {
-            return ConnectionTest.failed("Shipyaari could not be reached. Please try again later.");
+        } catch (ResourceAccessException e) {
+            Throwable cause = rootCause(e);
+            log.warn("Shipyaari connection test could not reach Shipyaari: {} ({})", cause.getClass().getSimpleName(), e.getClass().getSimpleName());
+            if (cause instanceof java.net.SocketTimeoutException) {
+                return ConnectionTest.failed("Shipyaari did not answer in time. Please try again; if it keeps happening the server's "
+                        + "provider timeout (CUSTOMER_PORTAL_PROVIDER_TIMEOUT) may be too short for Shipyaari's login.");
+            }
+            return ConnectionTest.failed("This server could not connect to Shipyaari. Check that the server may make outgoing "
+                    + "HTTPS calls to " + hostOf(env.getBaseUrl()) + " (network, firewall or DNS).");
+        } catch (RestClientException e) {
+            log.warn("Shipyaari connection test: the answer could not be read ({})", rootCause(e).getClass().getSimpleName());
+            return ConnectionTest.failed("Shipyaari answered, but the answer could not be read. Please contact support.");
+        } catch (IllegalStateException e) {
+            log.warn("Shipyaari connection test: {}", e.getMessage());
+            return ConnectionTest.failed("Shipyaari answered, but not with a login token. Please contact support.");
+        }
+    }
+
+    private static Throwable rootCause(Throwable e) {
+        Throwable t = e;
+        while (t.getCause() != null && t.getCause() != t) {
+            t = t.getCause();
+        }
+        return t;
+    }
+
+    private static String hostOf(String url) {
+        try {
+            String host = java.net.URI.create(url).getHost();
+            return host == null ? "Shipyaari" : host;
+        } catch (RuntimeException e) {
+            return "Shipyaari";
         }
     }
 
