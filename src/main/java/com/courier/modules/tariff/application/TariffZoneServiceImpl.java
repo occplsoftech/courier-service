@@ -8,6 +8,9 @@ import com.courier.modules.master.application.StateService;
 import com.courier.modules.master.domain.City;
 import com.courier.modules.master.domain.District;
 import com.courier.modules.tariff.domain.LocationScope;
+import com.courier.modules.tariff.domain.TariffChargeRuleRepository;
+import com.courier.modules.tariff.domain.TariffRateCardRepository;
+import com.courier.modules.tariff.domain.TariffRateSlabRepository;
 import com.courier.modules.tariff.domain.TariffZone;
 import com.courier.modules.tariff.domain.TariffZoneLocation;
 import com.courier.modules.tariff.domain.TariffZoneLocationRepository;
@@ -60,6 +63,9 @@ public class TariffZoneServiceImpl implements TariffZoneService {
 
     private final TariffZoneRepository zones;
     private final TariffZoneLocationRepository locations;
+    private final TariffRateCardRepository rateCards;
+    private final TariffRateSlabRepository rateSlabs;
+    private final TariffChargeRuleRepository chargeRules;
     private final StateService stateService;
     private final DistrictService districtService;
     private final CityService cityService;
@@ -100,6 +106,12 @@ public class TariffZoneServiceImpl implements TariffZoneService {
         ZoneUsage before = zone.getZoneUsage();
         apply(zone, input);
         requireCodeAvailable(companyId, zone.getCode(), zone.getId());
+        if (!zone.getZoneUsage().coversFrom() && before.coversFrom() && rateCards.existsByFromZone(companyId, zone.getId())) {
+            throw new BusinessRuleException("Zone " + zone.getCode() + " is the from zone of a rate card, so it must stay FROM or BOTH.");
+        }
+        if (!zone.getZoneUsage().coversTo() && before.coversTo() && usedAsToZone(companyId, zone.getId())) {
+            throw new BusinessRuleException("Rate cards have rates or charges to zone " + zone.getCode() + ", so it must stay TO or BOTH.");
+        }
         if (zone.getZoneUsage() != before) {
             // A wider usage can make this zone compete with others for places it already holds.
             for (TariffZoneLocation existing : locations.findByZone(companyId, zone.getId())) {
@@ -169,6 +181,10 @@ public class TariffZoneServiceImpl implements TariffZoneService {
     public void delete(UUID zoneId) {
         UUID companyId = requireCompany();
         TariffZone zone = load(zoneId, companyId);
+        if (rateCards.existsByFromZone(companyId, zone.getId()) || usedAsToZone(companyId, zone.getId())) {
+            throw new BusinessRuleException("Zone " + zone.getCode() + " is used by a rate card. Remove its rates first, "
+                    + "or deactivate the zone instead.");
+        }
         UUID actor = SecurityUtils.getCurrentUserId().orElse(null);
         locations.findByZone(companyId, zone.getId()).forEach(l -> {
             l.softDelete(actor);
@@ -419,6 +435,10 @@ public class TariffZoneServiceImpl implements TariffZoneService {
         if (value == null) {
             throw new BusinessRuleException(message);
         }
+    }
+
+    private boolean usedAsToZone(UUID companyId, UUID zoneId) {
+        return rateSlabs.existsByToZone(companyId, zoneId) || chargeRules.existsByToZone(companyId, zoneId);
     }
 
     private TariffZone load(UUID id, UUID companyId) {

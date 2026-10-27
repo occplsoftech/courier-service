@@ -11,6 +11,9 @@ import com.courier.modules.master.domain.State;
 import com.courier.modules.tariff.application.TariffZoneService.LocationInput;
 import com.courier.modules.tariff.application.TariffZoneService.ZoneInput;
 import com.courier.modules.tariff.domain.LocationScope;
+import com.courier.modules.tariff.domain.TariffChargeRuleRepository;
+import com.courier.modules.tariff.domain.TariffRateCardRepository;
+import com.courier.modules.tariff.domain.TariffRateSlabRepository;
 import com.courier.modules.tariff.domain.TariffZone;
 import com.courier.modules.tariff.domain.TariffZoneLocation;
 import com.courier.modules.tariff.domain.TariffZoneLocationRepository;
@@ -74,6 +77,9 @@ class TariffZoneServiceImplTest {
     @Mock private CityService cityService;
     @Mock private PincodeService pincodeService;
     @Mock private AuditService auditService;
+    @Mock private TariffRateCardRepository rateCards;
+    @Mock private TariffRateSlabRepository rateSlabs;
+    @Mock private TariffChargeRuleRepository chargeRules;
 
     private TariffZoneServiceImpl service;
     private final List<TariffZone> savedZones = new ArrayList<>();
@@ -81,7 +87,7 @@ class TariffZoneServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new TariffZoneServiceImpl(zones, locations, stateService, districtService, cityService, pincodeService, auditService);
+        service = new TariffZoneServiceImpl(zones, locations, rateCards, rateSlabs, chargeRules, stateService, districtService, cityService, pincodeService, auditService);
         CompanyContext.setCompanyId(COMPANY);
 
         state(MAHARASHTRA, "Maharashtra");
@@ -367,6 +373,25 @@ class TariffZoneServiceImplTest {
 
         assertThat(live()).isEmpty();
         assertThat(kerala.zone().isDeleted()).isTrue();
+    }
+
+    @Test
+    @DisplayName("a zone a rate card uses cannot be deleted, nor narrowed out of the direction the card uses it in")
+    void zoneInUse() {
+        TariffZoneView pune = service.create(zone("PUNE", ZoneUsage.BOTH), List.of(cityLoc(PUNE_CITY)));
+        TariffZoneView kerala = service.create(zone("KERALA", ZoneUsage.TO), List.of(stateLoc(KERALA)));
+        when(rateCards.existsByFromZone(COMPANY, pune.zone().getId())).thenReturn(true);
+        when(rateSlabs.existsByToZone(COMPANY, kerala.zone().getId())).thenReturn(true);
+
+        assertThatThrownBy(() -> service.delete(pune.zone().getId()))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("used by a rate card");
+        assertThatThrownBy(() -> service.delete(kerala.zone().getId()))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("used by a rate card");
+        assertThatThrownBy(() -> service.update(pune.zone().getId(), zone("PUNE", ZoneUsage.TO), null))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("from zone of a rate card");
+        assertThatThrownBy(() -> service.update(kerala.zone().getId(), zone("KERALA", ZoneUsage.FROM), null))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("must stay TO or BOTH");
+        assertThat(pune.zone().isDeleted()).isFalse();
     }
 
     // ------------------------------------------------------------ resolve
