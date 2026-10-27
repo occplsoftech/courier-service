@@ -21,6 +21,7 @@ public final class CourierCatalog {
 
     public static final String SHIPROCKET = "SHIPROCKET";
     public static final String DELHIVERY = "DELHIVERY";
+    public static final String SHIPYAARI = "SHIPYAARI";
 
     private static final List<Provider> PROVIDERS = List.of(
             new Provider(SHIPROCKET, "Shiprocket", true,
@@ -34,6 +35,11 @@ public final class CourierCatalog {
                     List.of(new Field("token", "API token", true, true, "Stored encrypted; never shown again."),
                             new Field("pickupLocation", "Pickup location name", false, true,
                                     "Exactly as registered with Delhivery (client warehouse name)."))),
+            new Provider(SHIPYAARI, "Shipyaari", true,
+                    "Use the e-mail and password of your Shipyaari seller account (a staging account has its own). "
+                            + "Orders are paid from that account's Shipyaari wallet, so keep it funded and its KYC complete.",
+                    List.of(new Field("email", "Account e-mail", false, true, "The e-mail you sign in to Shipyaari with."),
+                            new Field("password", "Account password", true, true, "Stored encrypted; never shown again."))),
             new Provider("BLUEDART", "Blue Dart", false, "Integration not built yet.", List.of()),
             new Provider("EKART", "Ekart", false, "Integration not built yet.", List.of()));
 

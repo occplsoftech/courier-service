@@ -278,6 +278,7 @@ public class CourierIntegrationService {
         return switch (code) {
             case CourierCatalog.SHIPROCKET -> properties.getShiprocket().configured();
             case CourierCatalog.DELHIVERY -> properties.getDelhivery().configured();
+            case CourierCatalog.SHIPYAARI -> properties.getShipyaari().configured();
             default -> false;
         };
     }
