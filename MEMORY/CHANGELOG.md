@@ -8,6 +8,20 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-27 — Zone tariff, Phase 2: rate cards, weight slabs, charges, GST and quotes (V139)
+
+- `tariff_rate_cards` (from zone, dates, GST %, volumetric divisor, rounding; starts inactive), `tariff_rate_slabs` (lane = to zone ×
+  service type × package type; FIXED or PER_EXTRA_KG with a step), `tariff_charge_rules` (fuel, hamali, docket, COD, FOV, ODA…
+  with optional filters, most specific wins).
+- Freight: fixed slab, then the per-kg rate for each extra kg or part of one, for every service type (user-confirmed).
+- `POST /api/v1/tariff-rate-cards/quote`: pickup pincode → from zone → active card for the date; delivery pincode → to zone → lane;
+  then charges, CGST+SGST or IGST, rounding. Nothing saved.
+- Zones used by a rate card can no longer be deleted or narrowed out of that direction.
+- Tests: `TariffPriceCalculatorTest` (12), `TariffRateCardServiceImplTest` (9), one more zone test. Full suite 1,686.
+  **V139 not run against MySQL.** No screens, no Excel import, not wired into booking yet.
+
+---
+
 ## 2026-10-27 — Zone tariff, Phase 1: company zones and the places in them (V138)
 
 - New module `tariff` (see `MEMORY/modules/zone-tariff.md`) for OCCPL Courier's zone-based cash tariff.
