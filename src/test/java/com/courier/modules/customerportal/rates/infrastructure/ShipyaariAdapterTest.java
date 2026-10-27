@@ -416,4 +416,32 @@ class ShipyaariAdapterTest {
         server.expect(requestTo("https://sy.test/api/v1/seller/signIn")).andRespond(withStatus(HttpStatus.BAD_GATEWAY));
         assertThat(adapter.testConnection(UUID.randomUUID()).message()).contains("try again later");
     }
+
+    @Test
+    @DisplayName("the connection test says why it failed: slow, not reachable, unreadable, or no token")
+    void connectionTestExplainsFailures() {
+        server.expect(requestTo("https://sy.test/api/v1/seller/signIn")).andRespond(request -> {
+            throw new java.net.SocketTimeoutException("Read timed out");
+        });
+        ConnectionTest slow = adapter.testConnection(UUID.randomUUID());
+        assertThat(slow.ok()).isFalse();
+        assertThat(slow.message()).contains("did not answer in time").contains("CUSTOMER_PORTAL_PROVIDER_TIMEOUT");
+
+        server.reset();
+        server.expect(requestTo("https://sy.test/api/v1/seller/signIn")).andRespond(request -> {
+            throw new java.net.UnknownHostException("api-seller.shipyaari.com");
+        });
+        ConnectionTest unreachable = adapter.testConnection(UUID.randomUUID());
+        assertThat(unreachable.message()).contains("could not connect to Shipyaari").contains("sy.test");
+
+        server.reset();
+        server.expect(requestTo("https://sy.test/api/v1/seller/signIn"))
+                .andRespond(withSuccess("<html>maintenance</html>", MediaType.TEXT_HTML));
+        assertThat(adapter.testConnection(UUID.randomUUID()).message()).contains("could not be read");
+
+        server.reset();
+        server.expect(requestTo("https://sy.test/api/v1/seller/signIn"))
+                .andRespond(withSuccess("{\"success\":true,\"data\":[]}", MediaType.APPLICATION_JSON));
+        assertThat(adapter.testConnection(UUID.randomUUID()).message()).contains("not with a login token");
+    }
 }
