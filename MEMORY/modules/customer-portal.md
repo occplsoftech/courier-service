@@ -120,6 +120,7 @@ OUT_FOR_DELIVERY; delivered, returned, cancelled as is. A shipment belongs to th
 | OCCPL network | `OCCPL_NETWORK` | Live. Customer's zone rate card (`ZoneRateService.calculate`), pickup/delivery/COD flags from the pincode master (`PincodeService.location`, new). Actual weight only (the rate card has no volumetric rule). No markup; GST at `occpl-network-gst-percent` (keep equal to the booking branch's GST). |
 | Shiprocket | `SHIPROCKET` | Built, off until `SHIPROCKET_ENABLED=true` + `SHIPROCKET_API_EMAIL`/`SHIPROCKET_API_PASSWORD`. Login token cached 9 days; `GET /v1/external/courier/serviceability/`. Field names follow Shiprocket's docs and **must be checked against the account's real responses** before enabling (tax inclusion of `rate` in particular). |
 | Delhivery | `DELHIVERY` | Built, off until `DELHIVERY_ENABLED=true` + `DELHIVERY_API_TOKEN` (`DELHIVERY_BASE_URL` = staging for tests). Pincode check, then charges for Surface and Express on max(actual, volumetric) grams; GST split out from `total_amount - gross_amount`. **Verify on staging.** |
+| Shipyaari | `SHIPYAARI` | Built from Shipyaari's published API collection (docs.shipyaari.com, "Blaze"), off until `SHIPYAARI_ENABLED=true` + `SHIPYAARI_API_EMAIL`/`SHIPYAARI_API_PASSWORD` (`SHIPYAARI_BASE_URL` = `https://stage-api-seller.shipyaari.com` for tests). Aggregator over DTDC, Delhivery, Blue Dart, Ekart, Xpressbees, Amazon and others. `POST /api/v1/seller/signIn` → JWT (cached 20 h); rates `POST /api/v1/order/checkServiceabilityV2` (one rate per partner service; `base/add/variables/cod/insurance/tax` become charge lines that always add up to `total`); booking `POST /api/v1/order/placeOrderApiV3` in one call (assigns the courier and AWB); tracking `GET /api/v1/tracking/getTracking?trackingNo=`; label `POST /api/v1/labels/fetchLabels`. No pre-registered pickup location: the customer's own pickup address goes with every order, so the integration has only an e-mail and a password. A rate's `serviceCode` is `PARTNER\|SERVICE\|MODE` (e.g. `DTDC\|ECONOMY\|SURFACE`) and the order sends them as `courierPartner`, `courierPartnerServices`, `serviceMode`. Shipyaari debits **its own wallet** when it accepts an order (a seller-account wallet, separate from the customer wallet here); a refusal for that reason is logged and the customer sees a generic "could not accept" message. **Not run against a live account. Verify on staging before enabling**: (1) that `courierPartnerServices` = the quoted `companyServiceName` selects the quoted service (the docs only say "e.g. Economy 0.5 kg"), (2) the label response (the docs show no example; the first `https://` address in the answer is used, hosts `.shipyaari.com` and `.amazonaws.com`), (3) that our booking id is accepted as `orderId` (the docs advise against character ids), (4) `paymentMode` `PREPAID`/`COD` (the docs' example says `PREPAID`, their prose says "COD or Online"). Shipyaari publishes no webhook registration, so status comes from the hourly tracking sync only. |
 | Blue Dart, Ekart | `BLUEDART`, `EKART` | Not connected (no contract/API docs). Always "not connected yet". |
 
 Markup administration: `GET/POST /api/v1/pricing-markup-rules` (COMPANY_ADMIN). Resolution = most specific rule
@@ -129,7 +130,7 @@ rule closes the open rule of the same scope at its start; created/closed are aud
 
 Settings (`app.customer-portal.*`, env): `CUSTOMER_PORTAL_QUOTE_VALIDITY`, `CUSTOMER_PORTAL_PROVIDER_TIMEOUT`,
 `CUSTOMER_PORTAL_VOLUMETRIC_DIVISOR`, `CUSTOMER_PORTAL_DEFAULT_MARKUP_PERCENT`, `CUSTOMER_PORTAL_MARKUP_GST_PERCENT`,
-`CUSTOMER_PORTAL_OCCPL_NETWORK_GST_PERCENT`, `SHIPROCKET_*`, `DELHIVERY_*`. Credentials never leave the server.
+`CUSTOMER_PORTAL_OCCPL_NETWORK_GST_PERCENT`, `SHIPROCKET_*`, `DELHIVERY_*`, `SHIPYAARI_*`. Credentials never leave the server.
 
 Not verified yet: no live/sandbox call to Shiprocket or Delhivery (no credentials); OCCPL network pricing not
 exercised against real zone data; schema validation of the new entities not run against MySQL.
@@ -250,8 +251,8 @@ A company administrator connects the company's own courier accounts in courier-w
 - Table `courier_integrations` (V129): one row per company + courier; plain fields in `settings_json`, secret fields as one JSON
   object AES-GCM encrypted with `SECRETS_ENCRYPTION_KEY` (`CourierSecretsCodec`, decrypted by hand so an unreadable secret cannot break
   loading the row). Secrets are never returned: the view says only `set`. A blank secret on save keeps the stored one.
-- `CourierCatalog` lists the couriers and their fields. Shiprocket (email, password, pickupLocation) and Delhivery (token,
-  pickupLocation) are connectable; Blue Dart and Ekart are listed `available=false` (no integration code) and refused with 422.
+- `CourierCatalog` lists the couriers and their fields. Shiprocket (email, password, pickupLocation), Delhivery (token,
+  pickupLocation) and Shipyaari (email, password) are connectable; Blue Dart and Ekart are listed `available=false` (no integration code) and refused with 422.
   Base URLs are NOT fields (a company must not be able to point the server at an arbitrary host); they stay in the environment.
 - `CourierCredentials` resolves per call, by the company of the request: saved account wins (a saved-but-disabled account switches the courier
   off for that company even if the server has env settings); no saved account falls back to `app.customer-portal.*` env settings;

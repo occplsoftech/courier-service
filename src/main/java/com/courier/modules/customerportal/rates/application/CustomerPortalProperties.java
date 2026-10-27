@@ -37,6 +37,7 @@ public class CustomerPortalProperties {
     private WalletPayment walletPayment = new WalletPayment();
     private Shiprocket shiprocket = new Shiprocket();
     private Delhivery delhivery = new Delhivery();
+    private Shipyaari shipyaari = new Shipyaari();
     private TrackingSync trackingSync = new TrackingSync();
 
     /**
@@ -113,6 +114,25 @@ public class CustomerPortalProperties {
 
         public boolean bookable() {
             return configured() && notBlank(pickupLocation);
+        }
+    }
+
+    /** Shipyaari (aggregator): an API user's e-mail and password; the order carries its own pickup address. */
+    @Getter
+    @Setter
+    public static class Shipyaari {
+        private boolean enabled = false;
+        /** https://stage-api-seller.shipyaari.com for the staging account, https://api-seller.shipyaari.com live. */
+        private String baseUrl = "https://api-seller.shipyaari.com";
+        private String email;
+        private String password;
+
+        public boolean configured() {
+            return enabled && notBlank(email) && notBlank(password);
+        }
+
+        public boolean bookable() {
+            return configured();
         }
     }
 

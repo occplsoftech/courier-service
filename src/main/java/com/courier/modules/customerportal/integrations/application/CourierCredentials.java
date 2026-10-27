@@ -59,6 +59,20 @@ public class CourierCredentials {
         return c;
     }
 
+    public CustomerPortalProperties.Shipyaari shipyaari(UUID companyId) {
+        CustomerPortalProperties.Shipyaari env = properties.getShipyaari();
+        Resolved row = resolved(companyId, CourierCatalog.SHIPYAARI);
+        if (row.useEnvironment()) {
+            return env;
+        }
+        CustomerPortalProperties.Shipyaari c = new CustomerPortalProperties.Shipyaari();
+        c.setBaseUrl(env.getBaseUrl());
+        c.setEnabled(row.enabled());
+        c.setEmail(row.value("email"));
+        c.setPassword(row.value("password"));
+        return c;
+    }
+
     private Resolved resolved(UUID companyId, String code) {
         if (companyId == null) {
             return Resolved.ENVIRONMENT;

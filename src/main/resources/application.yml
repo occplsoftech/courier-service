@@ -148,6 +148,11 @@ app:
       base-url: ${DELHIVERY_BASE_URL:https://track.delhivery.com}
       token: ${DELHIVERY_API_TOKEN:}
       pickup-location: ${DELHIVERY_PICKUP_LOCATION:}
+    shipyaari:
+      enabled: ${SHIPYAARI_ENABLED:false}
+      base-url: ${SHIPYAARI_BASE_URL:https://api-seller.shipyaari.com}
+      email: ${SHIPYAARI_API_EMAIL:}
+      password: ${SHIPYAARI_API_PASSWORD:}
     # Booked shipments' delivery status: a background job asks each courier, and couriers may push updates to the
     # webhook address shown in Courier Integrations. See MEMORY/modules/customer-portal.md.
     tracking-sync:

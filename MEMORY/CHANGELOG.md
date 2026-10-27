@@ -8,6 +8,25 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-27 — Shipyaari added as a courier partner (like Shiprocket)
+
+- **New adapter `SHIPYAARI`** (`ShipyaariAdapter`), built from Shipyaari's published API collection: rates (`checkServiceabilityV2`, one rate per
+  partner service across DTDC, Delhivery, Blue Dart, Ekart, Xpressbees, Amazon and others), one-call booking (`placeOrderApiV3`), tracking
+  (`getTracking`), label (`fetchLabels`), login (`seller/signIn`, JWT cached 20 h) and a connection test (a login; nothing is created or charged).
+- **Connectable from the Courier Integrations screen** like Shiprocket: `CourierCatalog` lists Shipyaari with an e-mail and a (stored-encrypted)
+  password; `CourierCredentials.shipyaari(companyId)` resolves a company's own account, else the server's `SHIPYAARI_*` settings
+  (`SHIPYAARI_ENABLED`, `SHIPYAARI_BASE_URL`, `SHIPYAARI_API_EMAIL`, `SHIPYAARI_API_PASSWORD`). **Off by default.**
+- No pickup location to register: Shipyaari takes the customer's pickup address with each order.
+- Booking classification follows the portal's rule: a 4xx or `success:false` is REJECTED (so a wallet-paid booking is refunded); a 5xx or timeout is
+  UNKNOWN (stays paid, operations check); an order created without an AWB is UNKNOWN and keeps Shipyaari's order id.
+- Tests: `ShipyaariAdapterTest` (19: rates mapping and charge lines, prepaid/COD, login reuse and renewal, booking body, multi-package value split,
+  refusals, unknown outcomes, bad mobile, tracking, label, connection test) and two cases in `CourierCredentialsTest`.
+- **Not run against a live Shipyaari account.** Four points to check on staging are listed in `MEMORY/modules/customer-portal.md`
+  (service selection by `courierPartnerServices`, the label response, our booking id as `orderId`, `paymentMode` value).
+- Status updates come from the hourly tracking sync (no webhook: Shipyaari documents none to register).
+
+---
+
 ## 2026-10-26 — Customer wallets, part 3: money out (portal bookings, refunds, manual debit)
 
 Third of four parts (see `MEMORY/modules/customer-wallet.md`). A portal booking can now be paid from the customer's wallet.

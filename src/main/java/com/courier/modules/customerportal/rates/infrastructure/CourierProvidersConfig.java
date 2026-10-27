@@ -41,6 +41,14 @@ public class CourierProvidersConfig {
     }
 
     @Bean
+    public CourierProviderAdapter shipyaariAdapter(RestClient.Builder builder, CustomerPortalProperties props,
+                                                   CourierCredentials credentials) {
+        log.info("Customer portal: Shipyaari {} (companies can also connect their own account)",
+                props.getShipyaari().configured() ? "connected by the server settings" : "not set in the server settings");
+        return new ShipyaariAdapter(withTimeouts(builder, props), props.getShipyaari(), credentials::shipyaari);
+    }
+
+    @Bean
     public CourierProviderAdapter blueDartAdapter() {
         return new NotConfiguredAdapter("BLUEDART", "Blue Dart");
     }

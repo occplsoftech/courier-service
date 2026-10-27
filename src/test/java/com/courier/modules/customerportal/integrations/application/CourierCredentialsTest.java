@@ -55,6 +55,33 @@ class CourierCredentialsTest {
     }
 
     @Test
+    @DisplayName("Shipyaari: a company's own account is used for that company only; others use the server's settings")
+    void shipyaariOwnAccount() {
+        env.getShipyaari().setBaseUrl("https://sy.env");
+        fx.saved(COMPANY, "SHIPYAARI", true, Map.of("email", "own@shop.test"), Map.of("password", "own-pass"));
+
+        CustomerPortalProperties.Shipyaari own = credentials.shipyaari(COMPANY);
+
+        assertThat(own.configured()).isTrue();
+        assertThat(own.getEmail()).isEqualTo("own@shop.test");
+        assertThat(own.getPassword()).isEqualTo("own-pass");
+        assertThat(own.getBaseUrl()).as("a company cannot redirect the server's calls").isEqualTo("https://sy.env");
+        assertThat(credentials.shipyaari(OTHER)).isSameAs(env.getShipyaari());
+        assertThat(credentials.shipyaari(null)).isSameAs(env.getShipyaari());
+    }
+
+    @Test
+    @DisplayName("Shipyaari is in the catalog with an e-mail and a secret password, and is switched off by default")
+    void shipyaariCatalog() {
+        CourierCatalog.Provider p = CourierCatalog.find("shipyaari").orElseThrow();
+
+        assertThat(p.available()).isTrue();
+        assertThat(p.field("email").orElseThrow().secret()).isFalse();
+        assertThat(p.field("password").orElseThrow().secret()).isTrue();
+        assertThat(new CustomerPortalProperties().getShipyaari().configured()).isFalse();
+    }
+
+    @Test
     @DisplayName("a company that disabled a courier does not fall back to the server's account")
     void disabledStaysOff() {
         fx.saved(COMPANY, "SHIPROCKET", false, Map.of("email", "own@shop.test"), Map.of("password", "own-pass"));
