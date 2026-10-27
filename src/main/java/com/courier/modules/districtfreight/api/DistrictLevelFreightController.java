@@ -86,7 +86,9 @@ public class DistrictLevelFreightController {
     public ApiResponse<FreightCalculationResponse> calculate(@Valid @RequestBody FreightCalculationRequest request) {
         return ApiResponse.success(mapper.toResponse(freightCalculationService.calculate(
                 request.bookingBranchId(), request.destinationPincode(), request.destinationAreaId(),
-                request.chargeableWeight(), request.businessCustomerId(), request.declaredValue())));
+                request.chargeableWeight(), request.businessCustomerId(), request.declaredValue(),
+                new FreightCalculationService.TariffInput(request.serviceTypeId(), request.packageTypeId(),
+                        request.numberOfPackages(), request.bookingDate()))));
     }
 
     @PostMapping

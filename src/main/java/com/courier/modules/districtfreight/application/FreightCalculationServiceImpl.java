@@ -8,6 +8,7 @@ import com.courier.modules.districtfreight.domain.DistrictFreightStatus;
 import com.courier.modules.districtfreight.domain.DistrictLevelFreight;
 import com.courier.modules.districtfreight.domain.DistrictLevelFreightRepository;
 import com.courier.modules.districtfreight.domain.PincodeCoverageLookupPort;
+import com.courier.modules.districtfreight.domain.ZoneTariffPort;
 import com.courier.shared.company.CompanyContext;
 import com.courier.shared.exception.BusinessRuleException;
 import lombok.RequiredArgsConstructor;
@@ -45,13 +46,15 @@ public class FreightCalculationServiceImpl implements FreightCalculationService 
     private final PincodeCoverageLookupPort coverageLookup;
     private final PricingZoneService zoneService;
     private final ZoneRateService zoneRateService;
+    private final ZoneTariffPort zoneTariff;
 
     @Override
     @Transactional(readOnly = true)
     @PreAuthorize(READ)
     public FreightCalculationResult calculate(UUID bookingBranchId, String destinationPincode,
                                                UUID destinationAreaId, BigDecimal chargeableWeight,
-                                               UUID businessCustomerId, BigDecimal declaredValue) {
+                                               UUID businessCustomerId, BigDecimal declaredValue,
+                                               TariffInput tariff) {
         UUID companyId = requireCompany();
 
         if (bookingBranchId == null) {
@@ -91,6 +94,19 @@ public class FreightCalculationServiceImpl implements FreightCalculationService 
                     chargeableWeight, declaredValue);
             if (zonePriced != null) {
                 return zonePriced;
+            }
+        }
+
+        String originPincode = tariff == null || tariff.serviceTypeId() == null || tariff.packageTypeId() == null ? null
+                : branchLookup.findPostalCode(branch.branchId(), companyId).orElse(null);
+        if (originPincode != null) {
+            FreightCalculationResult tariffPriced = zoneTariff.price(originPincode, coverage.pincodeCode(),
+                            tariff.serviceTypeId(), tariff.packageTypeId(), chargeableWeight, tariff.pieces(), declaredValue,
+                            tariff.bookingDate())
+                    .map(p -> fromTariff(p, branch, coverage, chargeableWeight))
+                    .orElse(null);
+            if (tariffPriced != null) {
+                return tariffPriced;
             }
         }
 
@@ -143,6 +159,23 @@ public class FreightCalculationServiceImpl implements FreightCalculationService 
                 coverage.pincodeCode(), coverage.cityName(), quote.chargeableWeight(),
                 "Zone " + quote.zoneName(), quote.ratePerKg(), quote.freight(), coverage.odaApplicable()
                 && oda.signum() > 0, oda, quote.freight().add(oda), quote.zoneName(), extras);
+    }
+
+    /**
+     * The zone tariff's price in District Level Freight's shape. Its charges ride as {@code customerExtraCharges} (the
+     * booking must carry them as Other Charges, like a customer zone's), ODA included, so {@code odaCharge} is zero.
+     * {@code ratePerKg} is the freight spread over the weight, which a raised Rate/KG override is compared against.
+     */
+    private static FreightCalculationResult fromTariff(ZoneTariffPort.TariffPrice p, BranchLookupPort.BranchRef branch,
+                                                       PincodeCoverageLookupPort.CoverageRef coverage,
+                                                       BigDecimal chargeableWeight) {
+        BigDecimal freight = p.freight().setScale(MONEY_SCALE, RoundingMode.HALF_UP);
+        BigDecimal ratePerKg = freight.divide(chargeableWeight, MONEY_SCALE, RoundingMode.HALF_UP);
+        BigDecimal zero = BigDecimal.ZERO.setScale(MONEY_SCALE, RoundingMode.HALF_UP);
+        return new FreightCalculationResult(null, branch.branchId(), branch.branchCode(), branch.branchName(),
+                coverage.districtId(), coverage.districtCode(), coverage.districtName(), coverage.pincodeId(),
+                coverage.pincodeCode(), coverage.cityName(), chargeableWeight, p.basis(), ratePerKg, freight,
+                false, zero, freight, p.label(), p.extras().setScale(MONEY_SCALE, RoundingMode.HALF_UP));
     }
 
     private UUID requireCompany() {

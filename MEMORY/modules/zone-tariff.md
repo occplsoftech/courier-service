@@ -1,7 +1,8 @@
 # Zone Tariff (company rate cards by zone)
 
 **Status:** Phase 1 (V138): zones, zone locations, pincode → zone lookup. Phase 2 (V139): rate cards, weight slabs, charge
-rules, GST, quote endpoint. Not built yet: Excel import of the sheet, booking / customer portal pricing (Phase 3), screens. Package `com.courier.modules.tariff`. Permission module `TARIFF` (MASTER shape).
+rules, GST, quote endpoint. Phase 3 (no migration): counter booking and the customer portal price from it. Not built yet:
+Excel import of the sheet, courier-web screens and the booking screen sending service/package type to the preview. Package `com.courier.modules.tariff`. Permission module `TARIFF` (MASTER shape).
 
 ## Why a new module
 OCCPL Courier's cash-booking tariff (`CASH_BOOKING_RATES_2.xlsx`) prices by **from zone × to zone × mode (service type) × product
@@ -57,15 +58,37 @@ Writes `COMPANY_ADMIN` (on the service); reads any signed-in user. Audit: `TARIF
 - API `/api/v1/tariff-rate-cards`: CRUD, `PATCH activate|deactivate`, `PUT /{id}/lanes`, `DELETE /{id}/lanes?toZoneId&serviceTypeId&packageTypeId`,
   `POST/PUT/DELETE /{id}/charges[/{chargeId}]`, `POST /quote`. Same `TARIFF` permission module; audit `TARIFF_RATE_*`, `TARIFF_CHARGE_*`.
 
+## Phase 3: booking and portal (no migration)
+- **Counter booking** goes through `FreightCalculationService` as before. New 7-arg `calculate(..., TariffInput)`
+  (service type, package type, pieces, booking date); the old 6-arg one passes null and never consults the tariff.
+  Order: Business Customer zone → **zone tariff** → District Level Freight.
+- The tariff applies when the **booking branch's postal code** (`BranchLookupPort.findPostalCode`) is in a FROM zone with an
+  ACTIVE card on the booking date (`TariffQuoteService.quoteIfApplies`). Then it is authoritative: no to zone or no lane is an
+  error, never a silent fall-through to District Level Freight. A company with no tariff zones is unaffected.
+- Shape (`FreightCalculationServiceImpl.fromTariff`): `baseFreight` = tariff freight, `odaCharge` 0, all the card's charges (ODA
+  included) summed into `customerExtraCharges` with `customerZoneName` = "Zone tariff CODE: FROM → TO", so the existing
+  "Other Charges must be at least …" rule makes the clerk carry them. `ratePerKg` = freight ÷ weight, so a raised Rate/KG override
+  still works. **Booking's GST (branch %) and rounding apply, not the card's**; tariff COD-only charges never apply at the counter
+  (booking passes cod=false); the tariff's volumetric is not used (booking passes its own chargeable weight).
+- Port `districtfreight.domain.ZoneTariffPort`, adapter `tariff.infrastructure.DistrictFreightZoneTariffAdapter`.
+- `POST /district-level-freight/calculate` (the booking screen's live preview) takes optional `serviceTypeId`, `packageTypeId`,
+  `numberOfPackages`, `bookingDate`. **courier-web must send them**, otherwise the preview shows District Level Freight while the
+  booking itself prices from the tariff.
+- **Customer portal**: `OccplNetworkAdapter` keeps the customer's own zone rate first; with none it calls
+  `TariffQuoteService.quoteOptions(..., documents=false)` from the pickup pincode: one option per parcel service type with a lane to
+  the delivery zone, cheapest first, code `OCCPL_<SERVICE>`, ETA = `ServiceType.deliveryDays`. Lines: freight, each charge
+  (FUEL → fuel, COD, ODA → remote area, FOV → insurance, docket/hamali → handling, else other) and the card's GST as TAX (so the
+  portal adds no GST of its own). Round-off left out. Booking it still creates a pickup request; the service code goes in the remarks.
+
 ## Setup the company does (Step 1, no code)
 Service Type master: `SURFACE`, `AIR`, `PREMIUM`, `CARGO`. Package Type master: `DOC`, `NONDOC`. Phase 2 rate lines point at these.
 
 ## Next
 - Excel import of the sheet format (cleaned CSV lives in the session scratchpad; the sheet has repeated rows, Kerala rows with a
   blank state = their own to zone, and no Cargo Ex-Maharashtra rate).
-- Phase 3: price calculation, booking screen, customer portal OCCPL network options.
 - courier-web screens for Phase 1 (zones list/detail, add locations, pincode test) and the sidebar entry.
 
 ## Verification
-Unit tests only (`TariffZoneServiceImplTest` 22, `TariffZoneTest` 4, `TariffPriceCalculatorTest` 12, `TariffRateCardServiceImplTest` 9).
+Unit tests only (`TariffZoneServiceImplTest` 22, `TariffZoneTest` 4, `TariffPriceCalculatorTest` 12, `TariffRateCardServiceImplTest` 11,
+plus tariff cases in `FreightCalculationServiceImplTest` and `OccplNetworkAdapterTest`).
 **V138 / V139 have not been run against MySQL**; CI runs unit tests only.

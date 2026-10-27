@@ -1,6 +1,7 @@
 package com.courier.modules.districtfreight.application;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -45,7 +46,24 @@ public interface FreightCalculationService {
      * @param businessCustomerId null for an ordinary booking
      * @param declaredValue      basis of the zone rate's FOV %; null counts as zero
      */
+    default FreightCalculationResult calculate(UUID bookingBranchId, String destinationPincode, UUID destinationAreaId,
+                                               BigDecimal chargeableWeight, UUID businessCustomerId,
+                                               BigDecimal declaredValue) {
+        return calculate(bookingBranchId, destinationPincode, destinationAreaId, chargeableWeight, businessCustomerId,
+                declaredValue, null);
+    }
+
+    /**
+     * As above, with what the company's zone tariff needs. When the booking branch's pincode is in a tariff from zone
+     * that has an active rate card on the booking date, that card prices the freight (a Business Customer's own zone
+     * still wins) and its fuel, hamali, docket… lines come back as {@code customerExtraCharges}. Without
+     * {@code tariff} (or without its service and package type) the zone tariff is not consulted.
+     */
     FreightCalculationResult calculate(UUID bookingBranchId, String destinationPincode, UUID destinationAreaId,
                                         BigDecimal chargeableWeight, UUID businessCustomerId,
-                                        BigDecimal declaredValue);
+                                        BigDecimal declaredValue, TariffInput tariff);
+
+    /** The shipment details only the zone tariff prices by. */
+    record TariffInput(UUID serviceTypeId, UUID packageTypeId, Integer pieces, LocalDate bookingDate) {
+    }
 }

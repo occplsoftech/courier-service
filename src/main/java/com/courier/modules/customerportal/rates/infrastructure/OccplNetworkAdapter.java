@@ -22,6 +22,8 @@ import com.courier.modules.pickup.application.PickupService;
 import com.courier.modules.pickup.domain.PickupRequest;
 import com.courier.modules.pickup.domain.PickupStatus;
 import com.courier.modules.shipment.application.ShipmentPortalQueries;
+import com.courier.modules.tariff.application.TariffQuoteService;
+import com.courier.modules.tariff.domain.TariffPriceCalculator;
 import com.courier.shared.exception.ApiException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +44,10 @@ import java.util.Optional;
  *
  * <p>The rate card charges actual weight (or the zone minimum), not volumetric weight.
  *
+ * <p>A customer with no rate card for the destination gets the company's zone tariff instead (the cash rates, module
+ * tariff): one option per service type that has a parcel rate to the delivery zone, with the card's charges and GST.
+ * Its round-off is left out, so the portal shows the exact amount.
+ *
  * <p>Booking creates a <b>pickup request</b> in OCCPL's own operations flow (module pickup): operations
  * assign it, collect the parcel and book the shipment at the branch, which issues the tracking number. The
  * delivery details, contents and quoted total go into the pickup's remarks for the booking clerk.
@@ -57,6 +63,7 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
     private final ZoneRateService zoneRates;
     private final PickupService pickups;
     private final ShipmentPortalQueries shipments;
+    private final TariffQuoteService tariff;
 
     @Override public String code() { return CODE; }
     @Override public String displayName() { return "OCCPL Network"; }
@@ -81,9 +88,9 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
             q = zoneRates.calculate(new QuoteCommand(r.customerId(), delivery.districtId(), delivery.cityId(),
                     r.actualWeightKg(), r.declaredValue(), delivery.odaApplicable(), LocalDate.now()));
         } catch (ApiException e) {
-            // No zone / no active rate / no slab for this weight: the customer has no OCCPL price here.
+            // No zone / no active rate / no slab for this weight: the customer has no contract price here.
             log.debug("No OCCPL network rate for customer {} to {}: {}", r.customerId(), r.deliveryPincode(), e.getMessage());
-            return unavailable("No OCCPL network rate is set up for this destination and weight. Contact your account manager.");
+            return tariffRates(r);
         }
         List<ChargeLine> lines = new ArrayList<>();
         lines.add(new ChargeLine("FREIGHT", "Freight", ChargeComponent.FREIGHT, q.freight()));
@@ -95,6 +102,49 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
         add(lines, "FOV", "Risk cover (FOV)", ChargeComponent.INSURANCE, q.fovCharge());
         return ProviderResult.available(CODE, displayName(), List.of(new ProviderRate(
                 "OCCPL_STANDARD", "OCCPL Standard", "SURFACE", null, null, q.chargeableWeight(), lines, null, null)));
+    }
+
+    /** The company's zone tariff for parcels, one option per service type; unavailable when it has none. */
+    private ProviderResult tariffRates(RateRequest r) {
+        List<TariffQuoteService.Quote> quotes;
+        try {
+            quotes = tariff.quoteOptions(new TariffQuoteService.QuoteInput(r.pickupPincode(), r.deliveryPincode(), null, null,
+                    r.actualWeightKg(), r.lengthCm(), r.breadthCm(), r.heightCm(), r.packageCount(), r.declaredValue(),
+                    r.cod(), null), false);
+        } catch (ApiException e) {
+            log.debug("No zone tariff rate from {} to {}: {}", r.pickupPincode(), r.deliveryPincode(), e.getMessage());
+            quotes = List.of();
+        }
+        if (quotes.isEmpty()) {
+            return unavailable("No OCCPL network rate is set up for this destination and weight. Contact your account manager.");
+        }
+        return ProviderResult.available(CODE, displayName(), quotes.stream().map(OccplNetworkAdapter::tariffRate).toList());
+    }
+
+    static ProviderRate tariffRate(TariffQuoteService.Quote q) {
+        TariffPriceCalculator.Price p = q.price();
+        List<ChargeLine> lines = new ArrayList<>();
+        lines.add(new ChargeLine("FREIGHT", "Freight", ChargeComponent.FREIGHT, p.freight().amount()));
+        for (TariffPriceCalculator.ChargeLine c : p.charges()) {
+            add(lines, c.code(), c.name(), component(c.code()), c.amount());
+        }
+        for (TariffPriceCalculator.TaxLine t : p.taxes()) {
+            add(lines, t.code(), t.code() + " " + t.percent().stripTrailingZeros().toPlainString() + "%", ChargeComponent.TAX, t.amount());
+        }
+        String mode = q.serviceTypeCode().length() <= 20 ? q.serviceTypeCode() : q.serviceTypeCode().substring(0, 20);
+        return new ProviderRate("OCCPL_" + q.serviceTypeCode(), "OCCPL " + q.serviceTypeName(), mode,
+                q.deliveryDays(), q.deliveryDays(), p.chargeableWeightKg(), lines, q.card().getCode(), null);
+    }
+
+    private static ChargeComponent component(String chargeCode) {
+        return switch (chargeCode) {
+            case "FUEL" -> ChargeComponent.FUEL_SURCHARGE;
+            case "COD" -> ChargeComponent.COD;
+            case "ODA" -> ChargeComponent.REMOTE_AREA;
+            case "FOV", "INSURANCE" -> ChargeComponent.INSURANCE;
+            case "DOCKET", "HAMALI", "MATHADI", "PACKING", "HANDLING" -> ChargeComponent.HANDLING;
+            default -> ChargeComponent.OTHER;
+        };
     }
 
     @Override
@@ -172,7 +222,8 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
     }
 
     static String remarks(BookingRequest b) {
-        String text = "Portal booking " + b.reference() + ". Deliver to " + b.delivery().name() + ", " + b.delivery().phone()
+        String text = "Portal booking " + b.reference() + (b.serviceCode() == null ? "" : ", service " + b.serviceCode())
+                + ". Deliver to " + b.delivery().name() + ", " + b.delivery().phone()
                 + ", " + b.delivery().address() + ", " + b.delivery().city() + " " + b.delivery().pincode()
                 + ". Contents: " + b.contents() + ". Value " + b.rate().declaredValue().toPlainString()
                 + ", " + (b.rate().cod() ? "COD" : "prepaid") + ", " + b.rate().packageCount() + " pkg, "
