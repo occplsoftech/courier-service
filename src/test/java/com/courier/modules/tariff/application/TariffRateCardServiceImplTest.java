@@ -382,4 +382,29 @@ class TariffRateCardServiceImplTest {
         assertThat(quotes.quoteOptions(quoteInput("462001", "1", false), true))
                 .extracting(TariffQuoteService.Quote::packageTypeCode).containsExactly("DOC");
     }
+
+    @Test
+    @DisplayName("quoteAll: documents and parcels together, cheapest first; too-heavy lanes listed with why; uncovered pickup refused")
+    void quoteAll() {
+        RateCardDetail card = activeCard();
+        service.saveLane(card.card().getId(), parcels(surface, "150", "60"));
+        pincodes();
+        when(zoneService.resolve(eq("999999"), eq(ZoneUsage.FROM))).thenReturn(Optional.empty());
+
+        TariffQuoteService.Options all = quotes.quoteAll(quoteInput("462001", "3", false));
+        assertThat(all.quotes()).extracting(TariffQuoteService.Quote::serviceTypeCode, TariffQuoteService.Quote::packageTypeCode)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("SURFACE", "NONDOC"), org.assertj.core.groups.Tuple.tuple("AIR", "DOC"));
+        assertThat(all.unavailable()).isEmpty();
+
+        TariffQuoteService.Options heavy = quotes.quoteAll(quoteInput("462001", "60", false));
+        assertThat(heavy.quotes()).extracting(TariffQuoteService.Quote::serviceTypeCode).containsExactly("AIR");
+        assertThat(heavy.unavailable()).singleElement().satisfies(u -> {
+            assertThat(u.serviceTypeCode()).isEqualTo("SURFACE");
+            assertThat(u.reason()).contains("above this rate's limit of 50 kg");
+        });
+
+        assertThatThrownBy(() -> quotes.quoteAll(new TariffQuoteService.QuoteInput("999999", "462001", null, null,
+                BigDecimal.ONE, null, null, null, null, null, false, LocalDate.of(2025, 6, 1))))
+                .hasMessageContaining("No from zone covers pickup pincode 999999");
+    }
 }

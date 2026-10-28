@@ -31,6 +31,20 @@ public interface TariffQuoteService {
      */
     List<Quote> quoteOptions(QuoteInput input, boolean documents);
 
+    /**
+     * Every lane, documents and parcels, of the card that applies to the pickup pincode, to the delivery pincode's zone:
+     * the calculator's "all options" view, cheapest first. Unlike {@link #quoteOptions} a pickup pincode the tariff does
+     * not cover is refused with the reason. Lanes that cannot price this shipment (too heavy) come back in
+     * {@code unavailable} with why. The input's service and package type are ignored.
+     */
+    Options quoteAll(QuoteInput input);
+
+    record Unavailable(String serviceTypeCode, String serviceTypeName, String packageTypeCode, String reason) {
+    }
+
+    record Options(List<Quote> quotes, List<Unavailable> unavailable) {
+    }
+
     /** {@code bookingDate} null means today (India time). Dimensions per piece in cm, optional. */
     record QuoteInput(String originPincode, String destinationPincode, UUID serviceTypeId, UUID packageTypeId,
                       BigDecimal actualWeightKg, BigDecimal lengthCm, BigDecimal widthCm, BigDecimal heightCm,
