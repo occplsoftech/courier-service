@@ -8,6 +8,19 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-27 — Zone tariff, Phase 3: counter booking and customer portal price from the tariff (no migration)
+
+- Counter booking: Business Customer zone → zone tariff → District Level Freight. The tariff applies when the booking branch's
+  postal code is in a from zone with an active card; its freight is the booking's freight and its charges become the required
+  Other Charges. Booking's own GST and rounding apply.
+- Freight preview (`POST /district-level-freight/calculate`) accepts service type, package type, pieces and booking date.
+- Customer portal OCCPL Network: without a contract rate, one option per tariff service type (parcels), with charges and GST.
+- New `TariffQuoteService.quoteIfApplies` / `quoteOptions`, `ZoneTariffPort`, `BranchLookupPort.findPostalCode`.
+- Tests: 5 new; full suite 1,691. Not run against MySQL or the live app. courier-web still has to send service/package type to
+  the preview.
+
+---
+
 ## 2026-10-27 — Zone tariff, Phase 2: rate cards, weight slabs, charges, GST and quotes (V139)
 
 - `tariff_rate_cards` (from zone, dates, GST %, volumetric divisor, rounding; starts inactive), `tariff_rate_slabs` (lane = to zone ×

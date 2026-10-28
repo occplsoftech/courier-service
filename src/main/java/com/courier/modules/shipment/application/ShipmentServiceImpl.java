@@ -267,7 +267,9 @@ public class ShipmentServiceImpl implements ShipmentService {
         // is validated. See `FreightCalculationServiceImpl` for the full sequence.
         FreightCalculationResult freightCalc = freightCalculationService.calculate(
                 command.bookingBranchId(), command.deliveryPincode(), command.destinationAreaId(),
-                weight.chargeableWeight(), command.businessCustomerId(), command.declaredValue());
+                weight.chargeableWeight(), command.businessCustomerId(), command.declaredValue(),
+                new FreightCalculationService.TariffInput(command.serviceTypeId(), command.packageTypeId(),
+                        totalQuantity(items), bookingDate));
         requireRateNotDecreased(command.ratePerKgOverride(), freightCalc);
         requireCustomerExtraCharges(command.otherCharges(), freightCalc);
 
@@ -434,7 +436,9 @@ public class ShipmentServiceImpl implements ShipmentService {
 
         FreightCalculationResult freightCalc = freightCalculationService.calculate(
                 shipment.getBookingBranchId(), command.deliveryPincode(), command.destinationAreaId(),
-                weight.chargeableWeight(), shipment.getBusinessCustomerId(), command.declaredValue());
+                weight.chargeableWeight(), shipment.getBusinessCustomerId(), command.declaredValue(),
+                new FreightCalculationService.TariffInput(command.serviceTypeId(), command.packageTypeId(),
+                        totalQuantity(items), bookingDate));
         if (!chargesPinned) {
             requireRateNotDecreased(command.ratePerKgOverride(), freightCalc);
             requireCustomerExtraCharges(command.otherCharges(), freightCalc);
@@ -597,7 +601,9 @@ public class ShipmentServiceImpl implements ShipmentService {
         List<ShipmentItem> items = itemRepository.findAllByShipmentIdWithinCompany(shipment.getId(), companyId);
         FreightCalculationResult freightCalc = freightCalculationService.calculate(
                 shipment.getBookingBranchId(), shipment.getDeliveryPincode(), shipment.getDestinationAreaId(),
-                shipment.getChargeableWeight(), shipment.getBusinessCustomerId(), shipment.getDeclaredValue());
+                shipment.getChargeableWeight(), shipment.getBusinessCustomerId(), shipment.getDeclaredValue(),
+                new FreightCalculationService.TariffInput(shipment.getServiceTypeId(), shipment.getPackageTypeId(),
+                        totalQuantity(items), shipment.getBookingDate()));
         PricingResult priced = priceIt(shipment.getBookingBranchId(), null,
                 shipment.getPickupPincode(), shipment.getDeliveryPincode(), shipment.getServiceTypeId(),
                 shipment.getPackageTypeId(), paymentModeId, shipment.getChargeableWeight(),
@@ -2474,8 +2480,9 @@ public class ShipmentServiceImpl implements ShipmentService {
         BigDecimal given = otherCharges == null ? BigDecimal.ZERO : otherCharges;
         if (given.compareTo(required) < 0) {
             throw new BusinessRuleException(
-                    "Other Charges must be at least %s — zone '%s' rate card (docket, mathadi, pack, fuel, FOV)."
-                            .formatted(required.toPlainString(), freightCalc.customerZoneName()));
+                    "Other Charges must be at least %s — %s (its docket, fuel and other charges)."
+                            .formatted(required.toPlainString(), freightCalc.customerZoneName().startsWith("Zone tariff")
+                                    ? freightCalc.customerZoneName() : "zone '" + freightCalc.customerZoneName() + "' rate card"));
         }
     }
 

@@ -41,4 +41,7 @@ public interface BranchLookupPort {
      * rows rather than the whole company's.
      */
     Optional<UUID> findOwnBranchId(UUID userId, UUID companyId);
+
+    /** The branch's postal code, which the zone tariff resolves to the shipment's from zone. Empty when not set. */
+    Optional<String> findPostalCode(UUID branchId, UUID companyId);
 }

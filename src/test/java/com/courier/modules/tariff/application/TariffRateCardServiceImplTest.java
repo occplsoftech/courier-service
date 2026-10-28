@@ -88,6 +88,7 @@ class TariffRateCardServiceImplTest {
     private TariffZone central;
     private TariffZone kerala;
     private ServiceType air;
+    private final ServiceType surface = new ServiceType();
     private PackageType doc;
     private PackageType nondoc;
 
@@ -102,6 +103,9 @@ class TariffRateCardServiceImplTest {
         kerala = zone("KERALA", ZoneUsage.TO);
         air = new ServiceType();
         air.setCode("AIR");
+        surface.setCode("SURFACE");
+        surface.setName("Surface");
+        surface.setDeliveryDays(4);
         doc = new PackageType();
         doc.setCode("DOC");
         doc.setDocumentType(true);
@@ -109,6 +113,7 @@ class TariffRateCardServiceImplTest {
         nondoc.setCode("NONDOC");
         when(serviceTypeService.getById(any())).thenAnswer(i -> {
             if (air.getId().equals(i.getArgument(0))) return air;
+            if (surface.getId().equals(i.getArgument(0))) return surface;
             throw new ResourceNotFoundException("ServiceType", i.getArgument(0));
         });
         when(packageTypeService.getById(any())).thenAnswer(i -> {
@@ -335,5 +340,46 @@ class TariffRateCardServiceImplTest {
         assertThatThrownBy(() -> quotes.quote(new TariffQuoteService.QuoteInput("411030", "462001", air.getId(), doc.getId(),
                 BigDecimal.ONE, null, null, null, null, null, false, LocalDate.of(2024, 1, 1))))
                 .hasMessageContaining("No active rate card for from zone PUNE on 2024-01-01");
+    }
+
+    private LaneInput parcels(ServiceType service, String fixed, String perKg) {
+        return new LaneInput(central.getId(), service.getId(), nondoc.getId(), List.of(
+                new SlabInput(new BigDecimal("0.001"), BigDecimal.ONE, SlabRateType.FIXED, new BigDecimal(fixed), null),
+                new SlabInput(new BigDecimal("1.001"), new BigDecimal("50"), SlabRateType.PER_EXTRA_KG, new BigDecimal(perKg), null)));
+    }
+
+    @Test
+    @DisplayName("quoteIfApplies: empty when the pickup pincode is in no from zone or its zone has no card on the date")
+    void quoteIfApplies() {
+        activeCard();
+        pincodes();
+        when(zoneService.resolve(eq("999999"), eq(ZoneUsage.FROM))).thenReturn(Optional.empty());
+
+        assertThat(quotes.quoteIfApplies(new TariffQuoteService.QuoteInput("999999", "462001", air.getId(), doc.getId(),
+                BigDecimal.ONE, null, null, null, null, null, false, LocalDate.of(2025, 6, 1)))).isEmpty();
+        assertThat(quotes.quoteIfApplies(new TariffQuoteService.QuoteInput("411030", "462001", air.getId(), doc.getId(),
+                BigDecimal.ONE, null, null, null, null, null, false, LocalDate.of(2024, 1, 1)))).isEmpty();
+        assertThat(quotes.quoteIfApplies(quoteInput("462001", "1", false))).get()
+                .satisfies(q -> assertThat(q.price().freight().amount()).isEqualByComparingTo("200"));
+        // Once the card applies, a missing lane is refused rather than skipped.
+        assertThatThrownBy(() -> quotes.quoteIfApplies(quoteInput("682001", "1", false))).hasMessageContaining("has no AIR DOC rate");
+    }
+
+    @Test
+    @DisplayName("quoteOptions: every parcel service to the delivery zone, cheapest first; documents and too-heavy lanes left out")
+    void quoteOptions() {
+        RateCardDetail card = activeCard();
+        service.saveLane(card.card().getId(), parcels(air, "300", "250"));
+        service.saveLane(card.card().getId(), parcels(surface, "150", "60"));
+        pincodes();
+
+        List<TariffQuoteService.Quote> options = quotes.quoteOptions(quoteInput("462001", "3", false), false);
+
+        assertThat(options).extracting(TariffQuoteService.Quote::serviceTypeCode).containsExactly("SURFACE", "AIR");
+        assertThat(options.get(0).price().freight().amount()).isEqualByComparingTo("270");
+        assertThat(options.get(0).deliveryDays()).isEqualTo(4);
+        assertThat(quotes.quoteOptions(quoteInput("462001", "60", false), false)).isEmpty();
+        assertThat(quotes.quoteOptions(quoteInput("462001", "1", false), true))
+                .extracting(TariffQuoteService.Quote::packageTypeCode).containsExactly("DOC");
     }
 }

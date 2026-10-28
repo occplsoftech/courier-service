@@ -8,6 +8,7 @@ import com.courier.modules.districtfreight.domain.DistrictFreightStatus;
 import com.courier.modules.districtfreight.domain.DistrictLevelFreight;
 import com.courier.modules.districtfreight.domain.DistrictLevelFreightRepository;
 import com.courier.modules.districtfreight.domain.PincodeCoverageLookupPort;
+import com.courier.modules.districtfreight.domain.ZoneTariffPort;
 import com.courier.shared.company.CompanyContext;
 import com.courier.shared.exception.BusinessRuleException;
 import com.courier.shared.security.AuthenticatedUser;
@@ -57,6 +58,7 @@ class FreightCalculationServiceImplTest {
     @Mock private PincodeCoverageLookupPort coverageLookup;
     @Mock private PricingZoneService zoneService;
     @Mock private ZoneRateService zoneRateService;
+    @Mock private ZoneTariffPort zoneTariff;
 
     private FreightCalculationServiceImpl service;
 
@@ -72,7 +74,7 @@ class FreightCalculationServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new FreightCalculationServiceImpl(repository, branchLookup, coverageLookup,
-                zoneService, zoneRateService);
+                zoneService, zoneRateService, zoneTariff);
         CompanyContext.setCompanyId(COMPANY);
         AuthenticatedUser principal = new AuthenticatedUser(
                 CALLER, COMPANY, "ops@test.com", Set.of(Roles.COMPANY_ADMIN), "jti");
@@ -391,5 +393,50 @@ class FreightCalculationServiceImplTest {
         service.calculate(BRANCH, DESTINATION_PINCODE, null, new BigDecimal("20"));
 
         org.mockito.Mockito.verifyNoInteractions(zoneService, zoneRateService);
+    }
+
+    // ------------------------------------------------------------- zone tariff
+
+    private static final UUID SERVICE = UUID.randomUUID();
+    private static final UUID PACKAGE = UUID.randomUUID();
+    private static final FreightCalculationService.TariffInput TARIFF_INPUT =
+            new FreightCalculationService.TariffInput(SERVICE, PACKAGE, 2, java.time.LocalDate.of(2025, 6, 1));
+
+    @Test
+    @DisplayName("a zone tariff covering the branch's pincode prices the freight; its charges become required Other Charges")
+    void zoneTariffPrices() {
+        when(coverageLookup.findByPincode(DESTINATION_PINCODE)).thenReturn(Optional.of(SERVICEABLE_NON_ODA));
+        when(branchLookup.findPostalCode(BRANCH, COMPANY)).thenReturn(Optional.of("416115"));
+        when(zoneTariff.price("416115", DESTINATION_PINCODE, SERVICE, PACKAGE, new BigDecimal("2.3"), 2, null,
+                java.time.LocalDate.of(2025, 6, 1)))
+                .thenReturn(Optional.of(new ZoneTariffPort.TariffPrice("Zone tariff PUNE_CASH: PUNE → CENTRAL",
+                        "200 up to 1 kg + 2 × 200 per extra kg", new BigDecimal("600"), new BigDecimal("80"))));
+
+        FreightCalculationResult result = service.calculate(BRANCH, DESTINATION_PINCODE, null, new BigDecimal("2.3"),
+                null, null, TARIFF_INPUT);
+
+        assertThat(result.baseFreight()).isEqualByComparingTo("600.00");
+        assertThat(result.totalFreight()).isEqualByComparingTo("600.00");
+        assertThat(result.customerExtraCharges()).isEqualByComparingTo("80.00");
+        assertThat(result.customerZoneName()).isEqualTo("Zone tariff PUNE_CASH: PUNE → CENTRAL");
+        assertThat(result.weightSlabLabel()).isEqualTo("200 up to 1 kg + 2 × 200 per extra kg");
+        assertThat(result.ratePerKg()).isEqualByComparingTo("260.87");
+        assertThat(result.matchedFreightId()).isNull();
+    }
+
+    @Test
+    @DisplayName("no zone tariff for the branch (or no service/package type given): District Level Freight as before")
+    void zoneTariffNotApplicable() {
+        when(coverageLookup.findByPincode(DESTINATION_PINCODE)).thenReturn(Optional.of(SERVICEABLE_NON_ODA));
+        when(repository.findByCompanyIdAndBranchIdAndDistrictId(COMPANY, BRANCH, DISTRICT)).thenReturn(Optional.of(row()));
+        when(branchLookup.findPostalCode(BRANCH, COMPANY)).thenReturn(Optional.of("416115"));
+        when(zoneTariff.price(any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(Optional.empty());
+
+        assertThat(service.calculate(BRANCH, DESTINATION_PINCODE, null, new BigDecimal("20"), null, null, TARIFF_INPUT)
+                .baseFreight()).isEqualByComparingTo("170.00");
+        assertThat(service.calculate(BRANCH, DESTINATION_PINCODE, null, new BigDecimal("20"))
+                .baseFreight()).isEqualByComparingTo("170.00");
+        org.mockito.Mockito.verify(zoneTariff, org.mockito.Mockito.times(1))
+                .price(any(), any(), any(), any(), any(), any(), any(), any());
     }
 }

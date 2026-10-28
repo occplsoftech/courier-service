@@ -92,6 +92,18 @@ public class CompanyDistrictFreightBranchDirectory implements BranchLookupPort {
         return userRepository.findByIdWithinCompany(userId, companyId).map(User::getBranchId);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> findPostalCode(UUID branchId, UUID companyId) {
+        if (branchId == null || companyId == null) {
+            return Optional.empty();
+        }
+        return branchRepository.findByIdWithinCompany(branchId, companyId)
+                .map(Branch::getPostalCode)
+                .filter(code -> !code.isBlank())
+                .map(String::trim);
+    }
+
     private BranchRef toRef(Branch branch) {
         return new BranchRef(branch.getId(), branch.getBranchCode(), branch.getBranchName(),
                 branch.isActive());

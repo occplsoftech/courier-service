@@ -2,6 +2,7 @@ package com.courier.modules.customerportal.rates.infrastructure;
 
 import com.courier.modules.customerportal.rates.domain.BookingOutcome;
 import com.courier.modules.customerportal.rates.domain.ChargeComponent;
+import com.courier.modules.customerportal.rates.domain.ChargeLine;
 import com.courier.modules.customerportal.rates.domain.ProviderResult;
 import com.courier.modules.customerportal.rates.domain.RateRequest;
 import com.courier.modules.customerportal.rates.domain.ShipmentRef;
@@ -15,6 +16,11 @@ import com.courier.modules.pickup.application.PickupService;
 import com.courier.modules.pickup.domain.PickupRequest;
 import com.courier.modules.pickup.domain.PickupStatus;
 import com.courier.modules.shipment.application.ShipmentPortalQueries;
+import com.courier.modules.tariff.application.TariffQuoteService;
+import com.courier.modules.tariff.domain.TariffPriceCalculator;
+import com.courier.modules.tariff.domain.TariffRateCard;
+import com.courier.modules.tariff.domain.TariffZone;
+import com.courier.modules.tariff.application.TariffZoneService;
 import com.courier.modules.shipment.domain.ShipmentStatus;
 import com.courier.shared.exception.BusinessRuleException;
 import org.junit.jupiter.api.DisplayName;
@@ -46,6 +52,7 @@ class OccplNetworkAdapterTest {
     @Mock private ZoneRateService zoneRates;
     @Mock private PickupService pickups;
     @Mock private ShipmentPortalQueries shipments;
+    @Mock private TariffQuoteService tariff;
     @InjectMocks private OccplNetworkAdapter adapter;
 
     private static final UUID DISTRICT = UUID.randomUUID();
@@ -92,6 +99,36 @@ class OccplNetworkAdapterTest {
 
         assertThat(result.available()).isFalse();
         assertThat(result.reason()).contains("No OCCPL network rate");
+    }
+
+    @Test
+    @DisplayName("no contract rate: the company's zone tariff, one option per service type, with its charges and GST")
+    void zoneTariffFallback() {
+        served();
+        when(zoneRates.calculate(any())).thenThrow(new BusinessRuleException("No active pricing zone"));
+        TariffPriceCalculator.Price price = new TariffPriceCalculator.Price(new BigDecimal("12"), null, new BigDecimal("12"),
+                new TariffPriceCalculator.Freight(new BigDecimal("1200.00"), null, null, 0, "Fixed"),
+                List.of(new TariffPriceCalculator.ChargeLine("FUEL", "Fuel surcharge", new BigDecimal("120.00"), true, "10% of freight", null)),
+                new BigDecimal("1320.00"),
+                List.of(new TariffPriceCalculator.TaxLine("IGST", new BigDecimal("18"), new BigDecimal("237.60"))),
+                new BigDecimal("237.60"), BigDecimal.ZERO, new BigDecimal("0.40"), new BigDecimal("1558.00"));
+        TariffZone zone = TariffZone.builder().code("PUNE").name("Pune").build();
+        TariffZoneService.Resolution where = new TariffZoneService.Resolution(zone, null, null);
+        TariffRateCard card = TariffRateCard.builder().code("PUNE_CASH").build();
+        when(tariff.quoteOptions(any(), org.mockito.ArgumentMatchers.eq(false))).thenReturn(List.of(
+                new TariffQuoteService.Quote(card, where, where, UUID.randomUUID(), "SURFACE", "Surface", 4,
+                        UUID.randomUUID(), "NONDOC", false, price)));
+
+        ProviderResult result = adapter.getRates(request());
+
+        assertThat(result.available()).isTrue();
+        assertThat(result.rates()).singleElement().satisfies(r -> {
+            assertThat(r.serviceCode()).isEqualTo("OCCPL_SURFACE");
+            assertThat(r.etaMaxDays()).isEqualTo(4);
+            assertThat(r.providerTotal()).isEqualByComparingTo("1557.60");
+            assertThat(r.charges()).extracting(ChargeLine::component).containsExactly(
+                    ChargeComponent.FREIGHT, ChargeComponent.FUEL_SURCHARGE, ChargeComponent.TAX);
+        });
     }
 
     @Test
