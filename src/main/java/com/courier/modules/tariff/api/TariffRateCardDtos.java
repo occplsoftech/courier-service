@@ -97,7 +97,27 @@ public final class TariffRateCardDtos {
             LocalDate bookingDate) {
     }
 
+    /** {@link QuoteRequest} without service and package type: the calculator prices every lane. */
+    public record OptionsRequest(
+            @NotBlank @Size(max = 6) String originPincode,
+            @NotBlank @Size(max = 6) String destinationPincode,
+            @NotNull @Positive BigDecimal actualWeightKg,
+            @Positive BigDecimal lengthCm, @Positive BigDecimal widthCm, @Positive BigDecimal heightCm,
+            @Positive Integer pieces,
+            @PositiveOrZero BigDecimal declaredValue,
+            boolean cod,
+            LocalDate bookingDate) {
+    }
+
     public record ZoneRef(UUID id, String code, String name, String matchedBy) {
+    }
+
+    public record UnavailableResponse(String serviceTypeCode, String serviceTypeName, String packageTypeCode, String reason) {
+    }
+
+    /** Every option the applicable card has to the delivery zone, cheapest first. */
+    public record OptionsResponse(UUID rateCardId, String rateCardCode, ZoneRef fromZone, ZoneRef toZone, boolean oda,
+                                  List<QuoteResponse> options, List<UnavailableResponse> unavailable) {
     }
 
     public record ChargeLineResponse(String code, String name, BigDecimal amount, boolean taxable, String basis) {
@@ -107,7 +127,8 @@ public final class TariffRateCardDtos {
     }
 
     public record QuoteResponse(UUID rateCardId, String rateCardCode, ZoneRef fromZone, ZoneRef toZone,
-                                String serviceTypeCode, String packageTypeCode, boolean oda,
+                                UUID serviceTypeId, String serviceTypeCode, String serviceTypeName, Integer deliveryDays,
+                                UUID packageTypeId, String packageTypeCode, boolean oda,
                                 BigDecimal actualWeightKg, BigDecimal volumetricWeightKg, BigDecimal chargeableWeightKg,
                                 BigDecimal freight, String freightBasis, List<ChargeLineResponse> charges,
                                 BigDecimal taxableAmount, List<TaxLineResponse> taxes, BigDecimal taxTotal,

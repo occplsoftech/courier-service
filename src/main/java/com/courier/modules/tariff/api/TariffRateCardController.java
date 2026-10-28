@@ -7,10 +7,13 @@ import com.courier.modules.tariff.api.TariffRateCardDtos.ChargeRequest;
 import com.courier.modules.tariff.api.TariffRateCardDtos.ChargeResponse;
 import com.courier.modules.tariff.api.TariffRateCardDtos.LaneRequest;
 import com.courier.modules.tariff.api.TariffRateCardDtos.LaneResponse;
+import com.courier.modules.tariff.api.TariffRateCardDtos.OptionsRequest;
+import com.courier.modules.tariff.api.TariffRateCardDtos.OptionsResponse;
 import com.courier.modules.tariff.api.TariffRateCardDtos.QuoteRequest;
 import com.courier.modules.tariff.api.TariffRateCardDtos.QuoteResponse;
 import com.courier.modules.tariff.api.TariffRateCardDtos.SlabResponse;
 import com.courier.modules.tariff.api.TariffRateCardDtos.TaxLineResponse;
+import com.courier.modules.tariff.api.TariffRateCardDtos.UnavailableResponse;
 import com.courier.modules.tariff.api.TariffRateCardDtos.ZoneRef;
 import com.courier.modules.tariff.application.TariffQuoteService;
 import com.courier.modules.tariff.application.TariffQuoteService.QuoteInput;
@@ -84,16 +87,37 @@ public class TariffRateCardController {
     @Operation(summary = "Price a shipment", description = "The pickup pincode's from zone picks the active rate card "
             + "for the booking date (today if empty); the delivery pincode's to zone picks the rate. Nothing is saved.")
     public ApiResponse<QuoteResponse> quote(@Valid @RequestBody QuoteRequest r) {
-        TariffQuoteService.Quote q = quoteService.quote(new QuoteInput(r.originPincode(), r.destinationPincode(),
+        return ApiResponse.success(quoteResponse(quoteService.quote(new QuoteInput(r.originPincode(), r.destinationPincode(),
                 r.serviceTypeId(), r.packageTypeId(), r.actualWeightKg(), r.lengthCm(), r.widthCm(), r.heightCm(),
-                r.pieces(), r.declaredValue(), r.cod(), r.bookingDate()));
+                r.pieces(), r.declaredValue(), r.cod(), r.bookingDate()))));
+    }
+
+    @PostMapping("/quote/options")
+    @Operation(summary = "Price a shipment on every option", description = "The calculator's view: every service type and "
+            + "package type the active card has to the delivery pincode's zone, cheapest first. Options that cannot carry "
+            + "the weight are listed under `unavailable`. Nothing is saved.")
+    public ApiResponse<OptionsResponse> quoteOptions(@Valid @RequestBody OptionsRequest r) {
+        TariffQuoteService.Options o = quoteService.quoteAll(new QuoteInput(r.originPincode(), r.destinationPincode(),
+                null, null, r.actualWeightKg(), r.lengthCm(), r.widthCm(), r.heightCm(), r.pieces(), r.declaredValue(),
+                r.cod(), r.bookingDate()));
+        List<QuoteResponse> options = o.quotes().stream().map(TariffRateCardController::quoteResponse).toList();
+        QuoteResponse first = options.isEmpty() ? null : options.get(0);
+        return ApiResponse.success(new OptionsResponse(first == null ? null : first.rateCardId(),
+                first == null ? null : first.rateCardCode(), first == null ? null : first.fromZone(),
+                first == null ? null : first.toZone(), first != null && first.oda(), options,
+                o.unavailable().stream().map(u -> new UnavailableResponse(u.serviceTypeCode(), u.serviceTypeName(),
+                        u.packageTypeCode(), u.reason())).toList()));
+    }
+
+    private static QuoteResponse quoteResponse(TariffQuoteService.Quote q) {
         var p = q.price();
-        return ApiResponse.success(new QuoteResponse(q.card().getId(), q.card().getCode(), zoneRef(q.from()), zoneRef(q.to()),
-                q.serviceTypeCode(), q.packageTypeCode(), q.oda(), p.actualWeightKg(), p.volumetricWeightKg(),
+        return new QuoteResponse(q.card().getId(), q.card().getCode(), zoneRef(q.from()), zoneRef(q.to()),
+                q.serviceTypeId(), q.serviceTypeCode(), q.serviceTypeName(), q.deliveryDays(), q.packageTypeId(),
+                q.packageTypeCode(), q.oda(), p.actualWeightKg(), p.volumetricWeightKg(),
                 p.chargeableWeightKg(), p.freight().amount(), p.freight().basis(),
                 p.charges().stream().map(c -> new ChargeLineResponse(c.code(), c.name(), c.amount(), c.taxable(), c.basis())).toList(),
                 p.taxableAmount(), p.taxes().stream().map(t -> new TaxLineResponse(t.code(), t.percent(), t.amount())).toList(),
-                p.taxTotal(), p.nonTaxableAmount(), p.roundOff(), p.total()));
+                p.taxTotal(), p.nonTaxableAmount(), p.roundOff(), p.total());
     }
 
     @GetMapping("/{id}")

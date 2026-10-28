@@ -86,31 +86,52 @@ public class TariffQuoteServiceImpl implements TariffQuoteService {
     @Transactional(readOnly = true)
     @PreAuthorize("isAuthenticated()")
     public List<Quote> quoteOptions(QuoteInput in, boolean documents) {
-        Optional<Origin> origin = origin(in);
-        if (origin.isEmpty()) {
-            return List.of();
+        return origin(in).map(origin -> priceAllLanes(origin, destination(in), in, documents).quotes()).orElse(List.of());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize("isAuthenticated()")
+    public Options quoteAll(QuoteInput in) {
+        UUID companyId = requireCompany();
+        if (in.actualWeightKg() == null || in.actualWeightKg().signum() <= 0) {
+            throw new BusinessRuleException("Enter the weight in kg, above 0.");
         }
-        Destination destination = destination(in);
+        TariffZoneService.Resolution from = zoneService.resolve(in.originPincode(), ZoneUsage.FROM)
+                .orElseThrow(() -> new BusinessRuleException("No from zone covers pickup pincode " + in.originPincode().trim()
+                        + ". Add it (or its city, district or state) to a from zone."));
+        LocalDate date = dateOf(in);
+        TariffRateCard card = activeCard(companyId, from, date)
+                .orElseThrow(() -> new BusinessRuleException("No active rate card for from zone %s on %s."
+                        .formatted(from.zone().getCode(), date)));
+        return priceAllLanes(new Origin(companyId, from, card), destination(in), in, null);
+    }
+
+    /** Every lane of the card to the destination's zone; {@code documents} null takes documents and parcels alike. */
+    private Options priceAllLanes(Origin origin, Destination destination, QuoteInput in, Boolean documents) {
         Map<String, List<TariffRateSlab>> lanes = new LinkedHashMap<>();
-        slabs.findByCard(origin.get().companyId(), origin.get().card().getId()).stream()
+        slabs.findByCard(origin.companyId(), origin.card().getId()).stream()
                 .filter(s -> s.getToZoneId().equals(destination.to().zone().getId()))
                 .forEach(s -> lanes.computeIfAbsent(s.getServiceTypeId() + ":" + s.getPackageTypeId(), k -> new ArrayList<>()).add(s));
-        List<TariffChargeRule> rules = charges.findByCard(origin.get().companyId(), origin.get().card().getId());
+        List<TariffChargeRule> rules = charges.findByCard(origin.companyId(), origin.card().getId());
         List<Quote> quotes = new ArrayList<>();
+        List<Unavailable> unavailable = new ArrayList<>();
         for (List<TariffRateSlab> lane : lanes.values()) {
             ServiceType serviceType = tryGet(lane.get(0).getServiceTypeId(), serviceTypeService::getById);
             PackageType packageType = tryGet(lane.get(0).getPackageTypeId(), packageTypeService::getById);
-            if (serviceType == null || packageType == null || packageType.isDocumentType() != documents) {
+            if (serviceType == null || packageType == null
+                    || (documents != null && packageType.isDocumentType() != documents)) {
                 continue;
             }
             try {
-                quotes.add(price(origin.get(), destination, in, serviceType, packageType, lane, rules));
+                quotes.add(price(origin, destination, in, serviceType, packageType, lane, rules));
             } catch (BusinessRuleException tooHeavy) {
-                // This service has no slab for the weight; the others may.
+                // This lane has no slab for the weight; the others may.
+                unavailable.add(new Unavailable(serviceType.getCode(), serviceType.getName(), packageType.getCode(), tooHeavy.getMessage()));
             }
         }
         quotes.sort(Comparator.comparing(q -> q.price().total()));
-        return quotes;
+        return new Options(quotes, unavailable);
     }
 
     private Optional<Origin> origin(QuoteInput in) {

@@ -57,7 +57,9 @@ Writes `COMPANY_ADMIN` (on the service); reads any signed-in user. Audit: `TARIF
   delivery pincode and COD where the pincode has none, picks the card for the booking date (today, Asia/Kolkata) and the lane.
 - A zone used by a card (from) or by slabs/charges (to) cannot be deleted, nor narrowed out of that direction.
 - API `/api/v1/tariff-rate-cards`: CRUD, `PATCH activate|deactivate`, `PUT /{id}/lanes`, `DELETE /{id}/lanes?toZoneId&serviceTypeId&packageTypeId`,
-  `POST/PUT/DELETE /{id}/charges[/{chargeId}]`, `POST /quote`. Same `TARIFF` permission module; audit `TARIFF_RATE_*`, `TARIFF_CHARGE_*`.
+  `POST/PUT/DELETE /{id}/charges[/{chargeId}]`, `POST /quote`, `POST /quote/options` (every lane — documents and parcels —
+  to the delivery zone, cheapest first, too-heavy lanes under `unavailable`; the courier-web calculator, laid out like the
+  e-commerce portal's rate calculator, uses it). Same `TARIFF` permission module; audit `TARIFF_RATE_*`, `TARIFF_CHARGE_*`.
 
 ## Phase 3: booking and portal (no migration)
 - **Counter booking** goes through `FreightCalculationService` as before. New 7-arg `calculate(..., TariffInput)`

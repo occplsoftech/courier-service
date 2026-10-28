@@ -8,6 +8,14 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-28 — Zone tariff: price every option at once (`POST /tariff-rate-cards/quote/options`)
+
+- `TariffQuoteService.quoteAll`: every service type × package type the applicable card has to the delivery zone, cheapest
+  first; lanes that cannot carry the weight come back as `unavailable` with the reason. Quote responses now carry the service
+  type id/name, delivery days and package type id. For the calculator redesigned like the e-commerce portal's. No migration.
+
+---
+
 ## 2026-10-28 — Zone tariff menu rows (V140)
 
 - `menu_items`: "Zone Tariff" group with Zones, Rate Cards and Calculator (permission module `TARIFF`), for the
