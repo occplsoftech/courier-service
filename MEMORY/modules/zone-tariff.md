@@ -1,8 +1,9 @@
 # Zone Tariff (company rate cards by zone)
 
 **Status:** Phase 1 (V138): zones, zone locations, pincode → zone lookup. Phase 2 (V139): rate cards, weight slabs, charge
-rules, GST, quote endpoint. Phase 3 (no migration): counter booking and the customer portal price from it. Not built yet:
-Excel import of the sheet, courier-web screens and the booking screen sending service/package type to the preview. Package `com.courier.modules.tariff`. Permission module `TARIFF` (MASTER shape).
+rules, GST, quote endpoint. Phase 3 (no migration): counter booking and the customer portal price from it. Screens: courier-web
+`features/zone-tariff` (zones, rate cards, calculator) and the booking screen's Package Type + preview inputs; menu rows V140.
+Not built yet: Excel import of the sheet. Package `com.courier.modules.tariff`. Permission module `TARIFF` (MASTER shape).
 
 ## Why a new module
 OCCPL Courier's cash-booking tariff (`CASH_BOOKING_RATES_2.xlsx`) prices by **from zone × to zone × mode (service type) × product
@@ -65,6 +66,8 @@ Writes `COMPANY_ADMIN` (on the service); reads any signed-in user. Audit: `TARIF
 - The tariff applies when the **booking branch's postal code** (`BranchLookupPort.findPostalCode`) is in a FROM zone with an
   ACTIVE card on the booking date (`TariffQuoteService.quoteIfApplies`). Then it is authoritative: no to zone or no lane is an
   error, never a silent fall-through to District Level Freight. A company with no tariff zones is unaffected.
+- **Counter booking had stopped sending `packageTypeId`** (the field became optional when Route/Rate pricing stopped), so the
+  tariff could not price a create until courier-web offered Package Type again (courier-web zone tariff PR).
 - Shape (`FreightCalculationServiceImpl.fromTariff`): `baseFreight` = tariff freight, `odaCharge` 0, all the card's charges (ODA
   included) summed into `customerExtraCharges` with `customerZoneName` = "Zone tariff CODE: FROM → TO", so the existing
   "Other Charges must be at least …" rule makes the clerk carry them. `ratePerKg` = freight ÷ weight, so a raised Rate/KG override
@@ -86,7 +89,6 @@ Service Type master: `SURFACE`, `AIR`, `PREMIUM`, `CARGO`. Package Type master: 
 ## Next
 - Excel import of the sheet format (cleaned CSV lives in the session scratchpad; the sheet has repeated rows, Kerala rows with a
   blank state = their own to zone, and no Cargo Ex-Maharashtra rate).
-- courier-web screens for Phase 1 (zones list/detail, add locations, pincode test) and the sidebar entry.
 
 ## Verification
 Unit tests only (`TariffZoneServiceImplTest` 22, `TariffZoneTest` 4, `TariffPriceCalculatorTest` 12, `TariffRateCardServiceImplTest` 11,

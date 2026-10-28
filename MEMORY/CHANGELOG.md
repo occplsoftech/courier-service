@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-28 — Zone tariff menu rows (V140)
+
+- `menu_items`: "Zone Tariff" group with Zones, Rate Cards and Calculator (permission module `TARIFF`), for the
+  user-permission screens. The screens themselves are in courier-web. **V140 not run against MySQL.**
+
+---
+
 ## 2026-10-27 — Zone tariff, Phase 3: counter booking and customer portal price from the tariff (no migration)
 
 - Counter booking: Business Customer zone → zone tariff → District Level Freight. The tariff applies when the booking branch's
