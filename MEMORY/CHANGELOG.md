@@ -8,6 +8,15 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-28 — Zone tariff: import the cash-booking rate sheet into a rate card (no migration)
+
+- `TariffRateImportService`, `POST /tariff-rate-cards/{id}/import/preview` and `/import` (multipart). Loose name matching, state/city
+  rows to their own to zone, repeats removed, conflicts and lane gaps reported by Excel row; import all or nothing.
+- Tested with generated sheets (`TariffRateImportServiceTest`, 5) and by previewing the real sheet: 73 lanes, 16 Kerala rows
+  without a State to fix. Full suite 1,697.
+
+---
+
 ## 2026-10-28 — Zone tariff: price every option at once (`POST /tariff-rate-cards/quote/options`)
 
 - `TariffQuoteService.quoteAll`: every service type × package type the applicable card has to the delivery zone, cheapest

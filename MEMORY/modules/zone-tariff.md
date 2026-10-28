@@ -3,7 +3,7 @@
 **Status:** Phase 1 (V138): zones, zone locations, pincode → zone lookup. Phase 2 (V139): rate cards, weight slabs, charge
 rules, GST, quote endpoint. Phase 3 (no migration): counter booking and the customer portal price from it. Screens: courier-web
 `features/zone-tariff` (zones, rate cards, calculator) and the booking screen's Package Type + preview inputs; menu rows V140.
-Not built yet: Excel import of the sheet. Package `com.courier.modules.tariff`. Permission module `TARIFF` (MASTER shape).
+Excel import of the cash-booking sheet: `TariffRateImportService` (`POST /{id}/import/preview`, `POST /{id}/import`). Package `com.courier.modules.tariff`. Permission module `TARIFF` (MASTER shape).
 
 ## Why a new module
 OCCPL Courier's cash-booking tariff (`CASH_BOOKING_RATES_2.xlsx`) prices by **from zone × to zone × mode (service type) × product
@@ -89,8 +89,14 @@ Writes `COMPANY_ADMIN` (on the service); reads any signed-in user. Audit: `TARIF
 Service Type master: `SURFACE`, `AIR`, `PREMIUM`, `CARGO`. Package Type master: `DOC`, `NONDOC`. Phase 2 rate lines point at these.
 
 ## Next
-- Excel import of the sheet format (cleaned CSV lives in the session scratchpad; the sheet has repeated rows, Kerala rows with a
-  blank state = their own to zone, and no Cargo Ex-Maharashtra rate).
+- Excel import (built 2026-10-28): header row found in the first 15 rows ("Admin" title row first); names matched ignoring case
+  and punctuation against codes and names ("BY AIR" → AIR, "Document" → DOC by prefix, "EX PUNE" → EXPUNE); a row with State/City
+  goes to the to zone named after it; other from zones skipped; identical repeats counted once, different rates for one band an
+  error; "Per Kg" and "Addition 500GM" → PER_EXTRA_KG step 1 (warning on the 500 g rows). All or nothing, one transaction, lanes in
+  the file replace those lanes via `TariffRateCardService.saveLane`; other lanes kept.
+- **The real `CASH_BOOKING_RATES_2.xlsx`** (run through preview with zones named like the sheet): 1,000 rows, 810 repeats, 73
+  lanes; 16 errors — rows 499–500 and 989–1002 are SOUTH with Kerala's rates and a blank State (fill State = KERALA); no Cargo
+  EXMAHARASHTRA lane; 148 "Addtion 500GM" rows. The sheet ends at exactly 1,000 data rows, so it may be cut off.
 
 ## Verification
 Unit tests only (`TariffZoneServiceImplTest` 22, `TariffZoneTest` 4, `TariffPriceCalculatorTest` 12, `TariffRateCardServiceImplTest` 11,
