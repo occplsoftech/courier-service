@@ -16,6 +16,7 @@ import com.courier.modules.tariff.api.TariffRateCardDtos.TaxLineResponse;
 import com.courier.modules.tariff.api.TariffRateCardDtos.UnavailableResponse;
 import com.courier.modules.tariff.api.TariffRateCardDtos.ZoneRef;
 import com.courier.modules.tariff.application.TariffQuoteService;
+import com.courier.modules.tariff.application.TariffRateImportService;
 import com.courier.modules.tariff.application.TariffQuoteService.QuoteInput;
 import com.courier.modules.tariff.application.TariffRateCardService;
 import com.courier.modules.tariff.application.TariffRateCardService.CardInput;
@@ -35,6 +36,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -46,6 +48,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -64,6 +67,7 @@ public class TariffRateCardController {
 
     private final TariffRateCardService service;
     private final TariffQuoteService quoteService;
+    private final TariffRateImportService importService;
 
     @PostMapping
     @Operation(summary = "Create a rate card", description = "Starts INACTIVE: add its rates, then activate it.")
@@ -150,6 +154,22 @@ public class TariffRateCardController {
     public ApiResponse<Void> delete(@PathVariable UUID id) {
         service.delete(id);
         return ApiResponse.success("Rate card deleted");
+    }
+
+    @PostMapping(value = "/{id}/import/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Preview a rate sheet import", description = "Reads the cash-booking sheet format (From zone, To zone, "
+            + "State, City, Mode, Product, Applicable From, Weight From, Weight To, Rate, Rate Type), matches zones, modes and "
+            + "products, removes repeated rows and checks every lane. Nothing is saved.")
+    public ApiResponse<TariffRateImportService.Result> previewImport(@PathVariable UUID id, @RequestParam("file") MultipartFile file) {
+        return ApiResponse.success(importService.preview(id, file), "Import preview ready");
+    }
+
+    @PostMapping(value = "/{id}/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Import a rate sheet", description = "All or nothing: any problem the preview lists refuses the file. "
+            + "Otherwise every lane in the sheet replaces that lane on the card; lanes not in the sheet are kept.")
+    public ApiResponse<TariffRateImportService.Result> importSheet(@PathVariable UUID id, @RequestParam("file") MultipartFile file) {
+        TariffRateImportService.Result r = importService.importFile(id, file);
+        return ApiResponse.success(r, "Imported %d lane(s)".formatted(r.lanes().size()));
     }
 
     @PutMapping("/{id}/lanes")
