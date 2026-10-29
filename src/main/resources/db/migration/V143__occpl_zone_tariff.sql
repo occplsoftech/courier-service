@@ -34,30 +34,34 @@ SET @z_NORTH_EAST = UNHEX(REPLACE(UUID(), '-', ''));
 
 INSERT INTO master_service_types (id, company_id, code, name, status, display_order, delivery_days, created_at, updated_at, deleted, version)
 SELECT UNHEX(REPLACE(UUID(), '-', '')), @co, 'AIR', 'By Air', 'ACTIVE', 0, 2, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6), FALSE, 0
-FROM DUAL WHERE @go AND NOT EXISTS (SELECT 1 FROM master_service_types WHERE company_id = @co AND code = 'AIR');
-SET @st_AIR = (SELECT id FROM master_service_types WHERE company_id = @co AND code = 'AIR' AND deleted = FALSE LIMIT 1);
+FROM DUAL WHERE @go AND NOT EXISTS (SELECT 1 FROM master_service_types WHERE company_id = @co AND (code = 'AIR' OR name = 'By Air'));
+SET @st_AIR = (SELECT id FROM master_service_types WHERE company_id = @co AND (code = 'AIR' OR name = 'By Air') ORDER BY deleted, created_at LIMIT 1);
 INSERT INTO master_service_types (id, company_id, code, name, status, display_order, delivery_days, created_at, updated_at, deleted, version)
 SELECT UNHEX(REPLACE(UUID(), '-', '')), @co, 'SURFACE', 'Surface', 'ACTIVE', 0, 5, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6), FALSE, 0
-FROM DUAL WHERE @go AND NOT EXISTS (SELECT 1 FROM master_service_types WHERE company_id = @co AND code = 'SURFACE');
-SET @st_SURFACE = (SELECT id FROM master_service_types WHERE company_id = @co AND code = 'SURFACE' AND deleted = FALSE LIMIT 1);
+FROM DUAL WHERE @go AND NOT EXISTS (SELECT 1 FROM master_service_types WHERE company_id = @co AND (code = 'SURFACE' OR name = 'Surface'));
+SET @st_SURFACE = (SELECT id FROM master_service_types WHERE company_id = @co AND (code = 'SURFACE' OR name = 'Surface') ORDER BY deleted, created_at LIMIT 1);
 INSERT INTO master_service_types (id, company_id, code, name, status, display_order, delivery_days, created_at, updated_at, deleted, version)
 SELECT UNHEX(REPLACE(UUID(), '-', '')), @co, 'PREMIUM', 'Premium', 'ACTIVE', 0, 1, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6), FALSE, 0
-FROM DUAL WHERE @go AND NOT EXISTS (SELECT 1 FROM master_service_types WHERE company_id = @co AND code = 'PREMIUM');
-SET @st_PREMIUM = (SELECT id FROM master_service_types WHERE company_id = @co AND code = 'PREMIUM' AND deleted = FALSE LIMIT 1);
+FROM DUAL WHERE @go AND NOT EXISTS (SELECT 1 FROM master_service_types WHERE company_id = @co AND (code = 'PREMIUM' OR name = 'Premium'));
+SET @st_PREMIUM = (SELECT id FROM master_service_types WHERE company_id = @co AND (code = 'PREMIUM' OR name = 'Premium') ORDER BY deleted, created_at LIMIT 1);
 INSERT INTO master_service_types (id, company_id, code, name, status, display_order, delivery_days, created_at, updated_at, deleted, version)
 SELECT UNHEX(REPLACE(UUID(), '-', '')), @co, 'CARGO', 'Cargo', 'ACTIVE', 0, 6, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6), FALSE, 0
-FROM DUAL WHERE @go AND NOT EXISTS (SELECT 1 FROM master_service_types WHERE company_id = @co AND code = 'CARGO');
-SET @st_CARGO = (SELECT id FROM master_service_types WHERE company_id = @co AND code = 'CARGO' AND deleted = FALSE LIMIT 1);
+FROM DUAL WHERE @go AND NOT EXISTS (SELECT 1 FROM master_service_types WHERE company_id = @co AND (code = 'CARGO' OR name = 'Cargo'));
+SET @st_CARGO = (SELECT id FROM master_service_types WHERE company_id = @co AND (code = 'CARGO' OR name = 'Cargo') ORDER BY deleted, created_at LIMIT 1);
 
--- Documents: the company's document package type if it has one, else DOC. Everything else: NONDOC, NON_DOCUMENT or PARCEL, else NONDOC.
+-- Documents: the company's document package type if it has one, else DOC. Everything else: NONDOC, NON_DOCUMENT or PARCEL (or a type already named Non Document), else NONDOC.
+-- A new type takes a "Tariff" code/name only when the plain one is already used by a type of the other kind (code and name are unique per company).
 INSERT INTO master_package_types (id, company_id, code, name, status, display_order, is_document, fragile_by_default, created_at, updated_at, deleted, version)
-SELECT UNHEX(REPLACE(UUID(), '-', '')), @co, 'DOC', 'Document', 'ACTIVE', 0, TRUE, FALSE, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6), FALSE, 0
+SELECT UNHEX(REPLACE(UUID(), '-', '')), @co,
+       IF(EXISTS (SELECT 1 FROM master_package_types WHERE company_id = @co AND code = 'DOC'), 'TARIFF_DOC', 'DOC'),
+       IF(EXISTS (SELECT 1 FROM master_package_types WHERE company_id = @co AND name = 'Document'), 'Document (Tariff)', 'Document'),
+       'ACTIVE', 0, TRUE, FALSE, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6), FALSE, 0
 FROM DUAL WHERE @go AND NOT EXISTS (SELECT 1 FROM master_package_types WHERE company_id = @co AND is_document = TRUE AND deleted = FALSE);
 SET @pk_DOC = (SELECT id FROM master_package_types WHERE company_id = @co AND is_document = TRUE AND deleted = FALSE ORDER BY (code IN ('DOC', 'DOCUMENT')) DESC, created_at LIMIT 1);
 INSERT INTO master_package_types (id, company_id, code, name, status, display_order, is_document, fragile_by_default, created_at, updated_at, deleted, version)
 SELECT UNHEX(REPLACE(UUID(), '-', '')), @co, 'NONDOC', 'Non Document', 'ACTIVE', 0, FALSE, FALSE, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6), FALSE, 0
-FROM DUAL WHERE @go AND NOT EXISTS (SELECT 1 FROM master_package_types WHERE company_id = @co AND code IN ('NONDOC', 'NON_DOCUMENT', 'PARCEL') AND deleted = FALSE);
-SET @pk_NONDOC = (SELECT id FROM master_package_types WHERE company_id = @co AND code IN ('NONDOC', 'NON_DOCUMENT', 'PARCEL') AND deleted = FALSE ORDER BY FIELD(code, 'NONDOC', 'NON_DOCUMENT', 'PARCEL') LIMIT 1);
+FROM DUAL WHERE @go AND NOT EXISTS (SELECT 1 FROM master_package_types WHERE company_id = @co AND (code IN ('NONDOC', 'NON_DOCUMENT', 'PARCEL') OR name = 'Non Document'));
+SET @pk_NONDOC = (SELECT id FROM master_package_types WHERE company_id = @co AND (code IN ('NONDOC', 'NON_DOCUMENT', 'PARCEL') OR name = 'Non Document') ORDER BY deleted, (code = 'NONDOC') DESC, created_at LIMIT 1);
 
 -- PUNE
 INSERT INTO tariff_zones (id, company_id, code, name, zone_usage, description, display_order, status, created_at, updated_at, deleted, version)
