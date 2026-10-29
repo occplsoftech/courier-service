@@ -8,6 +8,15 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-29 — Latur pincodes: city is the taluka, not Osmanabad (V144)
+
+- On dev, Latur-district pincodes added earlier by the postal lookup carried the India Post division (Osmanabad) as their city, so
+  413512 showed city Osmanabad under district Latur. V144 moves the post offices of the 26 Latur-district pincodes to a city named
+  after their taluka (Latur, Ausa, Udgir, Nilanga, …), created under district Latur when missing. Nothing is deleted (the old
+  Osmanabad city row stays, now empty of these areas); an area is skipped if its new city already has one of the same name.
+  No-op without district Latur; safe to re-run. Checked locally on MySQL 8.4 with 413512/413520 under an Osmanabad city.
+- Other districts are not touched. The same fix can be generated for any district.
+
 ## 2026-10-29 — Fix: V143 failed on dev; Flyway repairs failed rows
 
 - V143 never applied on dev (deploy rolled back). Likely cause: service/package type lookup matched by code only, but name is
