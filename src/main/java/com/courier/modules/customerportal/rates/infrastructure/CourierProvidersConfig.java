@@ -49,6 +49,14 @@ public class CourierProvidersConfig {
     }
 
     @Bean
+    public CourierProviderAdapter skartAdapter(RestClient.Builder builder, CustomerPortalProperties props,
+                                               CourierCredentials credentials) {
+        log.info("Customer portal: sKart international {} (companies can also connect their own account)",
+                props.getSkart().configured() ? "connected by the server settings" : "not set in the server settings");
+        return new SkartAdapter(withTimeouts(builder, props), props.getSkart(), credentials::skart);
+    }
+
+    @Bean
     public CourierProviderAdapter blueDartAdapter() {
         return new NotConfiguredAdapter("BLUEDART", "Blue Dart");
     }

@@ -38,6 +38,7 @@ public class CustomerPortalProperties {
     private Shiprocket shiprocket = new Shiprocket();
     private Delhivery delhivery = new Delhivery();
     private Shipyaari shipyaari = new Shipyaari();
+    private Skart skart = new Skart();
     private TrackingSync trackingSync = new TrackingSync();
 
     /**
@@ -133,6 +134,23 @@ public class CustomerPortalProperties {
 
         public boolean bookable() {
             return configured();
+        }
+    }
+
+    /**
+     * sKart (international, aggregator of DHL, FedEx, UPS, Aramex, Skynet…): the franchisee account's user name and password,
+     * sent with every call. The documented base URL is the development system; the live one comes from sKart.
+     */
+    @Getter
+    @Setter
+    public static class Skart {
+        private boolean enabled = false;
+        private String baseUrl = "https://devapiv2.skart-express.com/api/v1/booking";
+        private String userName;
+        private String password;
+
+        public boolean configured() {
+            return enabled && notBlank(userName) && notBlank(password);
         }
     }
 

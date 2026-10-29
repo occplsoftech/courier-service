@@ -74,7 +74,7 @@ class CourierIntegrationServiceTest {
     void lists() {
         List<IntegrationView> all = service.list();
 
-        assertThat(all).extracting(IntegrationView::code).containsExactly("SHIPROCKET", "DELHIVERY", "SHIPYAARI", "BLUEDART", "EKART");
+        assertThat(all).extracting(IntegrationView::code).containsExactly("SHIPROCKET", "DELHIVERY", "SHIPYAARI", "SKART", "BLUEDART", "EKART");
         assertThat(find(all, "SHIPROCKET").source()).isEqualTo("NONE");
         assertThat(find(all, "SHIPYAARI").available()).isTrue();
         assertThat(find(all, "SHIPYAARI").source()).isEqualTo("NONE");
@@ -114,6 +114,10 @@ class CourierIntegrationServiceTest {
         assertThat(service.save("SHIPROCKET", false, Map.of("email", "x@shop.test")).webhookUrl()).isEqualTo(v.webhookUrl());
         assertThat(find(service.list(), "SHIPROCKET").webhookUrl()).isEqualTo(v.webhookUrl());
         assertThat(service.save("DELHIVERY", false, Map.of()).webhookUrl()).isNotEqualTo(v.webhookUrl());
+        IntegrationView skart = service.save("SKART", false, Map.of("userName", "franchisee"));
+        assertThat(skart.statusPush()).isFalse();
+        assertThat(skart.webhookUrl()).isNull();
+        assertThat(v.statusPush()).isTrue();
     }
 
     @Test

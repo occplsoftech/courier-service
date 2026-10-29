@@ -24,6 +24,14 @@ public interface CourierProviderAdapter {
         return configured();
     }
 
+    /**
+     * False for a provider that only ships abroad (sKart): the domestic comparison does not ask it or list it; it answers
+     * through {@link InternationalRateProvider} instead.
+     */
+    default boolean domestic() {
+        return true;
+    }
+
     ProviderResult getRates(RateRequest request);
 
     /**

@@ -1,6 +1,8 @@
 package com.courier.modules.customerportal.api;
 
 import com.courier.modules.customerportal.rates.application.RateComparisonService;
+import com.courier.modules.customerportal.rates.application.RateComparisonService.InternationalEstimateCommand;
+import com.courier.modules.customerportal.rates.domain.InternationalRateProvider;
 import com.courier.modules.customerportal.rates.application.RateComparisonService.CompareCommand;
 import com.courier.modules.customerportal.rates.application.RateComparisonService.EstimateCommand;
 import com.courier.modules.customerportal.rates.application.RateComparisonService.PackageInput;
@@ -55,6 +57,23 @@ public class CustomerPortalRatesController {
                 request.breadth(), request.height(), request.dimensionUnit(), request.paymentMode())));
     }
 
+    @PostMapping("/rates/international/estimate")
+    @Operation(summary = "International rate calculator (sKart): pickup pincode to a country and postcode, nothing stored",
+            description = "`kind`: PARCEL (default), DOCUMENT or COMMERCIAL. Same markup and GST handling as the domestic "
+                    + "estimate. Empty options with sKart listed as unavailable when the company has not connected it.")
+    public ApiResponse<QuoteView> internationalEstimate(@Valid @RequestBody InternationalEstimateRequest request) {
+        return ApiResponse.success(service.estimateInternational(new InternationalEstimateCommand(request.originPincode(),
+                request.destinationCountry(), request.destinationPostcode(),
+                request.kind() == null ? InternationalRateProvider.Kind.PARCEL : request.kind(), request.weightKg(),
+                request.pieces(), request.maxLengthCm())));
+    }
+
+    @GetMapping("/international/countries")
+    @Operation(summary = "Countries the connected international courier (sKart) ships to, A-Z (empty when none is connected)")
+    public ApiResponse<java.util.List<InternationalRateProvider.Country>> internationalCountries() {
+        return ApiResponse.success(service.internationalCountries());
+    }
+
     @GetMapping("/quotes/{quoteId}")
     @Operation(summary = "One of the customer's own quotes (404 for anyone else's)")
     public ApiResponse<QuoteView> quote(@PathVariable UUID quoteId) {
@@ -83,6 +102,12 @@ public class CustomerPortalRatesController {
                                   @NotNull Integer packageCount, @NotNull BigDecimal actualWeightKg,
                                   @NotNull BigDecimal declaredValue, BigDecimal length, BigDecimal breadth, BigDecimal height,
                                   @Size(max = 2) String dimensionUnit, @Size(max = 10) String paymentMode) {
+    }
+
+    public record InternationalEstimateRequest(@NotNull @Size(min = 6, max = 6) String originPincode,
+                                               @NotNull @Size(min = 2, max = 80) String destinationCountry,
+                                               @Size(max = 20) String destinationPostcode, InternationalRateProvider.Kind kind,
+                                               @NotNull BigDecimal weightKg, Integer pieces, BigDecimal maxLengthCm) {
     }
 
     public record CompareRequest(@NotNull @Valid Party pickup, @NotNull @Valid Party delivery,

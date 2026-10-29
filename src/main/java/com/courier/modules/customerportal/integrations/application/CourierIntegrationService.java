@@ -208,9 +208,14 @@ public class CourierIntegrationService {
         return row;
     }
 
+    /** Couriers that can push status updates to a webhook. sKart has no webhooks: its statuses come from the hourly sync. */
+    private static boolean statusPush(String code) {
+        return !CourierCatalog.SKART.equals(code);
+    }
+
     /** The address the courier calls with status updates; null until the integration has been saved. */
     private String webhookUrl(CourierIntegration row) {
-        if (row == null || row.getWebhookToken() == null) {
+        if (row == null || row.getWebhookToken() == null || !statusPush(row.getProviderCode())) {
             return null;
         }
         String base = properties.getTrackingSync().getPublicBaseUrl();
@@ -271,7 +276,8 @@ public class CourierIntegrationService {
         CourierIntegration row = saved.orElse(null);
         return new IntegrationView(p.code(), p.name(), p.available(), p.note(), source, enabled, connected, unreadable, fields,
                 row == null ? null : row.getLastTestedAt(), row == null ? null : row.getLastTestOk(),
-                row == null ? null : row.getLastTestMessage(), row == null ? null : row.getLogoDataUrl(), webhookUrl(row));
+                row == null ? null : row.getLastTestMessage(), row == null ? null : row.getLogoDataUrl(), webhookUrl(row),
+                statusPush(p.code()));
     }
 
     private boolean environmentConfigured(String code) {
@@ -279,6 +285,7 @@ public class CourierIntegrationService {
             case CourierCatalog.SHIPROCKET -> properties.getShiprocket().configured();
             case CourierCatalog.DELHIVERY -> properties.getDelhivery().configured();
             case CourierCatalog.SHIPYAARI -> properties.getShipyaari().configured();
+            case CourierCatalog.SKART -> properties.getSkart().configured();
             default -> false;
         };
     }
@@ -299,7 +306,7 @@ public class CourierIntegrationService {
     public record IntegrationView(String code, String name, boolean available, String note, String source, boolean enabled,
                                   boolean connected, boolean credentialsUnreadable, List<FieldView> fields,
                                   Instant lastTestedAt, Boolean lastTestOk, String lastTestMessage, String logoDataUrl,
-                                  String webhookUrl) {
+                                  String webhookUrl, boolean statusPush) {
     }
 
     /** {@code value} is null for a secret; {@code set} says whether it has a value. */

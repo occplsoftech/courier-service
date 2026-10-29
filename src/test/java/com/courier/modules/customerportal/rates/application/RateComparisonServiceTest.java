@@ -206,6 +206,75 @@ class RateComparisonServiceTest {
         verify(store, org.mockito.Mockito.never()).save(any(), anyList());
     }
 
+    /** An international-only provider, like sKart. */
+    private static CourierProviderAdapter international(boolean configured,
+            Function<com.courier.modules.customerportal.rates.domain.InternationalRateProvider.Request, ProviderResult> rates) {
+        abstract class Intl implements CourierProviderAdapter, com.courier.modules.customerportal.rates.domain.InternationalRateProvider { }
+        return new Intl() {
+            @Override public String code() { return "SKART"; }
+            @Override public String displayName() { return "sKart International"; }
+            @Override public boolean external() { return true; }
+            @Override public boolean domestic() { return false; }
+            @Override public boolean configured() { return configured; }
+            @Override public ProviderResult getRates(RateRequest r) { throw new AssertionError("asked for domestic rates"); }
+            @Override public ProviderResult internationalRates(Request r) { return rates.apply(r); }
+            @Override public List<Country> countries(UUID companyId) {
+                return List.of(new Country(12, "AU", "AUSTRALIA", "South West Pacific", true));
+            }
+        };
+    }
+
+    @Test
+    @DisplayName("an international-only provider is neither asked nor listed in the domestic comparison")
+    void internationalNotDomestic() {
+        QuoteView q = service(adapter("SHIPROCKET", true, true, r -> priced("SHIPROCKET", "90")),
+                international(true, r -> priced("SKART", "500"))).compare(command("110001", "2.5"));
+
+        assertThat(q.options()).extracting(o -> o.providerCode()).containsExactly("SHIPROCKET");
+        assertThat(q.unavailable()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("international estimate: asks the international provider with the country, marks it up like any external rate")
+    void internationalEstimate() {
+        var asked = new java.util.concurrent.atomic.AtomicReference<com.courier.modules.customerportal.rates.domain.InternationalRateProvider.Request>();
+        RateComparisonService s = service(adapter("SHIPROCKET", true, true, r -> { throw new AssertionError("domestic asked"); }),
+                international(true, r -> { asked.set(r); return priced("SKART", "1000"); }));
+
+        QuoteView q = s.estimateInternational(new RateComparisonService.InternationalEstimateCommand("110049", " AUSTRALIA ", "3001",
+                com.courier.modules.customerportal.rates.domain.InternationalRateProvider.Kind.PARCEL, new BigDecimal("2"), 0,
+                new BigDecimal("30")));
+
+        assertThat(asked.get().destinationCountry()).isEqualTo("AUSTRALIA");
+        assertThat(asked.get().pieces()).isEqualTo(1);
+        assertThat(asked.get().companyId()).isEqualTo(ACTING.companyId());
+        assertThat(q.options()).singleElement().satisfies(o -> {
+            assertThat(o.providerCode()).isEqualTo("SKART");
+            assertThat(o.markupAmount()).isEqualByComparingTo("100");
+        });
+        assertThat(q.deliveryPincode()).isEqualTo("3001");
+        assertThat(s.internationalCountries()).extracting(c -> c.name()).containsExactly("AUSTRALIA");
+        verify(store, org.mockito.Mockito.never()).save(any(), anyList());
+    }
+
+    @Test
+    @DisplayName("international estimate: not connected is listed as unavailable; bad pincode or weight is refused")
+    void internationalEstimateEdges() {
+        RateComparisonService s = service(international(false, r -> { throw new AssertionError("asked"); }));
+        var parcel = com.courier.modules.customerportal.rates.domain.InternationalRateProvider.Kind.PARCEL;
+
+        QuoteView q = s.estimateInternational(new RateComparisonService.InternationalEstimateCommand("110049", "AUSTRALIA", "3001",
+                parcel, BigDecimal.ONE, 1, null));
+        assertThat(q.options()).isEmpty();
+        assertThat(q.unavailable()).singleElement().satisfies(u -> assertThat(u.reason()).contains("not connected"));
+        assertThat(s.internationalCountries()).isEmpty();
+
+        assertThatThrownBy(() -> s.estimateInternational(new RateComparisonService.InternationalEstimateCommand("1100", "AUSTRALIA",
+                "3001", parcel, BigDecimal.ONE, 1, null))).isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> s.estimateInternational(new RateComparisonService.InternationalEstimateCommand("110049", "AUSTRALIA",
+                "3001", parcel, BigDecimal.ZERO, 1, null))).isInstanceOf(BusinessRuleException.class);
+    }
+
     @Test
     @DisplayName("estimate still validates the pincodes and package")
     void estimateValidates() {
