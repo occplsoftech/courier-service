@@ -8,6 +8,14 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-29 — Fix: V143 failed on dev; Flyway repairs failed rows
+
+- V143 never applied on dev (deploy rolled back). Likely cause: service/package type lookup matched by code only, but name is
+  unique per company too, so a type with the same name under another code broke the insert. V143 (never applied anywhere) now
+  matches by code **or** name and reuses what exists. Checked locally with a colliding `SFC`/Surface type and a soft-deleted one.
+- `FlywayConfig` runs `repair()` first when the history holds a FAILED row (MySQL keeps it), so the fixed V143 can run on dev
+  without a manual repair. Only failed rows are touched.
+
 ## 2026-10-29 — OCCPL's zone tariff seeded for company code OCCPL (V143)
 
 - Dev's company code is `OCCPL`, not `OCCPL_COURIER`, so V142 did nothing there (Flyway does not rerun it). V143 is the same

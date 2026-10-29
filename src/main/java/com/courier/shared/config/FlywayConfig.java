@@ -1,6 +1,7 @@
 package com.courier.shared.config;
 
 import lombok.extern.slf4j.Slf4j;
+import java.util.Arrays;
 import org.flywaydb.core.Flyway;
 import org.springframework.boot.autoconfigure.flyway.FlywayMigrationStrategy;
 import org.springframework.context.annotation.Bean;
@@ -29,11 +30,26 @@ public class FlywayConfig {
     @Bean
     public FlywayMigrationStrategy flywayMigrationStrategy() {
         return flyway -> {
+            repairFailed(flyway);
             logPending(flyway);
             var result = flyway.migrate();
             log.info("Flyway applied {} migration(s); schema now at version {}",
                     result.migrationsExecuted, result.targetSchemaVersion);
         };
+    }
+
+    /**
+     * MySQL cannot roll back DDL, so Flyway leaves a failed migration in the history and
+     * refuses to start until it is repaired. A failed migration changed nothing that is
+     * recorded as done, so dropping its history row and letting it run again (once it has
+     * been fixed) is what a person would do by hand. Only failed rows are touched.
+     */
+    private void repairFailed(Flyway flyway) {
+        boolean failed = Arrays.stream(flyway.info().all()).anyMatch(i -> i.getState().isFailed());
+        if (failed) {
+            log.warn("Flyway: a previous migration failed; repairing the history before migrating");
+            flyway.repair();
+        }
     }
 
     private void logPending(Flyway flyway) {
