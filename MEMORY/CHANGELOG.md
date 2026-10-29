@@ -8,6 +8,18 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-29 — OCCPL Courier's zone tariff seeded on dev (V142)
+
+- Data migration, only for the company with `company_code = 'OCCPL_COURIER'` (no-op elsewhere, skipped if card `PUNE_CASH_2025`
+  exists): 13 zones with their places looked up by name in the global masters (missing ones skipped), the Pune cash-booking rate
+  card (74 lanes, 176 slabs from `CASH_BOOKING_RATES_2.xlsx`, Kerala's 16 blank-State rows put in KERALA, "Addition 500GM" read as
+  per extra kg), and four DEMO charges (fuel 10%, docket 30 untaxed, hamali 2/kg min 20 on non-documents, COD 2% min 50).
+  Creates the service types AIR/SURFACE/PREMIUM/CARGO and the package types it needs if the company lacks them.
+- Tested on MySQL 8.4: no-op without the company; with it, quotes through the API matched the sheet's freight for 10 destination
+  pincodes at 3 weights (0 mismatches); run twice, nothing doubled.
+
+---
+
 ## 2026-10-29 — Maharashtra geography: all districts, talukas and pincodes (V141)
 
 - Global masters get Maharashtra's 34 districts, 361 talukas (as cities), 1,580 pincodes and their 12,619 post offices (as areas),
