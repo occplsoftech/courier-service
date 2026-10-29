@@ -8,6 +8,15 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-29 — Maharashtra geography: all districts, talukas and pincodes (V141)
+
+- Global masters get Maharashtra's 34 districts, 361 talukas (as cities), 1,580 pincodes and their 12,619 post offices (as areas),
+  from the India Post directory (data.gov.in). Existing rows are reused by name and an existing pincode is left untouched, so it is
+  safe where the postal auto-create already added some. Tested on empty MySQL 8.4 (through Flyway) and on a database pre-seeded with
+  Pune rows. Other states: same generator, not included.
+
+---
+
 ## 2026-10-28 — Zone tariff: import the cash-booking rate sheet into a rate card (no migration)
 
 - `TariffRateImportService`, `POST /tariff-rate-cards/{id}/import/preview` and `/import` (multipart). Loose name matching, state/city
