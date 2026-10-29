@@ -8,6 +8,12 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-29 — Shipyaari rates: show the HTTP status when it refuses
+
+- When Shipyaari answers the rate request with an error, the portal reason now ends "(HTTP 403)" so a refusal can be told from a
+  bad request or an outage without reading the log. Shipyaari's own error text (first 300 characters, whitespace collapsed) goes
+  to the log as `Shipyaari rates failed: HTTP <status> <text>`, not to the customer. No change when it cannot be reached.
+
 ## 2026-10-29 — Latur pincodes: city is the taluka, not Osmanabad (V144)
 
 - On dev, Latur-district pincodes added earlier by the postal lookup carried the India Post division (Osmanabad) as their city, so
