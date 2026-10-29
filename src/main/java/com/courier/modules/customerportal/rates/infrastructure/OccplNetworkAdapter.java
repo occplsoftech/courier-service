@@ -221,12 +221,20 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
         }
     }
 
+    /** What the pickup team needs to know about payment: To Pay means the freight is collected from the receiver. */
+    private static String paymentText(BookingRequest b) {
+        if (b.rate().topay()) {
+            return "TO PAY: collect INR " + b.customerTotal().toPlainString() + " freight from the receiver on delivery";
+        }
+        return b.rate().cod() ? "COD" : "prepaid";
+    }
+
     static String remarks(BookingRequest b) {
         String text = "Portal booking " + b.reference() + (b.serviceCode() == null ? "" : ", service " + b.serviceCode())
                 + ". Deliver to " + b.delivery().name() + ", " + b.delivery().phone()
                 + ", " + b.delivery().address() + ", " + b.delivery().city() + " " + b.delivery().pincode()
                 + ". Contents: " + b.contents() + ". Value " + b.rate().declaredValue().toPlainString()
-                + ", " + (b.rate().cod() ? "COD" : "prepaid") + ", " + b.rate().packageCount() + " pkg, "
+                + ", " + paymentText(b) + ", " + b.rate().packageCount() + " pkg, "
                 + b.rate().lengthCm().toPlainString() + "x" + b.rate().breadthCm().toPlainString() + "x"
                 + b.rate().heightCm().toPlainString() + " cm. Quoted total INR " + b.customerTotal().toPlainString() + ".";
         return text.length() <= 500 ? text : text.substring(0, 500);

@@ -53,16 +53,19 @@ public class PortalBookingService {
     private final AuditService auditService;
     private final WalletService walletService;
     private final CustomerPortalProperties properties;
+    private final com.courier.modules.customer.application.CustomerPortalLookup customers;
 
     public PortalBookingService(CurrentCustomerResolver resolver, PortalBookingStore store,
                                 List<CourierProviderAdapter> adapters, AuditService auditService,
-                                WalletService walletService, CustomerPortalProperties properties) {
+                                WalletService walletService, CustomerPortalProperties properties,
+                                com.courier.modules.customer.application.CustomerPortalLookup customers) {
         this.resolver = resolver;
         this.store = store;
         this.adapters = adapters;
         this.auditService = auditService;
         this.walletService = walletService;
         this.properties = properties;
+        this.customers = customers;
     }
 
     public BookingView book(UUID quoteId, UUID optionId, String idempotencyKey) {
@@ -97,7 +100,8 @@ public class PortalBookingService {
         CourierProviderAdapter adapter = adapter(booking.getProviderCode());
         // Ledger first, courier second: the money leaves the wallet before anything is promised to the courier, and
         // comes back only if the courier certainly refused. A booking whose outcome is unknown stays paid.
-        boolean paidFromWallet = properties.getWalletPayment().covers(booking.getProviderCode());
+        boolean paidFromWallet = properties.getWalletPayment().covers(booking.getProviderCode())
+                && !"TOPAY".equals(start.quote().getPaymentMode()) && !creditCustomer(acting);
         if (paidFromWallet) {
             payFromWallet(acting, booking);
         }
@@ -126,6 +130,15 @@ public class PortalBookingService {
                 "providerRef", String.valueOf(finished.getProviderOrderRef()), "awb", String.valueOf(finished.getAwbNumber())));
         log.info("Portal booking {} -> {} ({})", finished.getId(), finished.getStatus(), finished.getProviderCode());
         return view(finished, outcome.message());
+    }
+
+    /**
+     * A customer set up with the Credit payment mode is billed on their invoice, so a booking neither debits nor credits their
+     * wallet, whatever balance it holds.
+     */
+    private boolean creditCustomer(ActingCustomer acting) {
+        return customers.findActiveBusinessCustomer(acting.companyId(), acting.customerId())
+                .map(c -> c.getDefaultPaymentMode() == com.courier.modules.customer.domain.CustomerPaymentMode.CREDIT).orElse(false);
     }
 
     /** Debits the wallet for this booking. A refusal (short balance, suspended wallet) ends the booking as FAILED, unpaid. */

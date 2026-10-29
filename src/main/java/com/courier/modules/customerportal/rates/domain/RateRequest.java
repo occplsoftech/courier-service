@@ -19,7 +19,12 @@ public record RateRequest(UUID companyId,
                           BigDecimal declaredValue,
                           PaymentMode paymentMode) {
 
-    public enum PaymentMode { PREPAID, COD }
+    public enum PaymentMode { PREPAID, COD, TOPAY }
+
+    /** TO PAY: the receiver pays the freight on delivery, so nothing is taken from the sender at booking. */
+    public boolean topay() {
+        return paymentMode == PaymentMode.TOPAY;
+    }
 
     public boolean cod() {
         return paymentMode == PaymentMode.COD;

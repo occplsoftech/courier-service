@@ -8,6 +8,19 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-29 — Customer portal payment: wallet debit for OCCPL Network, To Pay, credit customers
+
+- **Wallet debit on by default** (`CUSTOMER_PORTAL_WALLET_PAYMENT_ENABLED`, now `true`) and **OCCPL Network is no longer excluded**: a
+  prepaid or COD booking takes its frozen total from the customer's wallet before the courier/pickup is asked, and refunds it if the
+  booking is refused. The branch must not bill the same parcel again at pickup.
+- **To Pay** (`paymentMode: TOPAY`): the receiver pays the freight on delivery, so nothing is debited. Only OCCPL Network can offer it;
+  other couriers show "To Pay is available on OCCPL Network only." The pickup request's remarks say "TO PAY: collect INR x freight from
+  the receiver on delivery".
+- **Credit customers** (business customer payment mode CREDIT): no wallet debit or credit at booking, whatever the balance; billing
+  stays on their invoice.
+- Not done here: refunding the wallet when a pickup is cancelled later; a structured payment field on the pickup request (the
+  remarks carry it for now).
+
 ## 2026-10-29 — Shipyaari rates: show the HTTP status when it refuses
 
 - When Shipyaari answers the rate request with an error, the portal reason now ends "(HTTP 403)" so a refusal can be told from a

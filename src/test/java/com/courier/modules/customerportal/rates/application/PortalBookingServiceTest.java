@@ -51,10 +51,19 @@ class PortalBookingServiceTest {
     private final AtomicInteger calls = new AtomicInteger();
     private final WalletService walletService = mock(WalletService.class);
     private final CustomerPortalProperties properties = new CustomerPortalProperties();
+    private final com.courier.modules.customer.application.CustomerPortalLookup customers = mock(com.courier.modules.customer.application.CustomerPortalLookup.class);
+    private String quotedPaymentMode = "PREPAID";
+
+    private void customerPays(com.courier.modules.customer.domain.CustomerPaymentMode mode) {
+        com.courier.modules.customer.domain.Customer customer = mock(com.courier.modules.customer.domain.Customer.class);
+        when(customer.getDefaultPaymentMode()).thenReturn(mode);
+        when(customers.findActiveBusinessCustomer(ACTING.companyId(), ACTING.customerId())).thenReturn(java.util.Optional.of(customer));
+    }
 
     @BeforeEach
     void setUp() {
         when(resolver.require()).thenReturn(ACTING);
+        customerPays(com.courier.modules.customer.domain.CustomerPaymentMode.PAID);
     }
 
     private static CourierProviderAdapter adapter(boolean external, Function<BookingRequest, BookingOutcome> book) {
@@ -69,7 +78,7 @@ class PortalBookingServiceTest {
     }
 
     private PortalBookingService service(CourierProviderAdapter adapter) {
-        return new PortalBookingService(resolver, store, List.of(adapter), mock(AuditService.class), walletService, properties);
+        return new PortalBookingService(resolver, store, List.of(adapter), mock(AuditService.class), walletService, properties, customers);
     }
 
     private PortalBooking booking(PortalBooking.Status status, String hash) {
@@ -86,7 +95,7 @@ class PortalBookingServiceTest {
         Map<String, Object> pkg = new LinkedHashMap<>(Map.of("actualWeightKg", "2.5", "length", "10", "breadth", "10",
                 "height", "10", "dimensionUnit", "IN", "contents", "Garments"));
         return RateQuote.builder().customerId(ACTING.customerId()).request(Map.of("pickup", party, "delivery", party, "package", pkg))
-                .packageCount(1).declaredValue(new BigDecimal("1500")).paymentMode("PREPAID").expiresAt(Instant.now().plusSeconds(600))
+                .packageCount(1).declaredValue(new BigDecimal("1500")).paymentMode(quotedPaymentMode).expiresAt(Instant.now().plusSeconds(600))
                 .build();
     }
 
@@ -294,12 +303,8 @@ class PortalBookingServiceTest {
         verify(store).finish(eq(ACTING), eq(b.getId()), any(), any());
     }
 
-    @Test
-    @DisplayName("OCCPL's own network is excluded: the branch bills it, so the wallet is not debited")
-    void occplNetworkNotDebited() {
-        properties.getWalletPayment().setEnabled(true);
-        PortalBooking b = submitting();
-        CourierProviderAdapter occpl = new CourierProviderAdapter() {
+    private CourierProviderAdapter occplNetwork() {
+        return new CourierProviderAdapter() {
             @Override public String code() { return "OCCPL_NETWORK"; }
             @Override public String displayName() { return "OCCPL Network"; }
             @Override public boolean external() { return false; }
@@ -307,10 +312,46 @@ class PortalBookingServiceTest {
             @Override public ProviderResult getRates(RateRequest r) { return null; }
             @Override public BookingOutcome book(BookingRequest r) { return BookingOutcome.booked("PU-1", null, null, "ok"); }
         };
+    }
+
+    @Test
+    @DisplayName("OCCPL's own network is debited from the wallet at booking like any other courier")
+    void occplNetworkDebited() {
+        properties.getWalletPayment().setEnabled(true);
+        PortalBooking b = submitting();
         b.setProviderCode("OCCPL_NETWORK");
 
-        service(occpl).book(quoteId, optionId, KEY);
+        service(occplNetwork()).book(quoteId, optionId, KEY);
 
+        verify(walletService).debitForCustomerBooking(any());
+    }
+
+    @Test
+    @DisplayName("To Pay: the receiver pays the freight, so nothing is taken from the wallet")
+    void topayNotDebited() {
+        properties.getWalletPayment().setEnabled(true);
+        quotedPaymentMode = "TOPAY";
+        PortalBooking b = submitting();
+        b.setProviderCode("OCCPL_NETWORK");
+
+        var view = service(occplNetwork()).book(quoteId, optionId, KEY);
+
+        assertThat(view.status()).isEqualTo("BOOKED");
         verify(walletService, never()).debitForCustomerBooking(any());
+    }
+
+    @Test
+    @DisplayName("a credit customer is billed on their invoice: no wallet debit, whatever the balance")
+    void creditCustomerNotDebited() {
+        properties.getWalletPayment().setEnabled(true);
+        customerPays(com.courier.modules.customer.domain.CustomerPaymentMode.CREDIT);
+        PortalBooking b = submitting();
+        b.setProviderCode("OCCPL_NETWORK");
+
+        var view = service(occplNetwork()).book(quoteId, optionId, KEY);
+
+        assertThat(view.status()).isEqualTo("BOOKED");
+        verify(walletService, never()).debitForCustomerBooking(any());
+        verify(walletService, never()).refundCustomerBooking(any());
     }
 }
