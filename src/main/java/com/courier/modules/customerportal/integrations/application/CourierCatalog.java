@@ -22,6 +22,7 @@ public final class CourierCatalog {
     public static final String SHIPROCKET = "SHIPROCKET";
     public static final String DELHIVERY = "DELHIVERY";
     public static final String SHIPYAARI = "SHIPYAARI";
+    public static final String SKART = "SKART";
 
     private static final List<Provider> PROVIDERS = List.of(
             new Provider(SHIPROCKET, "Shiprocket", true,
@@ -40,6 +41,11 @@ public final class CourierCatalog {
                             + "Orders are paid from that account's Shipyaari wallet, so keep it funded and its KYC complete.",
                     List.of(new Field("email", "Account e-mail", false, true, "The e-mail you sign in to Shipyaari with."),
                             new Field("password", "Account password", true, true, "Stored encrypted; never shown again."))),
+            new Provider(SKART, "sKart International", true,
+                    "International shipments (DHL, FedEx, UPS, Aramex, Skynet and more) through your sKart franchisee account. "
+                            + "Shown in the portal's international rate calculator.",
+                    List.of(new Field("userName", "User name", false, true, "The user name of your sKart API account."),
+                            new Field("password", "Password", true, true, "Stored encrypted; never shown again."))),
             new Provider("BLUEDART", "Blue Dart", false, "Integration not built yet.", List.of()),
             new Provider("EKART", "Ekart", false, "Integration not built yet.", List.of()));
 

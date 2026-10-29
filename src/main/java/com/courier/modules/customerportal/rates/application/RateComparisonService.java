@@ -7,6 +7,7 @@ import com.courier.modules.customerportal.rates.application.MarkupCalculator.Pri
 import com.courier.modules.customerportal.rates.domain.ChargeLine;
 import com.courier.modules.customerportal.rates.domain.CourierProviderAdapter;
 import com.courier.modules.customerportal.rates.domain.ProviderRate;
+import com.courier.modules.customerportal.rates.domain.InternationalRateProvider;
 import com.courier.modules.customerportal.rates.domain.ProviderResult;
 import com.courier.modules.customerportal.rates.domain.RateQuote;
 import com.courier.modules.customerportal.rates.domain.RateQuoteOption;
@@ -173,6 +174,53 @@ public class RateComparisonService {
         return view(quote, options, now);
     }
 
+    /**
+     * International price check (sKart): from an Indian pincode to a country and postcode. Same markup and tax handling as the
+     * domestic estimate; nothing is stored. {@code deliveryPincode} in the answer is the destination postcode.
+     */
+    public QuoteView estimateInternational(InternationalEstimateCommand e) {
+        ActingCustomer acting = resolver.require();
+        limiter.check(acting.userId());
+        if (e.weightKg() == null || e.weightKg().signum() <= 0 || e.weightKg().compareTo(BigDecimal.valueOf(500)) > 0) {
+            throw new BusinessRuleException("Weight must be more than 0 and at most 500 kg.");
+        }
+        if (e.originPincode() == null || !e.originPincode().matches("\\d{6}")) {
+            throw new BusinessRuleException("Enter the 6-digit pickup pincode.");
+        }
+        InternationalRateProvider.Request request = new InternationalRateProvider.Request(acting.companyId(), e.originPincode(),
+                e.destinationCountry().trim(), e.destinationPostcode() == null ? "" : e.destinationPostcode().trim(), e.kind(),
+                e.weightKg(), e.pieces() == null ? 1 : Math.max(1, e.pieces()), e.maxLengthCm());
+        List<ProviderResult> results = new ArrayList<>();
+        for (CourierProviderAdapter a : adapters) {
+            if (a instanceof InternationalRateProvider provider) {
+                if (!a.configured(acting.companyId())) {
+                    results.add(ProviderResult.unavailable(a.code(), a.displayName(), a.displayName() + " is not connected yet."));
+                    continue;
+                }
+                try {
+                    results.add(provider.internationalRates(request));
+                } catch (RuntimeException ex) {
+                    log.warn("International rates from {} failed unexpectedly: {}", a.code(), ex.getClass().getSimpleName());
+                    results.add(ProviderResult.unavailable(a.code(), a.displayName(), a.displayName() + " could not be asked."));
+                }
+            }
+        }
+        Instant now = Instant.now();
+        Instant expires = now.plus(properties.getQuoteValidity());
+        List<RateQuoteOption> options = priceOptions(acting, results, now, expires);
+        RateQuote quote = RateQuote.builder().pickupPincode(e.originPincode()).deliveryPincode(request.destinationPostcode())
+                .actualWeightKg(e.weightKg()).volumetricWeightKg(e.weightKg()).packageCount(request.pieces())
+                .declaredValue(BigDecimal.ZERO).paymentMode("PREPAID").status("OPEN").expiresAt(expires).build();
+        return view(quote, options, now);
+    }
+
+    /** Destination countries of the connected international provider(s), A–Z. */
+    public List<InternationalRateProvider.Country> internationalCountries() {
+        ActingCustomer acting = resolver.require();
+        return adapters.stream().filter(a -> a instanceof InternationalRateProvider && a.configured(acting.companyId()))
+                .findFirst().map(a -> ((InternationalRateProvider) a).countries(acting.companyId())).orElse(List.of());
+    }
+
     public QuoteView get(UUID quoteId) {
         ActingCustomer acting = resolver.require();
         RateQuoteStore.Saved saved = store.load(quoteId, acting)
@@ -186,6 +234,9 @@ public class RateComparisonService {
         List<ProviderResult> results = new ArrayList<>();
         Map<CourierProviderAdapter, CompletableFuture<ProviderResult>> pending = new LinkedHashMap<>();
         for (CourierProviderAdapter a : adapters) {
+            if (!a.domestic()) {
+                continue;
+            }
             if (!a.configured(request.companyId())) {
                 results.add(ProviderResult.unavailable(a.code(), a.displayName(), a.displayName() + " is not connected yet."));
             } else if (a.external()) {
@@ -382,6 +433,11 @@ public class RateComparisonService {
     public record EstimateCommand(String pickupPincode, String deliveryPincode, Integer packageCount, BigDecimal actualWeightKg,
                                   BigDecimal declaredValue, BigDecimal length, BigDecimal breadth, BigDecimal height,
                                   String dimensionUnit, String paymentMode) {
+    }
+
+    public record InternationalEstimateCommand(String originPincode, String destinationCountry, String destinationPostcode,
+                                               InternationalRateProvider.Kind kind, BigDecimal weightKg, Integer pieces,
+                                               BigDecimal maxLengthCm) {
     }
 
     public record CompareCommand(PartyInput pickup, PartyInput delivery, PackageInput pkg) {

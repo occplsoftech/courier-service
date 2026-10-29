@@ -73,6 +73,20 @@ public class CourierCredentials {
         return c;
     }
 
+    public CustomerPortalProperties.Skart skart(UUID companyId) {
+        CustomerPortalProperties.Skart env = properties.getSkart();
+        Resolved row = resolved(companyId, CourierCatalog.SKART);
+        if (row.useEnvironment()) {
+            return env;
+        }
+        CustomerPortalProperties.Skart c = new CustomerPortalProperties.Skart();
+        c.setBaseUrl(env.getBaseUrl());
+        c.setEnabled(row.enabled());
+        c.setUserName(row.value("userName"));
+        c.setPassword(row.value("password"));
+        return c;
+    }
+
     private Resolved resolved(UUID companyId, String code) {
         if (companyId == null) {
             return Resolved.ENVIRONMENT;

@@ -230,6 +230,29 @@ portal's `shipment-progress.ts` uses the same rules - keep them in step.
 - Not verified against live couriers: the webhook payload fields are as documented/commonly sent; unknown shapes only
   lead to a confirming sync.
 
+## sKart international (phase 1: rates and tracking)
+
+`SkartAdapter` (code `SKART`, "sKart International"): one franchisee account prices and books DHL, FedEx, UPS, Aramex,
+Skynet and sKart's own services abroad. API: `devapiv2.skart-express.com/api/v1/booking` (OpenAPI "sKart APIs" 1.0.0,
+development system; live URL from sKart -> `SKART_BASE_URL`). User name and password go in every body (GET: query); no token.
+- **International only**: `CourierProviderAdapter.domestic()` is false, so the domestic comparison neither asks nor lists it.
+  Prices come through `InternationalRateProvider` -> `RateComparisonService.estimateInternational` ->
+  `POST /customer-portal/rates/international/estimate` {originPincode, destinationCountry, destinationPostcode,
+  kind PARCEL|DOCUMENT|COMMERCIAL, weightKg, pieces, maxLengthCm}. Same markup/GST pricing (`priceOptions`); nothing stored.
+- `POST /rate-calculator` booking_type 1: each product -> one rate; pre-tax `charge_amount` lines (zero dropped,
+  FREIGHT/FUEL/REMOTE/OTHER) + one TAX line = sum of igst/cgst/sgst amounts. Verified: lines add up to
+  `grand_total_with_gst` (DHL DEL 2244.00 + 403.92 = 2647.92).
+- `GET /customer-portal/international/countries`: sKart `GET /country/` (blank name = all), active only, A-Z, cached 12 h.
+- Connection test: `GET /country/INDIA` (400 "Invalid credentials" = refused). Tracking: `POST /track-shipment`;
+  `track_data` is mostly oldest first but not always ("Shipment Booked" comes last) -> sorted newest first by time.
+- No webhooks (`IntegrationView.statusPush=false`, no webhook address); statuses come from the hourly sync once booking exists.
+- **Not built yet: booking.** `/booking-api` (international) needs country id, city, items with HSN codes and commodities,
+  invoice no/date, currency id, export type, GST, KYC (`/kyc-upload` -> `kyc_info`), pickup window; DHL products send an
+  OTP SMS to the sender's mobile (first call otp "" -> 201, second call with the OTP -> 200). The booking answer (AWB,
+  label link) is not documented and no label/cancel endpoint exists: ask sKart for a sample booking response, the
+  product-name -> `courier_id` mapping (rates return names only) and how labels are fetched.
+- Verified live against the development system with the documentation's sample account (read-only calls only, 2026-10-29).
+
 ## Security review and deployment (phase 6)
 
 Full review table, tests and residual risks: `docs/SECURITY.md` in the portal repository. Backend facts worth keeping:

@@ -153,6 +153,14 @@ app:
       base-url: ${SHIPYAARI_BASE_URL:https://api-seller.shipyaari.com}
       email: ${SHIPYAARI_API_EMAIL:}
       password: ${SHIPYAARI_API_PASSWORD:}
+    # sKart international (DHL, FedEx, UPS, Aramex, Skynet... via one franchisee account). The default base URL is sKart's
+    # development system; set SKART_BASE_URL to the live address sKart gives you. Companies connect their own account in
+    # Courier Integrations.
+    skart:
+      enabled: ${SKART_ENABLED:false}
+      base-url: ${SKART_BASE_URL:https://devapiv2.skart-express.com/api/v1/booking}
+      user-name: ${SKART_USER_NAME:}
+      password: ${SKART_PASSWORD:}
     # Booked shipments' delivery status: a background job asks each courier, and couriers may push updates to the
     # webhook address shown in Courier Integrations. See MEMORY/modules/customer-portal.md.
     tracking-sync:
