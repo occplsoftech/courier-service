@@ -7,5 +7,5 @@ package com.courier.modules.master.application;
  * this is what a printed document (a consignment note's booking/delivery pincode line)
  * needs, safe for any authenticated company user to read.
  */
-public record PincodeGeography(String pincodeName, String areaName, String cityName, String districtName) {
+public record PincodeGeography(String pincodeName, String areaName, String cityName, String districtName, String stateName) {
 }

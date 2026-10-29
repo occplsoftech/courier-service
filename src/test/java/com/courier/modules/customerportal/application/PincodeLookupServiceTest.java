@@ -56,7 +56,7 @@ class PincodeLookupServiceTest {
         when(p.isCodAvailable()).thenReturn(false);
         when(pincodes.findByCode("411016")).thenReturn(p);
         when(pincodes.geography("411016"))
-                .thenReturn(Optional.of(new PincodeGeography("411016", "Model Colony", "Pune", "Pune")));
+                .thenReturn(Optional.of(new PincodeGeography("411016", "Model Colony", "Pune", "Pune", "Maharashtra")));
 
         PincodeLookupService.PincodeInfo info = service.lookup(" 411016 ");
 

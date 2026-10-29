@@ -42,16 +42,17 @@ public class PincodeLookupService {
                 geography.map(PincodeGeography::areaName).orElse(null),
                 geography.map(PincodeGeography::cityName).orElse(null),
                 geography.map(PincodeGeography::districtName).orElse(null),
+                geography.map(PincodeGeography::stateName).orElse(null),
                 pincode.isServiceable(), pincode.isPickupAvailable(), pincode.isCodAvailable(),
                 pincode.isPrepaidAvailable(), pincode.isOdaApplicable());
     }
 
     /** {@code known=false}: not in the pincode master — OCCPL's network cannot serve it. */
-    public record PincodeInfo(String pincode, boolean known, String area, String city, String district,
+    public record PincodeInfo(String pincode, boolean known, String area, String city, String district, String state,
                               boolean serviceable, boolean pickupAvailable, boolean codAvailable,
                               boolean prepaidAvailable, boolean odaApplicable) {
         static PincodeInfo unknown(String code) {
-            return new PincodeInfo(code, false, null, null, null, false, false, false, false, false);
+            return new PincodeInfo(code, false, null, null, null, null, false, false, false, false, false);
         }
     }
 }
