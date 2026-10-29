@@ -21,6 +21,15 @@ All notable changes to this project. Format based on
 - Not done here: refunding the wallet when a pickup is cancelled later; a structured payment field on the pickup request (the
   remarks carry it for now).
 
+## 2026-10-29 — Parcel photos and documents on portal bookings (V145)
+
+- New tables `portal_booking_photos` (metadata) and `portal_booking_photo_files` (bytes), as KYC documents do. A booking takes up to 6
+  PARCEL photos and 3 DOCUMENT files (JPEG, PNG, WebP; PDF for a document), 5 MB each, type read from the bytes.
+- Customer: `GET/POST /api/v1/customer-portal/bookings/{id}/photos`, `GET .../{photoId}/file`, `DELETE .../{photoId}`; only the
+  customer's own bookings, and only a booking that was made (not FAILED).
+- OCCPL staff: `GET /api/v1/pickups/{pickupId}/photos` and `.../{photoId}/file` return the parcel photos (not the documents) of the
+  portal booking behind a pickup request (matched by the pickup number). Access follows the pickup's own rules (`PickupService.get`).
+
 ## 2026-10-29 — Shipyaari rates: show the HTTP status when it refuses
 
 - When Shipyaari answers the rate request with an error, the portal reason now ends "(HTTP 403)" so a refusal can be told from a
