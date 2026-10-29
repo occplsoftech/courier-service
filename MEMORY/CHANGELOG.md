@@ -8,6 +8,16 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-29 — OCCPL's zone tariff seeded for company code OCCPL (V143)
+
+- Dev's company code is `OCCPL`, not `OCCPL_COURIER`, so V142 did nothing there (Flyway does not rerun it). V143 is the same
+  generated seed (13 zones, rate card `PUNE_CASH_2025` with 74 lanes, four demo charges) for `company_code = 'OCCPL'`. Same guards:
+  no-op where the company is missing, skipped where the card exists.
+- Tested on MySQL 8.4: no-op without the company; with both companies present each got its own 13 zones, 1 card, 176 slabs and
+  4 charges; run twice, nothing doubled; a quote through the API for the OCCPL admin priced 411016 -> 413520 from the card.
+
+---
+
 ## 2026-10-29 — OCCPL Courier's zone tariff seeded on dev (V142)
 
 - Data migration, only for the company with `company_code = 'OCCPL_COURIER'` (no-op elsewhere, skipped if card `PUNE_CASH_2025`
