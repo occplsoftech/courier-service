@@ -155,12 +155,23 @@ public class ShipyaariAdapter implements CourierProviderAdapter {
             return ProviderResult.available(CODE, displayName(), parse(answer, r));
         } catch (RestClientResponseException e) {
             forgetLoginOnAuthFailure(e, r.companyId());
-            log.warn("Shipyaari rates failed: HTTP {}", e.getStatusCode().value());
-            return ProviderResult.unavailable(CODE, displayName(), "Shipyaari did not return rates for this shipment.");
+            int status = e.getStatusCode().value();
+            log.warn("Shipyaari rates failed: HTTP {} {}", status, errorText(e));
+            return ProviderResult.unavailable(CODE, displayName(), "Shipyaari did not return rates for this shipment (HTTP " + status + ").");
         } catch (RestClientException | IllegalStateException e) {
             log.warn("Shipyaari rates failed: {}", e.getClass().getSimpleName());
             return ProviderResult.unavailable(CODE, displayName(), "Shipyaari could not be reached.");
         }
+    }
+
+    /** Shipyaari's own error text for the log (the rate request carries no secret): one line, at most 300 characters. */
+    private static String errorText(RestClientResponseException e) {
+        String body = e.getResponseBodyAsString();
+        if (body == null || body.isBlank()) {
+            return "(no body)";
+        }
+        String line = body.replaceAll("\\s+", " ").trim();
+        return line.length() > 300 ? line.substring(0, 300) + "…" : line;
     }
 
     static List<ProviderRate> parse(JsonNode body, RateRequest r) {

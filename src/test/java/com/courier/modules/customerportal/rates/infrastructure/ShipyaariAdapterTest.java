@@ -143,6 +143,20 @@ class ShipyaariAdapterTest {
     }
 
     @Test
+    @DisplayName("a refusal names Shipyaari's HTTP status to the customer but not its own error text")
+    void refusalShowsOnlyTheStatus() {
+        login();
+        server.expect(requestTo("https://sy.test/api/v1/order/checkServiceabilityV2"))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN).contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"success\":false,\"message\":\"KYC pending for account\"}"));
+
+        ProviderResult result = adapter.getRates(rate(RateRequest.PaymentMode.PREPAID, 1));
+
+        assertThat(result.available()).isFalse();
+        assertThat(result.reason()).contains("HTTP 403").doesNotContain("KYC");
+    }
+
+    @Test
     @DisplayName("not connected: no call is made")
     void notConnected() {
         CustomerPortalProperties.Shipyaari cfg = new CustomerPortalProperties.Shipyaari();
