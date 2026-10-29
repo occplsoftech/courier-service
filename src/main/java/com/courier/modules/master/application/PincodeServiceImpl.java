@@ -12,6 +12,8 @@ import com.courier.modules.master.domain.GlobalMasters;
 import com.courier.modules.master.domain.MasterDataCriteria;
 import com.courier.modules.master.domain.Pincode;
 import com.courier.modules.master.domain.PincodeRepository;
+import com.courier.modules.master.domain.State;
+import com.courier.modules.master.domain.StateRepository;
 import com.courier.modules.master.infrastructure.MasterTable;
 import com.courier.modules.master.infrastructure.MasterUniquenessChecker;
 import com.courier.shared.audit.application.AuditService;
@@ -63,6 +65,7 @@ public class PincodeServiceImpl extends AbstractMasterDataService<Pincode> imple
     private final AreaRepository areas;
     private final CityRepository cities;
     private final DistrictRepository districts;
+    private final StateRepository states;
     private final PincodePostalLookupProvider postalLookup;
     private final GeographyAutoResolver geographyResolver;
 
@@ -72,6 +75,7 @@ public class PincodeServiceImpl extends AbstractMasterDataService<Pincode> imple
                               AreaRepository areas,
                               CityRepository cities,
                               DistrictRepository districts,
+                              StateRepository states,
                               MasterUniquenessChecker uniqueness,
                               AuditService auditService,
                               PincodePostalLookupProvider postalLookup,
@@ -81,6 +85,7 @@ public class PincodeServiceImpl extends AbstractMasterDataService<Pincode> imple
         this.areas = areas;
         this.cities = cities;
         this.districts = districts;
+        this.states = states;
         this.postalLookup = postalLookup;
         this.geographyResolver = geographyResolver;
         this.pincodeAreaService = pincodeAreaService;
@@ -203,10 +208,12 @@ public class PincodeServiceImpl extends AbstractMasterDataService<Pincode> imple
                     Area area = areas.findById(areaId != null ? areaId : pincode.getAreaId()).orElse(null);
                     City city = area != null ? cities.findById(area.getCityId()).orElse(null) : null;
                     District district = city != null ? districts.findById(city.getDistrictId()).orElse(null) : null;
+                    State state = district != null ? states.findById(district.getStateId()).orElse(null) : null;
                     return new PincodeGeography(pincode.getName(),
                             area != null ? area.getName() : null,
                             city != null ? city.getName() : null,
-                            district != null ? district.getName() : null);
+                            district != null ? district.getName() : null,
+                            state != null ? state.getName() : null);
                 }));
     }
 
