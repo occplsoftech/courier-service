@@ -181,7 +181,7 @@ class OccplNetworkAdapterTest {
         when(p.getPickedUpAt()).thenReturn(t0.plusSeconds(3600));
         when(p.getShipmentId()).thenReturn(shipmentId);
         when(pickups.findByNumberForCustomer("PU-7", customer)).thenReturn(Optional.of(p));
-        when(shipments.timeline(company, customer, shipmentId)).thenReturn(Optional.of(new ShipmentPortalQueries.PortalTimeline(
+        when(shipments.timelineOfPickupShipment(company, shipmentId)).thenReturn(Optional.of(new ShipmentPortalQueries.PortalTimeline(
                 new ShipmentPortalQueries.PortalShipment(shipmentId, "SH-1", "TRK-1", LocalDate.now(), ShipmentStatus.DISPATCHED,
                         "Ravi", 1, BigDecimal.ONE, null, t0),
                 List.of(new ShipmentPortalQueries.PortalStep(ShipmentStatus.BOOKED, t0.plusSeconds(7200), "Pune Branch"),
