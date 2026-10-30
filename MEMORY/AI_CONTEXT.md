@@ -7,6 +7,8 @@
 
 ## Current Version
 
+**Roadmap (2026-10-30):** the ordered phases for the customer portal, booking and courier forwarding are in `MEMORY/modules/customer-portal-roadmap.md` (phase 8, forwarding to a courier partner from the hub, is next).
+
 **Customer portal, phase 1 (2026-10-21, V128, no version bump):** `CUSTOMER` accounts linked to a business customer (`users.customer_id`), scope gate keeping them inside `/api/v1/customer-portal/**`, `/customer-portal/profile`, portal access admin endpoints, and the quote/markup/booking schema. Read `MEMORY/modules/customer-portal.md` before touching any of it.
 
 `0.68.2` — **PDP phase 3: earnings, billing statements, mandatory POD, partner login/menu** (`V117`; see `MEMORY/modules/pdp.md`, `CHANGELOG.md` 2026-10-14). Before that, `0.68.1` — **PDP phase 2: Pickup Requests** (`V116`, `com.courier.modules.pickup`, `/pdp/pickups`; see `CHANGELOG.md` 2026-10-14). Earlier in 0.68: **Pickup-Delivery Partner (PDP), phase 1.** New branch type `PICKUP_DELIVERY_PARTNER` (replaced unused `VENDOR`), permission modules `PDP`/`PDP_RATE`/`PDP_BILLING`, top-level menu "Pickup Delivery Partner Management" (Partners, Partner Rates), separate per-partner Pickup and Delivery rate cards with min weight + per-kg slabs (`V115`, `com.courier.modules.pdp`, `/api/v1/pdp-rates`). **Pickup requests, earnings, billing statement and mandatory-POD gate are planned, not built** — see `MEMORY/modules/pdp.md` and `CHANGELOG.md` 2026-10-14.

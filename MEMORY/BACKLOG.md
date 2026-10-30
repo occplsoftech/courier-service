@@ -5,6 +5,12 @@ Ordered. Top item is always the next thing to build.
 
 ---
 
+## Customer portal, booking and courier forwarding — phases 6-13
+
+The ordered plan lives in [`modules/customer-portal-roadmap.md`](modules/customer-portal-roadmap.md) (phase 6 done; phase 7 in progress; **phase 8, forwarding a shipment to a courier partner from the hub, is next**).
+
+---
+
 ## Phase 0 — Foundation  `[x]` (v0.1.0)
 
 - [x] Maven project, Java 21, Spring Boot 3.4.1

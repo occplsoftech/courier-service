@@ -92,6 +92,8 @@ OUT_FOR_DELIVERY; delivered, returned, cancelled as is. A shipment belongs to th
 
 ## Phases
 
+> What comes after phase 5 (rate per service type, bulk booking, AWB at booking, hub forwarding...) is in [`customer-portal-roadmap.md`](customer-portal-roadmap.md).
+
 1. Architecture, customer authorization, data model — **done** (this file).
 2. Portal repo: login, dashboard, shipment form, validation — **done** (backend: dashboard, pincode lookup, forgot-password by code).
 3. **done (rates)** — Provider adapters (`CourierProviderAdapter`: rates now; book, track, label, cancel join in phases 4-5),

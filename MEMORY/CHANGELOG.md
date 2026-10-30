@@ -8,6 +8,10 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-30 — Roadmap for the customer portal and courier forwarding
+
+- New `MEMORY/modules/customer-portal-roadmap.md`: phases 6-13 as tables (done work, stabilise, hub forwarding to couriers, customer quick wins, notifications, money, returns and reports, integrations), with repos, sizes, dependencies and owner decisions. Linked from `BACKLOG.md`, `customer-portal.md` and `AI_CONTEXT.md`.
+
 ## 2026-10-30 — Import a customer's rates from one Excel sheet
 
 - `GET /api/v1/customer-rates/import/template`, `POST .../import/preview` (customerId + file; checks every row, saves nothing), `POST /api/v1/customer-rates/import` (all-or-nothing). One row per zone and service type: zone name, destination districts (comma-separated), service type code (blank = all services), min chargeable weight, docket/mathadi/pack/ODA, fuel %, FOV %, up to five slabs (Up To kg + Rate/kg; blank last Up To = no limit). Zones are created by district (a zone the customer already has is reused, an existing card is replaced) and the customer is switched to business rates. Up to 300 rows; the template lists the company's service type codes.
