@@ -8,6 +8,12 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-30 — Top-up proof images open from a private bucket
+
+- With file storage on (private S3 bucket), the proof image's stored address is not openable, so the staff approval screen showed
+  nothing. `TopupRequestMapper` now returns the proof as a signed link valid for one hour (`FileStoragePort.presignGet`); a pasted
+  URL that is not in our bucket is returned as it is. The stored value is unchanged.
+
 ## 2026-10-29 — Customer portal payment: wallet debit for OCCPL Network, To Pay, credit customers
 
 - **Wallet debit on by default** (`CUSTOMER_PORTAL_WALLET_PAYMENT_ENABLED`, now `true`) and **OCCPL Network is no longer excluded**: a
