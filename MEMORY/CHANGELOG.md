@@ -8,6 +8,11 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-30 — Pickups belong to the branch of their pincode
+
+- A portal pickup records the branch its pincode is mapped to (`booking_branch_id`, set at creation, not only when the shipment is issued). `GET /pickups` takes `bookingBranchId` and returns `bookingBranchId/Code/Name`.
+- A manager of a normal branch (not a pickup partner) now sees only their own branch's pickups and may assign them to a pickup partner (`assign` is no longer company-admin only); a partner still sees only pickups assigned to them; the company admin sees and does everything.
+
 ## 2026-10-30 — Portal shipment keeps the quoted chargeable weight
 
 - The shipment issued at portal booking now carries the quote's chargeable weight (e.g. 2 kg) instead of the company's 15 kg counter minimum.

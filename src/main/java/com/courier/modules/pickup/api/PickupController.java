@@ -58,10 +58,11 @@ public class PickupController {
             + "requests assigned to their own branch. `size` capped at 100.")
     public ApiResponse<PageResponse<PickupResponse>> list(@RequestParam(required = false) PickupStatus status,
                                                           @RequestParam(required = false) UUID pdpBranchId,
+                                                          @RequestParam(required = false) UUID bookingBranchId,
                                                           @RequestParam(required = false) String search,
                                                           @RequestParam(defaultValue = "0") int page,
                                                           @RequestParam(defaultValue = "20") int size) {
-        Page<PickupRequest> result = service.search(status, pdpBranchId, search,
+        Page<PickupRequest> result = service.search(status, pdpBranchId, bookingBranchId, search,
                 PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), MAX_PAGE_SIZE)));
         Map<UUID, Branch> names = new HashMap<>();
         return ApiResponse.success(PageResponse.from(result, p -> toResponse(p, names)));
@@ -157,25 +158,32 @@ public class PickupController {
     }
 
     private PickupResponse toResponse(PickupRequest p, Map<UUID, Branch> cache) {
-        Branch b = null;
-        if (p.getPdpBranchId() != null) {
-            b = cache.get(p.getPdpBranchId());
-            if (b == null) {
-                try {
-                    b = branchService.getById(p.getPdpBranchId());
-                    cache.put(p.getPdpBranchId(), b);
-                } catch (ResourceNotFoundException ignored) {
-                    // partner deleted: the pickup stays readable, just unnamed
-                }
-            }
-        }
+        Branch b = branch(p.getPdpBranchId(), cache);
+        Branch own = branch(p.getBookingBranchId(), cache);
         return new PickupResponse(p.getId(), p.getPickupNo(), p.getStatus(), p.getCustomerId(), p.getContactName(),
                 p.getContactMobile(), p.getAddressLine(), p.getCity(), p.getDistrictId(), p.getPincode(),
                 p.getExpectedParcels(), p.getExpectedWeightKg(), p.getPreferredDate(), p.getPreferredSlot(),
                 p.getRemarks(), p.getPdpBranchId(), b == null ? null : b.getBranchCode(),
                 b == null ? null : b.getBranchName(), p.getAssignedAt(), p.getAcceptedAt(), p.getStartedAt(),
                 p.getPickedUpAt(), p.getActualParcels(), p.getActualWeightKg(), p.getRejectReason(),
-                p.getFailReason(), p.getCancelReason(), p.getShipmentId(), p.getShipmentNo(), p.getCreatedAt(),
+                p.getFailReason(), p.getCancelReason(), p.getShipmentId(), p.getShipmentNo(), p.getBookingBranchId(),
+                own == null ? null : own.getBranchCode(), own == null ? null : own.getBranchName(), p.getCreatedAt(),
                 p.getUpdatedAt(), p.getVersion());
+    }
+
+    private Branch branch(UUID id, Map<UUID, Branch> cache) {
+        if (id == null) {
+            return null;
+        }
+        Branch b = cache.get(id);
+        if (b == null) {
+            try {
+                b = branchService.getById(id);
+                cache.put(id, b);
+            } catch (ResourceNotFoundException ignored) {
+                // branch deleted: the pickup stays readable, just unnamed
+            }
+        }
+        return b;
     }
 }

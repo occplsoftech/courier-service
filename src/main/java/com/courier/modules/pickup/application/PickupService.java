@@ -25,7 +25,7 @@ public interface PickupService {
 
     PickupRequest get(UUID id);
 
-    Page<PickupRequest> search(PickupStatus status, UUID pdpBranchId, String search, Pageable pageable);
+    Page<PickupRequest> search(PickupStatus status, UUID pdpBranchId, UUID bookingBranchId, String search, Pageable pageable);
 
     /** Count per status for the caller's scope (all of the company's, or their own partner's). */
     Map<PickupStatus, Long> stats();

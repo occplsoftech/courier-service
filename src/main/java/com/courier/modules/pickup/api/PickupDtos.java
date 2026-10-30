@@ -58,7 +58,8 @@ public final class PickupDtos {
             String remarks, UUID pdpBranchId, String pdpBranchCode, String pdpBranchName, Instant assignedAt,
             Instant acceptedAt, Instant startedAt, Instant pickedUpAt, Integer actualParcels,
             BigDecimal actualWeightKg, String rejectReason, String failReason, String cancelReason,
-            UUID shipmentId, String shipmentNo, Instant createdDate, Instant updatedDate, Long version) {
+            UUID shipmentId, String shipmentNo, UUID bookingBranchId, String bookingBranchCode, String bookingBranchName,
+            Instant createdDate, Instant updatedDate, Long version) {
     }
 
     public record StatsResponse(Map<PickupStatus, Long> byStatus, long open) {

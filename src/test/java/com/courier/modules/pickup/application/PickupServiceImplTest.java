@@ -187,6 +187,36 @@ class PickupServiceImplTest {
     }
 
     @Test
+    @DisplayName("the manager of the branch a pickup belongs to can assign it to a partner; another branch's manager cannot")
+    void owningBranchAssigns() {
+        UUID branch = UUID.randomUUID();
+        UUID otherBranch = UUID.randomUUID();
+        UUID manager = UUID.randomUUID();
+        UUID otherManager = UUID.randomUUID();
+        when(branchService.getById(branch)).thenReturn(partner(branch, BranchType.BRANCH, true));
+        when(branchService.getById(otherBranch)).thenReturn(partner(otherBranch, BranchType.BRANCH, true));
+        User u1 = mock(User.class);
+        when(u1.getBranchId()).thenReturn(branch);
+        when(userService.getById(manager)).thenReturn(u1);
+        User u2 = mock(User.class);
+        when(u2.getBranchId()).thenReturn(otherBranch);
+        when(userService.getById(otherManager)).thenReturn(u2);
+
+        PickupRequest p = created(null);
+        service.attachPortalShipment(p.getId(), null, null, branch);
+
+        as(otherManager, Roles.BRANCH_MANAGER);
+        assertThatThrownBy(() -> service.assign(p.getId(), PDP)).hasMessageContaining("Only the branch");
+        assertThatThrownBy(() -> service.get(p.getId())).isInstanceOf(com.courier.shared.exception.ResourceNotFoundException.class);
+
+        as(manager, Roles.BRANCH_MANAGER);
+        assertThat(service.get(p.getId())).isSameAs(p);
+        service.assign(p.getId(), PDP);
+        assertThat(p.getStatus()).isEqualTo(PickupStatus.ASSIGNED);
+        assertThat(p.getPdpBranchId()).isEqualTo(PDP);
+    }
+
+    @Test
     @DisplayName("a partner cannot work a pickup assigned to another partner")
     void foreignPartnerBlocked() {
         PickupRequest p = created(OTHER_PDP);

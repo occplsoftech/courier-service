@@ -21,13 +21,15 @@ public interface PickupRequestRepository extends JpaRepository<PickupRequest, UU
             where p.companyId = :companyId
               and (:status is null or p.status = :status)
               and (:pdpBranchId is null or p.pdpBranchId = :pdpBranchId)
+              and (:bookingBranchId is null or p.bookingBranchId = :bookingBranchId)
               and (:search is null or lower(p.pickupNo) like lower(concat('%', :search, '%'))
                    or lower(p.contactName) like lower(concat('%', :search, '%'))
                    or p.contactMobile like concat('%', :search, '%')
                    or p.pincode like concat('%', :search, '%'))
             order by p.createdAt desc""")
     Page<PickupRequest> search(@Param("companyId") UUID companyId, @Param("status") PickupStatus status,
-                               @Param("pdpBranchId") UUID pdpBranchId, @Param("search") String search,
+                               @Param("pdpBranchId") UUID pdpBranchId, @Param("bookingBranchId") UUID bookingBranchId,
+                               @Param("search") String search,
                                Pageable pageable);
 
     @Query("select p from PickupRequest p where p.companyId = :companyId and p.pickupNo = :pickupNo")
@@ -40,6 +42,8 @@ public interface PickupRequestRepository extends JpaRepository<PickupRequest, UU
     long countCreatedBetween(@Param("companyId") UUID companyId, @Param("from") Instant from, @Param("to") Instant to);
 
     @Query("select p.status, count(p) from PickupRequest p where p.companyId = :companyId "
-            + "and (:pdpBranchId is null or p.pdpBranchId = :pdpBranchId) group by p.status")
-    List<Object[]> countByStatus(@Param("companyId") UUID companyId, @Param("pdpBranchId") UUID pdpBranchId);
+            + "and (:pdpBranchId is null or p.pdpBranchId = :pdpBranchId) "
+            + "and (:bookingBranchId is null or p.bookingBranchId = :bookingBranchId) group by p.status")
+    List<Object[]> countByStatus(@Param("companyId") UUID companyId, @Param("pdpBranchId") UUID pdpBranchId,
+                                 @Param("bookingBranchId") UUID bookingBranchId);
 }
