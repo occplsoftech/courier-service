@@ -12,6 +12,12 @@ All notable changes to this project. Format based on
 
 - `/api/v1/customer-portal/bulk-bookings`: `GET /template` (xlsx), `POST /preview` (upload; checks and prices up to 100 rows, books nothing), `POST /book` (the confirmed quote/option pairs). No new tables: each row is an ordinary rate quote and books through `PortalBookingService`, so wallet / To Pay / credit rules are unchanged; idempotency key `bulk-<quoteId>` stops a double confirm booking twice.
 - Row pricing: the customer's business rate when OCCPL Network priced one (service code `OCCPL_BUSINESS_RATE`), else the cheapest courier the customer may use. The per-minute comparison cap is skipped for bulk (batch size is capped instead).
+## 2026-10-30 — Customer rate slabs include their upper weight
+
+- A business customer's weight slab now covers the weights above its minimum **up to and including its maximum** (`ZoneRateSlab.covers`).
+  With slabs 0-5, 5-10 and 10+, exactly 5 kg is charged at the first slab and 5.3 kg at the second; exactly 10 kg at the second.
+  Before, the upper limit was excluded, so 5 kg fell into the second slab. A slab starting at 0 still covers any weight above 0.
+- Affects every existing customer rate whose weight lands exactly on a slab boundary. Zone tariff slabs and partner rates are unchanged.
 
 ## 2026-10-30 — Which couriers a business customer sees in the portal (V146)
 
