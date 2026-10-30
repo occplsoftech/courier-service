@@ -8,6 +8,11 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-30 — Business rates or company rates per customer (V147)
+
+- `customers.use_business_rates` (default off; customers with an active pricing zone are switched on by the migration, so nothing changes for them). Off: the customer's rate card is ignored and the company's rates (zone tariff / district freight) apply, at the counter and in the portal. On: the rate card applies where it covers, company rates otherwise.
+- Gate is `PricingZoneServiceImpl.resolve`. `GET/PUT /api/v1/customer-rates/customer/{id}/source` (write: COMPANY_ADMIN, audited).
+
 ## 2026-10-30 — Which couriers a business customer sees in the portal (V146)
 
 - New `customer_courier_access` table and `CustomerCourierAccessService`. A customer with **no** courier assigned sees **OCCPL Network only**

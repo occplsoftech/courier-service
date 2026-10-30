@@ -5,6 +5,7 @@ import com.courier.modules.customerpricing.api.CustomerRateDtos.CalculateRespons
 import com.courier.modules.customerpricing.api.CustomerRateDtos.RateResponse;
 import com.courier.modules.customerpricing.api.CustomerRateDtos.SaveRequest;
 import com.courier.modules.customerpricing.api.CustomerRateDtos.SlabResponse;
+import com.courier.modules.customerpricing.application.CustomerRateSourceService;
 import com.courier.modules.customerpricing.application.ZoneRateService;
 import com.courier.modules.customerpricing.application.ZoneRateService.Quote;
 import com.courier.modules.customerpricing.application.ZoneRateService.QuoteCommand;
@@ -40,6 +41,23 @@ import java.util.UUID;
 public class CustomerRateController {
 
     private final ZoneRateService service;
+    private final CustomerRateSourceService rateSource;
+
+    public record RateSourceRequest(boolean useBusinessRates) {
+    }
+
+    @GetMapping("/customer/{customerId}/source")
+    @Operation(summary = "Which rates price this customer", description = "`useBusinessRates` true: the customer's own rate card; false: company rates.")
+    public ApiResponse<CustomerRateSourceService.SourceView> source(@PathVariable UUID customerId) {
+        return ApiResponse.success(rateSource.get(customerId));
+    }
+
+    @PutMapping("/customer/{customerId}/source")
+    @Operation(summary = "Choose business rates or company rates for this customer",
+            description = "Business rates: the customer's rate card applies where it covers; otherwise (or when off) the company rates apply.")
+    public ApiResponse<CustomerRateSourceService.SourceView> setSource(@PathVariable UUID customerId, @RequestBody RateSourceRequest r) {
+        return ApiResponse.success(rateSource.set(customerId, r.useBusinessRates()), "Rate source saved");
+    }
 
     @GetMapping
     @Operation(summary = "List rate cards", description = "Every zone rate card, optionally for one customer.")

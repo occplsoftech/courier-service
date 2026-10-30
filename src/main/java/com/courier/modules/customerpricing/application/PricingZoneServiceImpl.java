@@ -55,6 +55,7 @@ public class PricingZoneServiceImpl implements PricingZoneService {
     private static final String WRITE = "hasRole('" + Roles.COMPANY_ADMIN + "')";
     private static final String READ = "isAuthenticated()";
 
+    private final com.courier.modules.customer.application.CustomerPortalLookup customerLookup;
     private final PricingZoneRepository zones;
     private final ZoneLocationRepository locations;
     private final ZoneRateRepository rates;
@@ -229,6 +230,9 @@ public class PricingZoneServiceImpl implements PricingZoneService {
         UUID companyId = requireCompany();
         if (customerId == null || districtId == null) {
             throw new BusinessRuleException("A customer and a destination district are required.");
+        }
+        if (!customerLookup.usesBusinessRates(companyId, customerId)) {
+            return Optional.empty(); // priced at the company's rates
         }
         List<ZoneLocation> candidates = locations.findByCustomerAndDistrict(companyId, customerId, districtId);
         Optional<ZoneLocation> match = candidates.stream()
