@@ -165,6 +165,7 @@ public enum AuditAction {
     // --- customer portal: markup on external courier rates (V128)
     PRICING_MARKUP_RULE_CREATED,
     PRICING_MARKUP_RULE_CLOSED,
+    CUSTOMER_COURIER_ACCESS_CHANGED,
     PORTAL_BOOKING_SUBMITTED,
     PORTAL_BOOKING_BOOKED,
     PORTAL_BOOKING_FAILED,

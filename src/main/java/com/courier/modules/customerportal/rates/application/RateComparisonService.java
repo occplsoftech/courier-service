@@ -26,6 +26,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -54,11 +55,13 @@ public class RateComparisonService {
     private final CompareRateLimiter limiter;
     private final CustomerPortalProperties properties;
     private final ExecutorService executor;
+    private final CustomerCourierAccessService access;
 
     public RateComparisonService(CurrentCustomerResolver resolver, List<CourierProviderAdapter> adapters,
                                  MarkupRuleService markups, RateQuoteStore store, CompareRateLimiter limiter,
                                  CustomerPortalProperties properties,
-                                 @Qualifier("courierRateExecutor") ExecutorService executor) {
+                                 @Qualifier("courierRateExecutor") ExecutorService executor,
+                                 CustomerCourierAccessService access) {
         this.resolver = resolver;
         this.adapters = adapters.stream().sorted(Comparator.comparing(a -> a.external() ? 1 : 0)).toList();
         this.markups = markups;
@@ -66,6 +69,7 @@ public class RateComparisonService {
         this.limiter = limiter;
         this.properties = properties;
         this.executor = executor;
+        this.access = access;
     }
 
     public QuoteView compare(CompareCommand c) {
@@ -191,8 +195,9 @@ public class RateComparisonService {
                 e.destinationCountry().trim(), e.destinationPostcode() == null ? "" : e.destinationPostcode().trim(), e.kind(),
                 e.weightKg(), e.pieces() == null ? 1 : Math.max(1, e.pieces()), e.maxLengthCm());
         List<ProviderResult> results = new ArrayList<>();
+        Set<String> allowed = access.allowedCodes(acting.companyId(), acting.customerId());
         for (CourierProviderAdapter a : adapters) {
-            if (a instanceof InternationalRateProvider provider) {
+            if (a instanceof InternationalRateProvider provider && allowed.contains(a.code())) {
                 if (!a.configured(acting.companyId())) {
                     results.add(ProviderResult.unavailable(a.code(), a.displayName(), a.displayName() + " is not connected yet."));
                     continue;
@@ -217,7 +222,8 @@ public class RateComparisonService {
     /** Destination countries of the connected international provider(s), A–Z. */
     public List<InternationalRateProvider.Country> internationalCountries() {
         ActingCustomer acting = resolver.require();
-        return adapters.stream().filter(a -> a instanceof InternationalRateProvider && a.configured(acting.companyId()))
+        Set<String> allowed = access.allowedCodes(acting.companyId(), acting.customerId());
+        return adapters.stream().filter(a -> a instanceof InternationalRateProvider && allowed.contains(a.code()) && a.configured(acting.companyId()))
                 .findFirst().map(a -> ((InternationalRateProvider) a).countries(acting.companyId())).orElse(List.of());
     }
 
@@ -233,8 +239,10 @@ public class RateComparisonService {
     private List<ProviderResult> askProviders(RateRequest request) {
         List<ProviderResult> results = new ArrayList<>();
         Map<CourierProviderAdapter, CompletableFuture<ProviderResult>> pending = new LinkedHashMap<>();
+        Set<String> allowed = access.allowedCodes(request.companyId(), request.customerId());
         for (CourierProviderAdapter a : adapters) {
-            if (!a.domestic()) {
+            // a courier this customer was not given is not shown at all, not even as "not available"
+            if (!a.domestic() || !allowed.contains(a.code())) {
                 continue;
             }
             if (!a.configured(request.companyId())) {
@@ -247,7 +255,7 @@ public class RateComparisonService {
             }
         }
         // OCCPL's own network needs the bound company and principal, so it runs here while the others work.
-        adapters.stream().filter(a -> !a.external() && a.configured(request.companyId())).forEach(a -> results.add(0, safe(a, request)));
+        adapters.stream().filter(a -> !a.external() && allowed.contains(a.code()) && a.configured(request.companyId())).forEach(a -> results.add(0, safe(a, request)));
         long timeoutMs = properties.getProviderTimeout().toMillis() + 2000;
         for (Map.Entry<CourierProviderAdapter, CompletableFuture<ProviderResult>> e : pending.entrySet()) {
             CourierProviderAdapter a = e.getKey();

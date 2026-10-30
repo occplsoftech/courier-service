@@ -51,10 +51,14 @@ class RateComparisonServiceTest {
     private final RateQuoteStore store = mock(RateQuoteStore.class);
     private final ExecutorService executor = Executors.newFixedThreadPool(4);
     private final CustomerPortalProperties properties = new CustomerPortalProperties();
+    private final CustomerCourierAccessService access = mock(CustomerCourierAccessService.class);
+    /** The couriers the customer is allowed in a test; everything by default, so only the access tests narrow it. */
+    private java.util.Set<String> allowed = java.util.Set.of("OCCPL_NETWORK", "SHIPROCKET", "DELHIVERY", "BLUEDART", "EKART", "SHIPYAARI", "SKART");
 
     @BeforeEach
     void setUp() {
         when(resolver.require()).thenReturn(ACTING);
+        when(access.allowedCodes(any(), any())).thenAnswer(i -> allowed);
         when(markups.resolve(any(), any(), any(), any())).thenReturn(
                 new Markup(UUID.randomUUID(), true, new BigDecimal("10"), EnumSet.of(ChargeComponent.FREIGHT), new BigDecimal("18")));
         when(store.save(any(), anyList())).thenAnswer(i -> {
@@ -91,7 +95,7 @@ class RateComparisonServiceTest {
 
     private RateComparisonService service(CourierProviderAdapter... adapters) {
         return new RateComparisonService(resolver, List.of(adapters), markups, store, new CompareRateLimiter(),
-                properties, executor);
+                properties, executor, access);
     }
 
     static CompareCommand command(String deliveryPincode, String weight) {
@@ -117,6 +121,33 @@ class RateComparisonServiceTest {
         assertThat(occpl.markupAmount()).isEqualByComparingTo("0.00");
         assertThat(occpl.totalAmount()).isEqualByComparingTo("118.00");      // 100 + 18 % GST
         verify(markups).resolve(eq(ACTING.companyId()), eq("SHIPROCKET"), eq(ACTING.customerId()), any());
+    }
+
+    @Test
+    @DisplayName("a customer given only one courier sees only that courier, and the others are not even listed as unavailable")
+    void onlyAssignedCouriers() {
+        allowed = java.util.Set.of("DELHIVERY");
+
+        QuoteView q = service(
+                adapter("OCCPL_NETWORK", false, true, r -> priced("OCCPL_NETWORK", "100")),
+                adapter("SHIPROCKET", true, true, r -> priced("SHIPROCKET", "90")),
+                adapter("DELHIVERY", true, true, r -> priced("DELHIVERY", "95")),
+                adapter("BLUEDART", true, false, r -> null)).compare(command("110001", "2.5"));
+
+        assertThat(q.options()).extracting(RateComparisonService.OptionView::providerCode).containsExactly("DELHIVERY");
+        assertThat(q.unavailable()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("a customer with nothing assigned sees OCCPL Network only (the service's default)")
+    void defaultIsOccplOnly() {
+        allowed = java.util.Set.of("OCCPL_NETWORK");
+
+        QuoteView q = service(
+                adapter("OCCPL_NETWORK", false, true, r -> priced("OCCPL_NETWORK", "100")),
+                adapter("SHIPROCKET", true, true, r -> priced("SHIPROCKET", "90"))).compare(command("110001", "2.5"));
+
+        assertThat(q.options()).extracting(RateComparisonService.OptionView::providerCode).containsExactly("OCCPL_NETWORK");
     }
 
     @Test
