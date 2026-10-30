@@ -58,6 +58,12 @@ public interface ShipmentService {
      *         see the module doc for the full list, most of which are the Pricing
      *         Engine's own refusals surfacing unchanged
      */
+    /**
+     * The shipment a customer's portal booking turns into, issued at booking so the AWB and shipment number exist straight
+     * away. No {@code @PreAuthorize}: the portal has resolved the customer and is the only caller. Never priced again.
+     */
+    Shipment createFromPortalBooking(com.courier.modules.shipment.application.command.PortalShipmentCommand command);
+
     Shipment create(CreateShipmentCommand command);
 
     /**

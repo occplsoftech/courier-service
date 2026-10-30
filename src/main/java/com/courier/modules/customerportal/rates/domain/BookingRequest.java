@@ -1,6 +1,7 @@
 package com.courier.modules.customerportal.rates.domain;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -17,7 +18,14 @@ public record BookingRequest(UUID companyId,
                              Party pickup,
                              Party delivery,
                              String contents,
-                             BigDecimal customerTotal) {
+                             BigDecimal customerTotal,
+                             List<ChargeLine> charges) {
+
+    /** Without the charge breakdown (providers that book from the rate alone). */
+    public BookingRequest(UUID companyId, UUID customerId, String reference, String serviceCode, RateRequest rate, Party pickup,
+                          Party delivery, String contents, BigDecimal customerTotal) {
+        this(companyId, customerId, reference, serviceCode, rate, pickup, delivery, contents, customerTotal, List.of());
+    }
 
     public record Party(String name, String phone, String address, String pincode, String city, String state) {
         public static Party of(Object raw) {

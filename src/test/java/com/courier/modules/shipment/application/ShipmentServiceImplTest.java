@@ -114,6 +114,9 @@ class ShipmentServiceImplTest {
     @Mock private ServiceTypeService serviceTypeService;
     @Mock private PackageTypeService packageTypeService;
     @Mock private PaymentModeService paymentModeService;
+    @Mock private com.courier.modules.master.domain.PaymentModeRepository paymentModeRepository;
+    @Mock private com.courier.modules.master.domain.ServiceTypeRepository serviceTypeRepository;
+    @Mock private com.courier.modules.master.domain.PackageTypeRepository packageTypeRepository;
     @Mock private RateService rateService;
     @Mock private RouteService routeService;
     @Mock private PricingEngine pricingEngine;
@@ -138,7 +141,7 @@ class ShipmentServiceImplTest {
                 branchShipmentSequenceRepository, releasedShipmentNumberRepository, companyShipmentSequenceRepository, companyDrsSequenceRepository,
                 serviceTypeService, packageTypeService, paymentModeService,
                 rateService, routeService, pricingEngine, new PricingProperties(), walletService,
-                userService, branchService, branchLookup, customerService, crossingService, ticketService, ticketCategoryService,
+                userService, branchService, branchLookup, paymentModeRepository, serviceTypeRepository, packageTypeRepository, customerService, crossingService, ticketService, ticketCategoryService,
                 ewayBillService, freightCalculationService,
                 applicableChargesCalculator, auditService, eventPublisher, fileStoragePort, shipmentAssetRepository,
                 deliveryDispatchOtpRepository, passwordEncoder, companySettingsService, communicationSettingService,
@@ -1068,6 +1071,45 @@ class ShipmentServiceImplTest {
                 .commissionOnBasicFreight(new BigDecimal(commissionOnBasicFreight))
                 .branchCommissionOnOtherAmount(new BigDecimal(branchCommissionOnOtherAmount))
                 .build();
+    }
+
+    @Test
+    void portalBookingIssuesTheShipmentAtTheQuotedPriceAndLeavesTheBranchWalletAlone() {
+        UUID branch = UUID.randomUUID();
+        when(branchLookup.findBranch(branch, COMPANY)).thenReturn(java.util.Optional.of(
+                new com.courier.modules.shipment.domain.BranchLookupPort.BranchRef(branch, "PUN", "Pune", true)));
+        PaymentMode paid = paymentMode(true);
+        paid.setCompanyId(COMPANY);
+        PaymentMode toPay = paymentMode(false);
+        toPay.setCompanyId(COMPANY);
+        when(paymentModeRepository.findAll()).thenReturn(List.of(paid, toPay));
+        ServiceType surface = serviceType(2);
+        surface.setCompanyId(COMPANY);
+        when(serviceTypeRepository.findAll()).thenReturn(List.of(surface));
+        PackageType box = packageType(null);
+        box.setCompanyId(COMPANY);
+        when(packageTypeRepository.findAll()).thenReturn(List.of(box));
+
+        var command = new com.courier.modules.shipment.application.command.PortalShipmentCommand(branch, UUID.randomUUID(), "ref-1",
+                "411016", "411004", "Acme", "12 MG Road", "9800000001", "Ravi", "5 Park St", "9800000002", "Pune", "Pune",
+                "PAID", "OCCPL_STD", "Garments", new BigDecimal("2000"), 1, new BigDecimal("3"), new BigDecimal("3"),
+                BigDecimal.TEN, BigDecimal.TEN, BigDecimal.TEN, new BigDecimal("150"), BigDecimal.ZERO, new BigDecimal("10"),
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("28.80"), BigDecimal.ZERO, new BigDecimal("189"));
+
+        Shipment saved = service.createFromPortalBooking(command);
+
+        assertThat(saved.getTrackingNumber()).isNotBlank();
+        assertThat(saved.getShipmentNumber()).startsWith("PUN-");
+        assertThat(saved.getStatus()).isEqualTo(ShipmentStatus.BOOKED);
+        org.mockito.ArgumentCaptor<com.courier.modules.shipment.domain.ShipmentCharge> cap =
+                org.mockito.ArgumentCaptor.forClass(com.courier.modules.shipment.domain.ShipmentCharge.class);
+        verify(chargeRepository).save(cap.capture());
+        assertThat(cap.getValue().getNetAmount()).isEqualByComparingTo("189");
+        assertThat(cap.getValue().getFreight()).isEqualByComparingTo("150");
+        assertThat(cap.getValue().getRoundOff()).isEqualByComparingTo("0.20");
+        verify(freightCalculationService, never()).calculate(any(), any(), any(), any(), any(), any(), any());
+        verify(walletService, never()).debitForBooking(any());
+        verify(eventPublisher, never()).publishEvent(any(ShipmentEvent.PrepaidBookingConfirmed.class));
     }
 
     private static ServiceType serviceType(int deliveryDays) {

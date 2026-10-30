@@ -66,6 +66,9 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
     private final PickupService pickups;
     private final ShipmentPortalQueries shipments;
     private final TariffQuoteService tariff;
+    private final com.courier.modules.shipment.application.ShipmentService shipmentService;
+    private final com.courier.modules.company.application.BranchPincodeMappingService branchMappings;
+    private final com.courier.modules.customer.application.CustomerPortalLookup customers;
 
     @Override public String code() { return CODE; }
     @Override public String displayName() { return "OCCPL Network"; }
@@ -152,17 +155,64 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
     @Override
     public BookingOutcome book(BookingRequest b) {
         PincodeLocation pickupAt = pincodes.location(b.pickup().pincode()).orElse(null);
+        PickupRequest p;
         try {
-            PickupRequest p = pickups.createFromCustomerPortal(new PickupService.SaveCommand(
+            p = pickups.createFromCustomerPortal(new PickupService.SaveCommand(
                     b.customerId(), b.pickup().name(), b.pickup().phone(), b.pickup().address(), b.pickup().city(),
                     pickupAt == null ? null : pickupAt.districtId(), b.pickup().pincode(), b.rate().packageCount(),
                     b.rate().actualWeightKg(), null, null, remarks(b), null, null));
-            return BookingOutcome.booked(p.getPickupNo(), null, null,
-                    "Pickup " + p.getPickupNo() + " requested. The tracking number is issued when the parcel is collected and booked.");
         } catch (ApiException e) {
             // Local validation refused it inside our own transaction: nothing was created.
             return BookingOutcome.rejected("PICKUP_REFUSED", e.getMessage());
         }
+        // The shipment (AWB and shipment number) is issued now, at the branch the pickup pincode is mapped to, so the branch only
+        // collects the parcel. If there is no such branch, or issuing fails, the pickup stands alone and the branch books it later.
+        try {
+            com.courier.modules.company.domain.Branch branch = pickupAt == null ? null
+                    : branchMappings.findBranchForPincode(pickupAt.pincodeId())
+                    .filter(x -> x.isActive() && x.isAllowBooking()
+                            && x.getBranchType() != com.courier.modules.company.domain.BranchType.PICKUP_DELIVERY_PARTNER)
+                    .orElse(null);
+            if (branch != null) {
+                com.courier.modules.shipment.domain.Shipment s = shipmentService.createFromPortalBooking(portalShipment(b, branch));
+                pickups.attachPortalShipment(p.getId(), s.getId(), s.getShipmentNumber(), branch.getId());
+                return BookingOutcome.booked(p.getPickupNo(), s.getTrackingNumber(), null,
+                        "Shipment " + s.getShipmentNumber() + " booked with tracking number " + s.getTrackingNumber() + ". "
+                                + branch.getBranchName() + " will arrange the pickup (" + p.getPickupNo() + ").");
+            }
+        } catch (RuntimeException e) {
+            log.warn("Shipment not issued for pickup {}; the branch will book it: {}", p.getPickupNo(), e.getMessage());
+        }
+        return BookingOutcome.booked(p.getPickupNo(), null, null,
+                "Pickup " + p.getPickupNo() + " requested. The tracking number is issued when the parcel is collected and booked.");
+    }
+
+    private com.courier.modules.shipment.application.command.PortalShipmentCommand portalShipment(BookingRequest b,
+                                                                                                  com.courier.modules.company.domain.Branch branch) {
+        BigDecimal freight = BigDecimal.ZERO, fuel = BigDecimal.ZERO, handling = BigDecimal.ZERO, oda = BigDecimal.ZERO,
+                insurance = BigDecimal.ZERO, gst = BigDecimal.ZERO, other = BigDecimal.ZERO;
+        for (ChargeLine l : b.charges()) {
+            switch (l.component()) {
+                case FREIGHT -> freight = freight.add(l.amount());
+                case FUEL_SURCHARGE -> fuel = fuel.add(l.amount());
+                case HANDLING -> handling = handling.add(l.amount());
+                case REMOTE_AREA -> oda = oda.add(l.amount());
+                case INSURANCE -> insurance = insurance.add(l.amount());
+                case TAX -> gst = gst.add(l.amount());
+                default -> other = other.add(l.amount());
+            }
+        }
+        boolean credit = customers.findActiveBusinessCustomer(b.companyId(), b.customerId())
+                .map(c -> c.getDefaultPaymentMode() == com.courier.modules.customer.domain.CustomerPaymentMode.CREDIT).orElse(false);
+        String kind = b.rate().topay() ? "TOPAY" : b.rate().cod() ? "COD" : credit ? "CREDIT" : "PAID";
+        return new com.courier.modules.shipment.application.command.PortalShipmentCommand(branch.getId(), b.customerId(), b.reference(),
+                b.pickup().pincode(), b.delivery().pincode(),
+                b.pickup().name(), b.pickup().address(), b.pickup().phone(),
+                b.delivery().name(), b.delivery().address(), b.delivery().phone(),
+                b.pickup().city() == null || b.pickup().city().isBlank() ? branch.getCity() : b.pickup().city(),
+                b.delivery().city() == null || b.delivery().city().isBlank() ? null : b.delivery().city(), kind, b.serviceCode(), b.contents(), b.rate().declaredValue(),
+                b.rate().packageCount(), b.rate().actualWeightKg(), null, b.rate().lengthCm(), b.rate().breadthCm(), b.rate().heightCm(),
+                freight, fuel, handling, oda, insurance, gst, other, b.customerTotal());
     }
 
     /**
@@ -213,7 +263,7 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
 
     @Override
     public LabelResult label(ShipmentRef ref) {
-        return LabelResult.notAvailable("OCCPL prints the shipping label when your parcel is booked at the branch.");
+        return LabelResult.notAvailable("Print the label from your booking: the tracking number is on it.");
     }
 
     private static void event(List<TrackingEvent> events, Instant at, String status, String location,
