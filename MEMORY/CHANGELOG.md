@@ -8,6 +8,11 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-30 — Bulk shipment booking from an Excel sheet (customer portal)
+
+- `/api/v1/customer-portal/bulk-bookings`: `GET /template` (xlsx), `POST /preview` (upload; checks and prices up to 100 rows, books nothing), `POST /book` (the confirmed quote/option pairs). No new tables: each row is an ordinary rate quote and books through `PortalBookingService`, so wallet / To Pay / credit rules are unchanged; idempotency key `bulk-<quoteId>` stops a double confirm booking twice.
+- Row pricing: the customer's business rate when OCCPL Network priced one (service code `OCCPL_BUSINESS_RATE`), else the cheapest courier the customer may use. The per-minute comparison cap is skipped for bulk (batch size is capped instead).
+
 ## 2026-10-30 — Which couriers a business customer sees in the portal (V146)
 
 - New `customer_courier_access` table and `CustomerCourierAccessService`. A customer with **no** courier assigned sees **OCCPL Network only**
