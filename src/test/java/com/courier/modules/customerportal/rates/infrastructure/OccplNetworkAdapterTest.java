@@ -216,7 +216,7 @@ class OccplNetworkAdapterTest {
         return new com.courier.modules.customerportal.rates.domain.BookingRequest(UUID.randomUUID(), UUID.randomUUID(), "ref-1", "OCCPL_BUSINESS_RATE",
                 request(), party, to, "Garments", new BigDecimal("295"), java.util.List.of(
                 new com.courier.modules.customerportal.rates.domain.ChargeLine("f", "Freight", com.courier.modules.customerportal.rates.domain.ChargeComponent.FREIGHT, new BigDecimal("250")),
-                new com.courier.modules.customerportal.rates.domain.ChargeLine("t", "GST", com.courier.modules.customerportal.rates.domain.ChargeComponent.TAX, new BigDecimal("45"))));
+                new com.courier.modules.customerportal.rates.domain.ChargeLine("t", "GST", com.courier.modules.customerportal.rates.domain.ChargeComponent.TAX, new BigDecimal("45"))), new BigDecimal("2"));
     }
 
     @Test
@@ -239,6 +239,13 @@ class OccplNetworkAdapterTest {
 
         assertThat(outcome.result()).isEqualTo(com.courier.modules.customerportal.rates.domain.BookingOutcome.Result.BOOKED);
         assertThat(outcome.awbNumber()).isEqualTo("261000000042");
+        var cmd = org.mockito.ArgumentCaptor.forClass(com.courier.modules.shipment.application.command.PortalShipmentCommand.class);
+        org.mockito.Mockito.verify(shipmentService).createFromPortalBooking(cmd.capture());
+        assertThat(cmd.getValue().chargeableWeight()).isEqualByComparingTo("2");
+        assertThat(cmd.getValue().freight()).isEqualByComparingTo("250");
+        assertThat(cmd.getValue().gst()).isEqualByComparingTo("45");
+        assertThat(cmd.getValue().total()).isEqualByComparingTo("295");
+        assertThat(cmd.getValue().paymentKind()).isEqualTo("PAID");
         org.mockito.Mockito.verify(pickups).attachPortalShipment(pickup.getId(), shipment.getId(), "PUN-000001", branch.getId());
     }
 

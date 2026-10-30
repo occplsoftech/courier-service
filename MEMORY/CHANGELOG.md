@@ -8,6 +8,10 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-30 — Portal shipment keeps the quoted chargeable weight
+
+- The shipment issued at portal booking now carries the quote's chargeable weight (e.g. 2 kg) instead of the company's 15 kg counter minimum.
+
 ## 2026-10-30 — Portal booking issues the shipment (AWB + shipment number) at booking (V148)
 
 - Booking with OCCPL Network now creates the real shipment straight away (`ShipmentService.createFromPortalBooking`), at the branch the pickup pincode is mapped to (Pincode Branch Mapping; the branch must be active, allow booking and not be a pickup partner). The customer gets the shipment number and tracking number (AWB) immediately; the branch only collects the parcel.

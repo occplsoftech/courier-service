@@ -183,7 +183,8 @@ public class PortalBookingService {
                 BookingRequest.Party.of(snapshot.get("pickup")), BookingRequest.Party.of(snapshot.get("delivery")),
                 str(pkg.get("contents")), booking.getTotalAmount(),
                 RateComparisonService.lines(option).stream().map(l -> new com.courier.modules.customerportal.rates.domain.ChargeLine(
-                        l.label(), l.label(), component(l.component()), l.amount())).toList());
+                        l.label(), l.label(), component(l.component()), l.amount())).toList(),
+                option.getChargeableWeightKg());
     }
 
     private static com.courier.modules.customerportal.rates.domain.ChargeComponent component(String name) {
