@@ -54,6 +54,16 @@ public class CustomerPortalBulkBookingController {
         return ApiResponse.success(service.preview(file.getInputStream()));
     }
 
+    public record RowRequest(Integer row, java.util.Map<String, String> fields) {
+    }
+
+    @PostMapping("/row")
+    @Operation(summary = "Re-check one edited row",
+            description = "Send the row's `fields` (keyed by the template headings, as returned by the preview). Same checks and pricing as the upload.")
+    public ApiResponse<PortalBulkBookingService.PreviewRow> row(@RequestBody RowRequest request) {
+        return ApiResponse.success(service.checkRow(request.row() == null ? 0 : request.row(), request.fields()));
+    }
+
     @PostMapping("/book")
     @Operation(summary = "Book the confirmed rows",
             description = "Send the `quoteId` and `optionId` of each row to book from the preview. Rows book independently; each result says booked or why not.")

@@ -66,4 +66,19 @@ class PortalBulkBookingServiceTest {
         assertThatThrownBy(() -> service.preview(new ByteArrayInputStream("not excel".getBytes())))
                 .hasMessageContaining("could not be read");
     }
+
+    @Test
+    void editedRowIsRecheckedAndKeepsItsValues() {
+        RateComparisonService comparison = mock(RateComparisonService.class);
+        PortalBulkBookingService service = new PortalBulkBookingService(comparison, mock(PortalBookingService.class));
+        java.util.Map<String, String> f = new java.util.HashMap<>();
+        f.put("Pickup Name", "A"); f.put("Pickup Phone", "9800000001"); f.put("Pickup Address", "x"); f.put("Pickup Pincode", "411001");
+        f.put("Delivery Name", "B"); f.put("Delivery Phone", "12345"); f.put("Delivery Address", "y"); f.put("Delivery Pincode", "400001");
+        f.put("Weight (kg)", "2"); f.put("Declared Value (Rs)", "100");
+        var bad = service.checkRow(7, f);
+        assertThat(bad.ok()).isFalse();
+        assertThat(bad.row()).isEqualTo(7);
+        assertThat(bad.error()).contains("Delivery phone");
+        assertThat(bad.fields()).containsEntry("Delivery Phone", "12345");
+    }
 }

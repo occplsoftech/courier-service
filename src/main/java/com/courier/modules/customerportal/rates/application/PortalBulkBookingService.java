@@ -26,6 +26,7 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -55,7 +56,8 @@ public class PortalBulkBookingService {
 
     public record PreviewRow(int row, String deliveryName, String deliveryPincode, BigDecimal weightKg, String paymentMode,
                              boolean ok, String error, UUID quoteId, UUID optionId, String providerCode, String providerName,
-                             String serviceName, String basis, BigDecimal total) {
+                             String serviceName, String basis, BigDecimal total,
+                             Map<String, String> fields) {
     }
 
     public record Preview(List<PreviewRow> rows, int okCount, int errorCount, BigDecimal okTotal) {
@@ -151,7 +153,20 @@ public class PortalBulkBookingService {
 
     // ------------------------------------------------------------------ rows
 
-    private PreviewRow previewRow(int rowNo, Map<String, String> v) {
+    /** Re-checks one row after the customer edited it on screen: the same checks and pricing as the upload. */
+    public PreviewRow checkRow(int rowNo, Map<String, String> edited) {
+        Map<String, String> v = new LinkedHashMap<>();
+        for (String h : HEADERS) {
+            v.put(h, edited == null || edited.get(h) == null ? "" : edited.get(h).trim());
+        }
+        return previewRow(rowNo, v);
+    }
+
+    private PreviewRow previewRow(int rowNo, Map<String, String> raw) {
+        Map<String, String> v = new LinkedHashMap<>();
+        for (String h : HEADERS) {
+            v.put(h, raw.get(h) == null ? "" : raw.get(h));
+        }
         String dName = v.get("Delivery Name");
         String dPin = v.get("Delivery Pincode");
         String mode = blank(v.get("Payment Mode (PREPAID/COD/TOPAY)")) ? "PREPAID" : v.get("Payment Mode (PREPAID/COD/TOPAY)").toUpperCase(Locale.ROOT);
@@ -180,21 +195,22 @@ public class PortalBulkBookingService {
             if (q.optionId() == null) {
                 String why = q.view().unavailable().stream().map(u -> u.providerName() + ": " + u.reason()).findFirst()
                         .orElse("No courier is available for this shipment.");
-                return failed(rowNo, dName, dPin, weight, mode, why);
+                return failed(rowNo, dName, dPin, weight, mode, why, v);
             }
             OptionView o = q.view().options().stream().filter(x -> x.optionId().equals(q.optionId())).findFirst().orElseThrow();
             return new PreviewRow(rowNo, dName, dPin, weight, mode, true, null, q.view().quoteId(), o.optionId(), o.providerCode(),
-                    o.providerName(), o.serviceName(), q.basis(), o.totalAmount());
+                    o.providerName(), o.serviceName(), q.basis(), o.totalAmount(), v);
         } catch (ApiException e) {
-            return failed(rowNo, dName, dPin, weight, mode, e.getMessage());
+            return failed(rowNo, dName, dPin, weight, mode, e.getMessage(), v);
         } catch (RuntimeException e) {
             log.warn("Bulk preview row {} failed", rowNo, e);
-            return failed(rowNo, dName, dPin, weight, mode, "This row could not be priced.");
+            return failed(rowNo, dName, dPin, weight, mode, "This row could not be priced.", v);
         }
     }
 
-    private static PreviewRow failed(int row, String name, String pin, BigDecimal weight, String mode, String error) {
-        return new PreviewRow(row, name, pin, weight, mode, false, error, null, null, null, null, null, null, null);
+    private static PreviewRow failed(int row, String name, String pin, BigDecimal weight, String mode, String error,
+                                     Map<String, String> fields) {
+        return new PreviewRow(row, name, pin, weight, mode, false, error, null, null, null, null, null, null, null, fields);
     }
 
     private static void require(Map<String, String> v, String key, String label) {

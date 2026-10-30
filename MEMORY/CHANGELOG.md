@@ -8,6 +8,10 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-30 — Bulk booking: edit a row on screen
+
+- `POST /api/v1/customer-portal/bulk-bookings/row` re-checks and re-prices one edited row; preview rows now carry their raw `fields` (template headings, in order) so the screen can edit them.
+
 ## 2026-10-30 — Bulk shipment booking from an Excel sheet (customer portal)
 
 - `/api/v1/customer-portal/bulk-bookings`: `GET /template` (xlsx), `POST /preview` (upload; checks and prices up to 100 rows, books nothing), `POST /book` (the confirmed quote/option pairs). No new tables: each row is an ordinary rate quote and books through `PortalBookingService`, so wallet / To Pay / credit rules are unchanged; idempotency key `bulk-<quoteId>` stops a double confirm booking twice.
