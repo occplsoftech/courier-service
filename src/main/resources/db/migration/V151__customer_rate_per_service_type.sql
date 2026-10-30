@@ -1,5 +1,5 @@
 -- =============================================================================
--- V149 — A customer's zone rate card per service type (AIR, SURFACE, CARGO, PREMIUM...).
+-- V151 — A customer's zone rate card per service type (AIR, SURFACE, CARGO, PREMIUM...).
 --
 -- service_type_id NULL = the card for "all services" (what every existing card becomes, so nothing changes for them).
 -- A zone may now hold one card per service type plus one default; uniqueness is enforced by the service (MySQL does not treat
