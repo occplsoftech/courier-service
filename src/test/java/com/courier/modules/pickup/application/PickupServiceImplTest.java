@@ -56,12 +56,13 @@ class PickupServiceImplTest {
     @Mock private PdpEarningService earningService;
     @Mock private com.courier.modules.company.application.BranchPincodeMappingService pincodeMappings;
     @Mock private com.courier.modules.districtfreight.domain.PincodeCoverageLookupPort coverage;
+    @Mock private com.courier.modules.company.domain.BranchRepository branches;
 
     private PickupServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new PickupServiceImpl(pickups, branchService, userService, auditService, earningService, pincodeMappings, coverage);
+        service = new PickupServiceImpl(pickups, branchService, userService, auditService, earningService, pincodeMappings, coverage, branches);
         CompanyContext.setCompanyId(COMPANY);
         when(pickups.save(any(PickupRequest.class))).thenAnswer(i -> {
             PickupRequest p = i.getArgument(0);
@@ -72,7 +73,9 @@ class PickupServiceImplTest {
         });
         when(pickups.countCreatedBetween(any(), any(), any())).thenReturn(0L);
         when(branchService.getById(PDP)).thenReturn(partner(PDP, BranchType.PICKUP_DELIVERY_PARTNER, true));
+        when(branches.findByIdWithinCompany(PDP, COMPANY)).thenReturn(Optional.of(partner(PDP, BranchType.PICKUP_DELIVERY_PARTNER, true)));
         when(branchService.getById(OTHER_PDP)).thenReturn(partner(OTHER_PDP, BranchType.PICKUP_DELIVERY_PARTNER, true));
+        when(branches.findByIdWithinCompany(OTHER_PDP, COMPANY)).thenReturn(Optional.of(partner(OTHER_PDP, BranchType.PICKUP_DELIVERY_PARTNER, true)));
         User pdpUser = mock(User.class);
         when(pdpUser.getBranchId()).thenReturn(PDP);
         when(userService.getById(PDP_USER)).thenReturn(pdpUser);
@@ -127,6 +130,7 @@ class PickupServiceImplTest {
     void assignRequiresPartner() {
         UUID plain = UUID.randomUUID();
         when(branchService.getById(plain)).thenReturn(partner(plain, BranchType.BRANCH, true));
+        when(branches.findByIdWithinCompany(plain, COMPANY)).thenReturn(Optional.of(partner(plain, BranchType.BRANCH, true)));
         PickupRequest p = created(null);
 
         assertThatThrownBy(() -> service.assign(p.getId(), plain))
@@ -138,6 +142,7 @@ class PickupServiceImplTest {
     void inactivePartner() {
         UUID dead = UUID.randomUUID();
         when(branchService.getById(dead)).thenReturn(partner(dead, BranchType.PICKUP_DELIVERY_PARTNER, false));
+        when(branches.findByIdWithinCompany(dead, COMPANY)).thenReturn(Optional.of(partner(dead, BranchType.PICKUP_DELIVERY_PARTNER, false)));
         PickupRequest p = created(null);
 
         assertThatThrownBy(() -> service.assign(p.getId(), dead))
@@ -194,7 +199,9 @@ class PickupServiceImplTest {
         UUID manager = UUID.randomUUID();
         UUID otherManager = UUID.randomUUID();
         when(branchService.getById(branch)).thenReturn(partner(branch, BranchType.BRANCH, true));
+        when(branches.findByIdWithinCompany(branch, COMPANY)).thenReturn(Optional.of(partner(branch, BranchType.BRANCH, true)));
         when(branchService.getById(otherBranch)).thenReturn(partner(otherBranch, BranchType.BRANCH, true));
+        when(branches.findByIdWithinCompany(otherBranch, COMPANY)).thenReturn(Optional.of(partner(otherBranch, BranchType.BRANCH, true)));
         User u1 = mock(User.class);
         when(u1.getBranchId()).thenReturn(branch);
         when(userService.getById(manager)).thenReturn(u1);
@@ -204,6 +211,8 @@ class PickupServiceImplTest {
 
         PickupRequest p = created(null);
         service.attachPortalShipment(p.getId(), null, null, branch);
+        // BranchService hides the partner branch from a branch manager; assigning must not depend on it.
+        when(branchService.getById(PDP)).thenThrow(new com.courier.shared.exception.ResourceNotFoundException("Branch", PDP));
 
         as(otherManager, Roles.BRANCH_MANAGER);
         assertThatThrownBy(() -> service.assign(p.getId(), PDP)).hasMessageContaining("Only the branch");

@@ -1,6 +1,5 @@
 package com.courier.modules.pickup.api;
 
-import com.courier.modules.company.application.BranchService;
 import com.courier.modules.company.domain.Branch;
 import com.courier.modules.pickup.api.PickupDtos.AssignRequest;
 import com.courier.modules.pickup.api.PickupDtos.CompleteRequest;
@@ -51,7 +50,7 @@ public class PickupController {
     private static final int MAX_PAGE_SIZE = 100;
 
     private final PickupService service;
-    private final BranchService branchService;
+    private final com.courier.modules.company.domain.BranchRepository branchRepository;
 
     @GetMapping
     @Operation(summary = "List pickup requests", description = "Newest first. A partner-bound caller only sees "
@@ -177,11 +176,10 @@ public class PickupController {
         }
         Branch b = cache.get(id);
         if (b == null) {
-            try {
-                b = branchService.getById(id);
+            // The repository, not BranchService: a branch manager may not "see" the partner branch there, but must see its name here.
+            b = branchRepository.findByIdWithinCompany(id, com.courier.shared.company.CompanyContext.requireCompanyId()).orElse(null);
+            if (b != null) {
                 cache.put(id, b);
-            } catch (ResourceNotFoundException ignored) {
-                // branch deleted: the pickup stays readable, just unnamed
             }
         }
         return b;
