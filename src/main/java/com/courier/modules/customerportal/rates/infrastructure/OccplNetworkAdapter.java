@@ -211,7 +211,7 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
                 b.delivery().name(), b.delivery().address(), b.delivery().phone(),
                 b.pickup().city() == null || b.pickup().city().isBlank() ? branch.getCity() : b.pickup().city(),
                 b.delivery().city() == null || b.delivery().city().isBlank() ? null : b.delivery().city(), kind, b.serviceCode(), b.contents(), b.rate().declaredValue(),
-                b.rate().packageCount(), b.rate().actualWeightKg(), null, b.rate().lengthCm(), b.rate().breadthCm(), b.rate().heightCm(),
+                b.rate().packageCount(), b.rate().actualWeightKg(), b.chargeableWeightKg(), b.rate().lengthCm(), b.rate().breadthCm(), b.rate().heightCm(),
                 freight, fuel, handling, oda, insurance, gst, other, b.customerTotal());
     }
 

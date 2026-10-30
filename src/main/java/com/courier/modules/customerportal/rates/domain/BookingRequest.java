@@ -19,7 +19,14 @@ public record BookingRequest(UUID companyId,
                              Party delivery,
                              String contents,
                              BigDecimal customerTotal,
-                             List<ChargeLine> charges) {
+                             List<ChargeLine> charges,
+                             BigDecimal chargeableWeightKg) {
+
+    /** Without the quoted chargeable weight. */
+    public BookingRequest(UUID companyId, UUID customerId, String reference, String serviceCode, RateRequest rate, Party pickup,
+                          Party delivery, String contents, BigDecimal customerTotal, List<ChargeLine> charges) {
+        this(companyId, customerId, reference, serviceCode, rate, pickup, delivery, contents, customerTotal, charges, null);
+    }
 
     /** Without the charge breakdown (providers that book from the rate alone). */
     public BookingRequest(UUID companyId, UUID customerId, String reference, String serviceCode, RateRequest rate, Party pickup,
