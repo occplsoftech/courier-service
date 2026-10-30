@@ -44,14 +44,20 @@ class CustomerPricingTest {
     }
 
     @Test
-    @DisplayName("slab is half-open: min inclusive, max exclusive, null max unbounded")
+    @DisplayName("a slab covers above its minimum up to and including its maximum: 5 kg is in 0-5, 5.3 kg is in 5-10")
     void slabCoverage() {
-        ZoneRateSlab slab = ZoneRateSlab.builder().minWeight(new BigDecimal("10")).maxWeight(new BigDecimal("50"))
-                .ratePerKg(BigDecimal.ONE).build();
-        assertThat(slab.covers(new BigDecimal("10"))).isTrue();
-        assertThat(slab.covers(new BigDecimal("49.999"))).isTrue();
-        assertThat(slab.covers(new BigDecimal("50"))).isFalse();
-        ZoneRateSlab open = ZoneRateSlab.builder().minWeight(new BigDecimal("50")).ratePerKg(BigDecimal.ONE).build();
+        ZoneRateSlab first = ZoneRateSlab.builder().minWeight(BigDecimal.ZERO).maxWeight(new BigDecimal("5")).ratePerKg(BigDecimal.ONE).build();
+        ZoneRateSlab second = ZoneRateSlab.builder().minWeight(new BigDecimal("5")).maxWeight(new BigDecimal("10")).ratePerKg(BigDecimal.ONE).build();
+        ZoneRateSlab open = ZoneRateSlab.builder().minWeight(new BigDecimal("10")).ratePerKg(BigDecimal.ONE).build();
+
+        assertThat(first.covers(new BigDecimal("0.5"))).isTrue();
+        assertThat(first.covers(new BigDecimal("5"))).isTrue();
+        assertThat(second.covers(new BigDecimal("5"))).isFalse();
+        assertThat(first.covers(new BigDecimal("5.3"))).isFalse();
+        assertThat(second.covers(new BigDecimal("5.3"))).isTrue();
+        assertThat(second.covers(new BigDecimal("10"))).isTrue();
+        assertThat(open.covers(new BigDecimal("10"))).isFalse();
+        assertThat(open.covers(new BigDecimal("10.1"))).isTrue();
         assertThat(open.covers(new BigDecimal("100000"))).isTrue();
     }
 
