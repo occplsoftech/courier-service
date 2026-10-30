@@ -82,6 +82,11 @@ public class PickupServiceImpl implements PickupService {
         }
         PickupRequest p = PickupRequest.builder().pickupNo(nextPickupNo(companyId)).build();
         apply(p, c);
+        // The branch the pickup pincode is mapped to owns it and assigns it to its pickup team.
+        coverage.findByPincode(c.pincode())
+                .flatMap(ref -> pincodeMappings.findBranchForPincode(ref.pincodeId()))
+                .filter(b -> b.isActive() && b.getBranchType() != BranchType.PICKUP_DELIVERY_PARTNER)
+                .ifPresent(b -> p.setBookingBranchId(b.getId()));
         PickupRequest saved = pickups.save(p);
         auditService.record(AuditAction.PICKUP_CREATED, ENTITY, saved.getId(),
                 Map.of("pickupNo", saved.getPickupNo(), "status", saved.getStatus().name(), "source", "CUSTOMER_PORTAL"));
@@ -127,8 +132,9 @@ public class PickupServiceImpl implements PickupService {
     @PreAuthorize(READ)
     public PickupRequest get(UUID id) {
         PickupRequest p = load(id);
-        UUID own = ownPartnerScope();
-        if (own != null && !own.equals(p.getPdpBranchId())) {
+        Scope own = scope();
+        if ((own.pdp() != null && !own.pdp().equals(p.getPdpBranchId()))
+                || (own.booking() != null && !own.booking().equals(p.getBookingBranchId()))) {
             throw new ResourceNotFoundException(ENTITY, id);
         }
         return p;
@@ -137,10 +143,11 @@ public class PickupServiceImpl implements PickupService {
     @Override
     @Transactional(readOnly = true)
     @PreAuthorize(READ)
-    public Page<PickupRequest> search(PickupStatus status, UUID pdpBranchId, String search, Pageable pageable) {
-        UUID own = ownPartnerScope();
+    public Page<PickupRequest> search(PickupStatus status, UUID pdpBranchId, UUID bookingBranchId, String search, Pageable pageable) {
+        Scope own = scope();
         String term = search == null || search.isBlank() ? null : search.trim();
-        return pickups.search(requireCompany(), status, own != null ? own : pdpBranchId, term, pageable);
+        return pickups.search(requireCompany(), status, own.pdp() != null ? own.pdp() : pdpBranchId,
+                own.booking() != null ? own.booking() : bookingBranchId, term, pageable);
     }
 
     @Override
@@ -151,7 +158,7 @@ public class PickupServiceImpl implements PickupService {
         for (PickupStatus s : PickupStatus.values()) {
             out.put(s, 0L);
         }
-        for (Object[] row : pickups.countByStatus(requireCompany(), ownPartnerScope())) {
+        for (Object[] row : pickups.countByStatus(requireCompany(), scope().pdp(), scope().booking())) {
             out.put((PickupStatus) row[0], (Long) row[1]);
         }
         return out;
@@ -159,9 +166,10 @@ public class PickupServiceImpl implements PickupService {
 
     @Override
     @Transactional
-    @PreAuthorize(STAFF)
+    @PreAuthorize(READ)
     public PickupRequest assign(UUID id, UUID pdpBranchId) {
         PickupRequest p = load(id);
+        requireMayRoute(p);
         requirePartner(pdpBranchId);
         p.moveTo(PickupStatus.ASSIGNED);
         p.setPdpBranchId(pdpBranchId);
@@ -346,6 +354,36 @@ public class PickupServiceImpl implements PickupService {
     }
 
     /** The caller's own branch when they are branch-bound (not a company/platform admin), else null. */
+    /** Which pickups the caller sees: all (admin / platform), the ones assigned to their partner branch, or the ones their own branch owns. */
+    private record Scope(UUID pdp, UUID booking) {
+    }
+
+    private Scope scope() {
+        AuthenticatedUser caller = SecurityUtils.requireCurrentUser();
+        if (caller.isPlatformTier() || caller.hasRole(Roles.COMPANY_ADMIN)) {
+            return new Scope(null, null);
+        }
+        UUID branchId = userService.getById(caller.userId()).getBranchId();
+        if (branchId == null) {
+            return new Scope(new UUID(0L, 0L), null); // a branch-bound caller with no branch matches nothing
+        }
+        BranchType type = branchService.getById(branchId).getBranchType();
+        return type == BranchType.PICKUP_DELIVERY_PARTNER ? new Scope(branchId, null) : new Scope(null, branchId);
+    }
+
+    /** The company admin, or the manager of the branch the pickup belongs to, may assign it to a pickup partner. */
+    private void requireMayRoute(PickupRequest p) {
+        AuthenticatedUser caller = SecurityUtils.requireCurrentUser();
+        if (caller.isPlatformTier() || caller.hasRole(Roles.COMPANY_ADMIN)) {
+            return;
+        }
+        UUID own = scope().booking();
+        if (own == null || !own.equals(p.getBookingBranchId())) {
+            throw new com.courier.shared.exception.ForbiddenException(com.courier.shared.exception.ErrorCode.ACCESS_DENIED,
+                    "Only the branch this pickup belongs to can assign it.");
+        }
+    }
+
     private UUID ownPartnerScope() {
         AuthenticatedUser caller = SecurityUtils.requireCurrentUser();
         if (caller.isPlatformTier() || caller.hasRole(Roles.COMPANY_ADMIN)) {
