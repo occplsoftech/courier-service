@@ -191,7 +191,7 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
         String location = null;
         if (p.getShipmentId() != null) {
             Optional<ShipmentPortalQueries.PortalTimeline> timeline =
-                    shipments.timeline(ref.companyId(), ref.customerId(), p.getShipmentId());
+                    shipments.timelineOfPickupShipment(ref.companyId(), p.getShipmentId());
             if (timeline.isPresent()) {
                 ShipmentPortalQueries.PortalTimeline t = timeline.get();
                 trackingNumber = t.shipment().trackingNumber() != null ? t.shipment().trackingNumber()

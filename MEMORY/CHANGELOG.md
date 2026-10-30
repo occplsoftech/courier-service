@@ -8,6 +8,15 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-30 — Customer tracking follows the shipment a branch books from the customer's pickup
+
+- Found on dev: a branch booked `TEST_BR-000001` (AWB 26100000001) from the customer's picked-up pickup, but the customer's shipment page
+  kept saying "Tracking number: issued when the parcel is collected" and showed none of the branch's steps. The portal only followed
+  a shipment whose Business Customer was the customer, and a counter booking made from a pickup does not always pick one.
+- `ShipmentPortalQueries.timelineOfPickupShipment` returns the timeline of the shipment linked to the customer's own pickup (the pickup
+  is already looked up for that customer, so the link proves ownership). `OccplNetworkAdapter.track` uses it. The shipment's own
+  customer is not changed, so billing is untouched.
+
 ## 2026-10-30 — Uploaded files open from a private bucket everywhere (SignedLinks)
 
 - Audit of every upload: top-up proof (signed in #48), customer-invoice proof and public-tracking POD (already signed), and now also

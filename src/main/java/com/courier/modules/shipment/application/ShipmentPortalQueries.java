@@ -63,15 +63,27 @@ public class ShipmentPortalQueries {
     public Optional<PortalTimeline> timeline(UUID companyId, UUID customerId, UUID shipmentId) {
         return repository.findByIdWithinCompany(shipmentId, companyId)
                 .filter(s -> customerId.equals(s.getBusinessCustomerId()))
-                .map(s -> {
-                    Map<UUID, String> names = new HashMap<>();
-                    List<PortalStep> steps = history.findAllByShipmentIdWithinCompany(s.getId(), companyId).stream()
-                            .map(h -> new PortalStep(h.getStatus(), h.getChangedAt(), h.getBranchId() == null ? null
-                                    : names.computeIfAbsent(h.getBranchId(), id -> branches.findBranch(id, companyId)
-                                            .map(BranchLookupPort.BranchRef::branchName).orElse(null))))
-                            .toList();
-                    return new PortalTimeline(view(s), steps);
-                });
+                .map(s -> timelineOf(s, companyId));
+    }
+
+    /**
+     * The timeline of the shipment a branch booked from this customer's own pickup request. The caller has already looked the
+     * pickup up for that customer, so the link is the proof of ownership; the shipment itself need not carry the customer (a branch
+     * booking made from a pickup does not always pick the Business Customer).
+     */
+    @Transactional(readOnly = true)
+    public Optional<PortalTimeline> timelineOfPickupShipment(UUID companyId, UUID shipmentId) {
+        return repository.findByIdWithinCompany(shipmentId, companyId).map(s -> timelineOf(s, companyId));
+    }
+
+    private PortalTimeline timelineOf(Shipment s, UUID companyId) {
+        Map<UUID, String> names = new HashMap<>();
+        List<PortalStep> steps = history.findAllByShipmentIdWithinCompany(s.getId(), companyId).stream()
+                .map(h -> new PortalStep(h.getStatus(), h.getChangedAt(), h.getBranchId() == null ? null
+                        : names.computeIfAbsent(h.getBranchId(), id -> branches.findBranch(id, companyId)
+                                .map(BranchLookupPort.BranchRef::branchName).orElse(null))))
+                .toList();
+        return new PortalTimeline(view(s), steps);
     }
 
     private static PortalShipment view(Shipment s) {
