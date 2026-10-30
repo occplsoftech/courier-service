@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-30 — Customer rate slabs include their upper weight
+
+- A business customer's weight slab now covers the weights above its minimum **up to and including its maximum** (`ZoneRateSlab.covers`).
+  With slabs 0-5, 5-10 and 10+, exactly 5 kg is charged at the first slab and 5.3 kg at the second; exactly 10 kg at the second.
+  Before, the upper limit was excluded, so 5 kg fell into the second slab. A slab starting at 0 still covers any weight above 0.
+- Affects every existing customer rate whose weight lands exactly on a slab boundary. Zone tariff slabs and partner rates are unchanged.
+
 ## 2026-10-30 — Which couriers a business customer sees in the portal (V146)
 
 - New `customer_courier_access` table and `CustomerCourierAccessService`. A customer with **no** courier assigned sees **OCCPL Network only**
