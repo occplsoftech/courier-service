@@ -8,6 +8,10 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-30 — Branch manager can actually assign a pickup (partner lookup no longer hidden)
+
+- Found on dev: assigning as a branch manager returned "Branch not found" because the partner was looked up through `BranchService`, which hides other branches from a branch manager. `PickupServiceImpl.requirePartner` and the pickup list's branch names now read `BranchRepository` directly.
+
 ## 2026-10-30 — Pickups belong to the branch of their pincode
 
 - A portal pickup records the branch its pincode is mapped to (`booking_branch_id`, set at creation, not only when the shipment is issued). `GET /pickups` takes `bookingBranchId` and returns `bookingBranchId/Code/Name`.

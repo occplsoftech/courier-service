@@ -54,6 +54,7 @@ public class PickupServiceImpl implements PickupService {
     private final PdpEarningService earningService;
     private final BranchPincodeMappingService pincodeMappings;
     private final PincodeCoverageLookupPort coverage;
+    private final com.courier.modules.company.domain.BranchRepository branches;
 
     @Override
     @Transactional
@@ -340,7 +341,10 @@ public class PickupServiceImpl implements PickupService {
         if (branchId == null) {
             throw new BusinessRuleException("A Pickup-Delivery Partner is required.");
         }
-        Branch b = branchService.getById(branchId);
+        // Straight from the repository: BranchService hides other branches from a branch manager, who must still be able to
+        // assign a pickup of theirs to a partner.
+        Branch b = branches.findByIdWithinCompany(branchId, requireCompany())
+                .orElseThrow(() -> new ResourceNotFoundException("Branch", branchId));
         if (b.getBranchType() != BranchType.PICKUP_DELIVERY_PARTNER) {
             throw new BusinessRuleException("Branch %s is not a Pickup-Delivery Partner.".formatted(b.getBranchCode()));
         }
