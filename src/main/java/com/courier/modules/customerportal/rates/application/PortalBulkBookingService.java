@@ -1,5 +1,10 @@
 package com.courier.modules.customerportal.rates.application;
 
+import com.courier.modules.customer.application.CustomerPortalAddressBook;
+import com.courier.modules.customer.application.CustomerPortalLookup;
+import com.courier.modules.master.application.PincodeService;
+import com.courier.modules.customerportal.application.ActingCustomer;
+import com.courier.modules.customerportal.application.CurrentCustomerResolver;
 import com.courier.modules.customerportal.rates.application.PortalBookingService.BookingView;
 import com.courier.modules.customerportal.rates.application.RateComparisonService.BulkQuote;
 import com.courier.modules.customerportal.rates.application.RateComparisonService.CompareCommand;
@@ -26,6 +31,7 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -45,17 +51,44 @@ public class PortalBulkBookingService {
     public static final int MAX_ROWS = 100;
 
     private static final String[] HEADERS = {
-            "Pickup Name", "Pickup Phone", "Pickup Address", "Pickup Pincode",
-            "Delivery Name", "Delivery Phone", "Delivery Address", "Delivery Pincode", "Delivery City", "Delivery State",
-            "Weight (kg)", "Length (cm)", "Breadth (cm)", "Height (cm)", "Packages", "Contents", "Declared Value (Rs)",
+            "Delivery Name", "Delivery Phone", "Delivery Address", "Delivery Pincode",
+            "Weight (kg)", "Packages", "Contents",
             "Payment Mode (PREPAID/COD/TOPAY)"};
+
+    /** Parcel size is not asked: every shipment is priced at 10 x 10 x 10 cm, so the weight (not volume) sets the charge. */
+    private static final BigDecimal DEFAULT_DIMENSION_CM = BigDecimal.TEN;
+
+    /** The sheet does not ask for a declared value: every shipment is booked at this one. */
+    private static final BigDecimal DEFAULT_DECLARED_VALUE = new BigDecimal("2000");
 
     private final RateComparisonService comparison;
     private final PortalBookingService booking;
+    private final CurrentCustomerResolver resolver;
+    private final CustomerPortalLookup customers;
+    private final CustomerPortalAddressBook addressBook;
+    private final PincodeService pincodes;
+
+    /** Where and by whom the parcels are handed over: the customer's own profile, so the sheet does not repeat it on every row. */
+    private record Contact(String name, String phone, String address, String pincode) {
+    }
+
+    private Contact contact() {
+        ActingCustomer acting = resolver.require();
+        var c = customers.findActiveBusinessCustomer(acting.companyId(), acting.customerId())
+                .orElseThrow(() -> new BusinessRuleException("Your customer profile could not be found."));
+        var addresses = addressBook.list(acting.companyId(), acting.customerId());
+        var pickup = addresses.stream().filter(a -> a.defaultPickup()).findFirst()
+                .or(() -> addresses.stream().findFirst())
+                .orElseThrow(() -> new BusinessRuleException("Add a pickup address to your profile first: bulk booking picks up from it."));
+        String line = java.util.stream.Stream.of(pickup.addressLine1(), pickup.addressLine2(), pickup.landmark())
+                .filter(t -> t != null && !t.isBlank()).map(String::trim).collect(java.util.stream.Collectors.joining(", "));
+        return new Contact(blank(c.getContactPerson()) ? c.displayName() : c.getContactPerson().trim(), c.getMobile(), line, pickup.pincode());
+    }
 
     public record PreviewRow(int row, String deliveryName, String deliveryPincode, BigDecimal weightKg, String paymentMode,
                              boolean ok, String error, UUID quoteId, UUID optionId, String providerCode, String providerName,
-                             String serviceName, String basis, BigDecimal total) {
+                             String serviceName, String basis, BigDecimal total,
+                             Map<String, String> fields) {
     }
 
     public record Preview(List<PreviewRow> rows, int okCount, int errorCount, BigDecimal okTotal) {
@@ -81,19 +114,19 @@ public class PortalBulkBookingService {
                 c.setCellStyle(head);
                 sheet.setColumnWidth(i, 20 * 256);
             }
-            String[] sample = {"Acme Traders", "9800000001", "12 MG Road, Pune", "411001",
-                    "Ravi Kumar", "9800000002", "5 Park Street, Mumbai", "400001", "Mumbai", "Maharashtra",
-                    "2.5", "20", "15", "10", "1", "Garments", "1500", "PREPAID"};
+            String[] sample = {
+                    "Ravi Kumar", "9800000002", "5 Park Street, Mumbai", "400001",
+                    "2.5", "1", "Garments", "PREPAID"};
             Row r = sheet.createRow(1);
             for (int i = 0; i < sample.length; i++) {
                 r.createCell(i).setCellValue(sample[i]);
             }
             Sheet help = wb.createSheet("Instructions");
             String[] lines = {
-                    "One row per shipment, starting on row 2 of the Shipments sheet (replace the sample row). Up to " + MAX_ROWS + " rows.",
-                    "Pincodes are 6 digits. Phone numbers are 10 digits. Dimensions are in cm; weight in kg, per shipment.",
+                    "Pickup name, phone and address are your own contact person, mobile and default pickup address from your profile; you do not enter them. One row per shipment, starting on row 2 of the Shipments sheet (replace the sample row). Up to " + MAX_ROWS + " rows.",
+                    "Pincodes are 6 digits. Phone numbers are 10 digits. Weight is in kg, for the whole shipment.",
                     "Payment mode: PREPAID, COD or TOPAY (left blank means PREPAID).",
-                    "Length, Breadth and Height may be left blank: 10 cm is used for each.",
+                    "Parcel size is not needed: every shipment is priced by its weight.",
                     "Each row is priced at your business rate when you have one for that destination, otherwise at the cheapest courier you are allowed to use.",
                     "After upload you see every row checked, with its price. Nothing is booked until you confirm."};
             for (int i = 0; i < lines.length; i++) {
@@ -112,9 +145,10 @@ public class PortalBulkBookingService {
         if (sheetRows.isEmpty()) {
             throw new BusinessRuleException("The sheet has no shipments. Fill one row per shipment under the headings.");
         }
+        Contact contact = contact();
         List<PreviewRow> rows = new ArrayList<>();
         for (int i = 0; i < sheetRows.size(); i++) {
-            rows.add(previewRow(Integer.parseInt(sheetRows.get(i).get("#")), sheetRows.get(i)));
+            rows.add(previewRow(Integer.parseInt(sheetRows.get(i).get("#")), sheetRows.get(i), contact));
         }
         long ok = rows.stream().filter(PreviewRow::ok).count();
         BigDecimal total = rows.stream().filter(PreviewRow::ok).map(PreviewRow::total).reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -151,50 +185,74 @@ public class PortalBulkBookingService {
 
     // ------------------------------------------------------------------ rows
 
-    private PreviewRow previewRow(int rowNo, Map<String, String> v) {
+    /** Re-checks one row after the customer edited it on screen: the same checks and pricing as the upload. */
+    public PreviewRow checkRow(int rowNo, Map<String, String> edited) {
+        Map<String, String> v = new LinkedHashMap<>();
+        for (String h : HEADERS) {
+            v.put(h, edited == null || edited.get(h) == null ? "" : edited.get(h).trim());
+        }
+        return previewRow(rowNo, v, contact());
+    }
+
+    private PreviewRow previewRow(int rowNo, Map<String, String> raw, Contact contact) {
+        Map<String, String> v = new LinkedHashMap<>();
+        for (String h : HEADERS) {
+            v.put(h, raw.get(h) == null ? "" : raw.get(h));
+        }
         String dName = v.get("Delivery Name");
         String dPin = v.get("Delivery Pincode");
         String mode = blank(v.get("Payment Mode (PREPAID/COD/TOPAY)")) ? "PREPAID" : v.get("Payment Mode (PREPAID/COD/TOPAY)").toUpperCase(Locale.ROOT);
         BigDecimal weight = null;
         try {
             weight = decimal(v.get("Weight (kg)"), "Weight");
-            require(v, "Pickup Name", "Pickup name");
-            phone(v.get("Pickup Phone"), "Pickup phone");
-            require(v, "Pickup Address", "Pickup address");
-            require(v, "Delivery Name", "Delivery name");
+                        require(v, "Delivery Name", "Delivery name");
             phone(v.get("Delivery Phone"), "Delivery phone");
             require(v, "Delivery Address", "Delivery address");
-            BigDecimal ten = BigDecimal.TEN;
-            PackageInput pkg = new PackageInput(weight,
-                    blank(v.get("Length (cm)")) ? ten : decimal(v.get("Length (cm)"), "Length"),
-                    blank(v.get("Breadth (cm)")) ? ten : decimal(v.get("Breadth (cm)"), "Breadth"),
-                    blank(v.get("Height (cm)")) ? ten : decimal(v.get("Height (cm)"), "Height"), "CM",
+            PackageInput pkg = new PackageInput(weight, DEFAULT_DIMENSION_CM, DEFAULT_DIMENSION_CM, DEFAULT_DIMENSION_CM, "CM",
                     blank(v.get("Packages")) ? 1 : integer(v.get("Packages"), "Packages"),
                     blank(v.get("Contents")) ? "General goods" : v.get("Contents"),
-                    decimal(v.get("Declared Value (Rs)"), "Declared value"), mode);
+                    DEFAULT_DECLARED_VALUE, mode);
             CompareCommand cmd = new CompareCommand(
-                    new PartyInput(v.get("Pickup Name"), v.get("Pickup Phone"), v.get("Pickup Address"), v.get("Pickup Pincode"), null, null),
-                    new PartyInput(dName, v.get("Delivery Phone"), v.get("Delivery Address"), dPin, v.get("Delivery City"), v.get("Delivery State")),
+                    new PartyInput(contact.name(), contact.phone(), contact.address(), contact.pincode(), null, null),
+                    new PartyInput(dName, v.get("Delivery Phone"), v.get("Delivery Address"), dPin, city(dPin), state(dPin)),
                     pkg);
             BulkQuote q = comparison.compareForBulk(cmd);
             if (q.optionId() == null) {
                 String why = q.view().unavailable().stream().map(u -> u.providerName() + ": " + u.reason()).findFirst()
                         .orElse("No courier is available for this shipment.");
-                return failed(rowNo, dName, dPin, weight, mode, why);
+                return failed(rowNo, dName, dPin, weight, mode, why, v);
             }
             OptionView o = q.view().options().stream().filter(x -> x.optionId().equals(q.optionId())).findFirst().orElseThrow();
             return new PreviewRow(rowNo, dName, dPin, weight, mode, true, null, q.view().quoteId(), o.optionId(), o.providerCode(),
-                    o.providerName(), o.serviceName(), q.basis(), o.totalAmount());
+                    o.providerName(), o.serviceName(), q.basis(), o.totalAmount(), v);
         } catch (ApiException e) {
-            return failed(rowNo, dName, dPin, weight, mode, e.getMessage());
+            return failed(rowNo, dName, dPin, weight, mode, e.getMessage(), v);
         } catch (RuntimeException e) {
             log.warn("Bulk preview row {} failed", rowNo, e);
-            return failed(rowNo, dName, dPin, weight, mode, "This row could not be priced.");
+            return failed(rowNo, dName, dPin, weight, mode, "This row could not be priced.", v);
         }
     }
 
-    private static PreviewRow failed(int row, String name, String pin, BigDecimal weight, String mode, String error) {
-        return new PreviewRow(row, name, pin, weight, mode, false, error, null, null, null, null, null, null, null);
+    /** City and state of the delivery pincode from the pincode master (couriers such as Delhivery need them; the sheet does not ask). */
+    private String city(String pincode) {
+        return geography(pincode).map(g -> !blank(g.cityName()) ? g.cityName() : g.districtName()).orElse(null);
+    }
+
+    private String state(String pincode) {
+        return geography(pincode).map(com.courier.modules.master.application.PincodeGeography::stateName).orElse(null);
+    }
+
+    private java.util.Optional<com.courier.modules.master.application.PincodeGeography> geography(String pincode) {
+        try {
+            return pincode == null ? java.util.Optional.empty() : pincodes.geography(pincode.trim());
+        } catch (RuntimeException e) {
+            return java.util.Optional.empty();
+        }
+    }
+
+    private static PreviewRow failed(int row, String name, String pin, BigDecimal weight, String mode, String error,
+                                     Map<String, String> fields) {
+        return new PreviewRow(row, name, pin, weight, mode, false, error, null, null, null, null, null, null, null, fields);
     }
 
     private static void require(Map<String, String> v, String key, String label) {
@@ -252,7 +310,7 @@ public class PortalBulkBookingService {
                     }
                 }
             }
-            if (cols.size() < HEADERS.length) {
+            if (!cols.values().containsAll(java.util.Arrays.asList(HEADERS))) {
                 throw new BusinessRuleException("The column headings do not match the template. Download the template again and use it as is.");
             }
             List<Map<String, String>> rows = new ArrayList<>();
@@ -268,6 +326,9 @@ public class PortalBulkBookingService {
                     m.put(e.getValue(), val);
                 }
                 if (!any) continue;
+                for (String h : HEADERS) {
+                    m.putIfAbsent(h, "");
+                }
                 if (rows.size() >= MAX_ROWS) {
                     throw new BusinessRuleException("The sheet has more than " + MAX_ROWS + " shipments. Split it into smaller files.");
                 }
