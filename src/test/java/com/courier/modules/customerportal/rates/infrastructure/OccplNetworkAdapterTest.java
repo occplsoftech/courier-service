@@ -53,6 +53,9 @@ class OccplNetworkAdapterTest {
     @Mock private PickupService pickups;
     @Mock private ShipmentPortalQueries shipments;
     @Mock private TariffQuoteService tariff;
+    @Mock private com.courier.modules.shipment.application.ShipmentService shipmentService;
+    @Mock private com.courier.modules.company.application.BranchPincodeMappingService branchMappings;
+    @Mock private com.courier.modules.customer.application.CustomerPortalLookup customers;
     @InjectMocks private OccplNetworkAdapter adapter;
 
     private static final UUID DISTRICT = UUID.randomUUID();
@@ -207,8 +210,77 @@ class OccplNetworkAdapterTest {
         assertThat(t.available()).isFalse();
     }
 
+    private com.courier.modules.customerportal.rates.domain.BookingRequest booking() {
+        var party = new com.courier.modules.customerportal.rates.domain.BookingRequest.Party("Acme", "9800000001", "12 MG Road", "411016", "Pune", "MH");
+        var to = new com.courier.modules.customerportal.rates.domain.BookingRequest.Party("Ravi", "9800000002", "5 Park St", "110001", "Delhi", "DL");
+        return new com.courier.modules.customerportal.rates.domain.BookingRequest(UUID.randomUUID(), UUID.randomUUID(), "ref-1", "OCCPL_BUSINESS_RATE",
+                request(), party, to, "Garments", new BigDecimal("295"), java.util.List.of(
+                new com.courier.modules.customerportal.rates.domain.ChargeLine("f", "Freight", com.courier.modules.customerportal.rates.domain.ChargeComponent.FREIGHT, new BigDecimal("250")),
+                new com.courier.modules.customerportal.rates.domain.ChargeLine("t", "GST", com.courier.modules.customerportal.rates.domain.ChargeComponent.TAX, new BigDecimal("45"))));
+    }
+
     @Test
-    @DisplayName("labels are printed at the branch, never downloaded")
+    @DisplayName("booking issues the shipment and returns its tracking number at once, when the pickup pincode has a branch")
+    void bookingIssuesTheShipment() {
+        UUID pincodeId = UUID.randomUUID();
+        when(pincodes.location("411016")).thenReturn(Optional.of(new PincodeLocation(pincodeId, null, null, DISTRICT, true, true, false)));
+        PickupRequest pickup = PickupRequest.builder().pickupNo("PU-1").build();
+        pickup.setId(UUID.randomUUID());
+        when(pickups.createFromCustomerPortal(any())).thenReturn(pickup);
+        var branch = com.courier.modules.company.domain.Branch.builder().branchCode("PUN").branchName("Pune HQ")
+                .branchType(com.courier.modules.company.domain.BranchType.BRANCH).build();
+        branch.setId(UUID.randomUUID());
+        when(branchMappings.findBranchForPincode(pincodeId)).thenReturn(Optional.of(branch));
+        var shipment = com.courier.modules.shipment.domain.Shipment.builder().shipmentNumber("PUN-000001").trackingNumber("261000000042").build();
+        shipment.setId(UUID.randomUUID());
+        when(shipmentService.createFromPortalBooking(any())).thenReturn(shipment);
+
+        var outcome = adapter.book(booking());
+
+        assertThat(outcome.result()).isEqualTo(com.courier.modules.customerportal.rates.domain.BookingOutcome.Result.BOOKED);
+        assertThat(outcome.awbNumber()).isEqualTo("261000000042");
+        org.mockito.Mockito.verify(pickups).attachPortalShipment(pickup.getId(), shipment.getId(), "PUN-000001", branch.getId());
+    }
+
+    @Test
+    @DisplayName("booking falls back to a plain pickup when no branch is mapped to the pickup pincode")
+    void bookingWithoutBranchIsPickupOnly() {
+        UUID pincodeId = UUID.randomUUID();
+        when(pincodes.location("411016")).thenReturn(Optional.of(new PincodeLocation(pincodeId, null, null, DISTRICT, true, true, false)));
+        PickupRequest pickup = PickupRequest.builder().pickupNo("PU-2").build();
+        pickup.setId(UUID.randomUUID());
+        when(pickups.createFromCustomerPortal(any())).thenReturn(pickup);
+        when(branchMappings.findBranchForPincode(pincodeId)).thenReturn(Optional.empty());
+
+        var outcome = adapter.book(booking());
+
+        assertThat(outcome.result()).isEqualTo(com.courier.modules.customerportal.rates.domain.BookingOutcome.Result.BOOKED);
+        assertThat(outcome.awbNumber()).isNull();
+        org.mockito.Mockito.verify(shipmentService, org.mockito.Mockito.never()).createFromPortalBooking(any());
+    }
+
+    @Test
+    @DisplayName("booking still succeeds as a plain pickup if issuing the shipment fails")
+    void shipmentFailureKeepsThePickup() {
+        UUID pincodeId = UUID.randomUUID();
+        when(pincodes.location("411016")).thenReturn(Optional.of(new PincodeLocation(pincodeId, null, null, DISTRICT, true, true, false)));
+        PickupRequest pickup = PickupRequest.builder().pickupNo("PU-3").build();
+        pickup.setId(UUID.randomUUID());
+        when(pickups.createFromCustomerPortal(any())).thenReturn(pickup);
+        var branch = com.courier.modules.company.domain.Branch.builder().branchCode("PUN").branchName("Pune HQ")
+                .branchType(com.courier.modules.company.domain.BranchType.BRANCH).build();
+        branch.setId(UUID.randomUUID());
+        when(branchMappings.findBranchForPincode(pincodeId)).thenReturn(Optional.of(branch));
+        when(shipmentService.createFromPortalBooking(any())).thenThrow(new IllegalStateException("no payment mode"));
+
+        var outcome = adapter.book(booking());
+
+        assertThat(outcome.result()).isEqualTo(com.courier.modules.customerportal.rates.domain.BookingOutcome.Result.BOOKED);
+        assertThat(outcome.awbNumber()).isNull();
+    }
+
+    @Test
+    @DisplayName("labels are never downloaded from OCCPL; the portal prints them")
     void noLabels() {
         assertThat(adapter.label(new ShipmentRef(null, null, null, "PU-7", null, null)).available()).isFalse();
         assertThat(adapter.labelHosts()).isEmpty();

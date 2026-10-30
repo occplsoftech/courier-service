@@ -105,7 +105,7 @@ public class PortalBookingService {
         if (paidFromWallet) {
             payFromWallet(acting, booking);
         }
-        BookingRequest request = request(acting, booking, start.quote(), start.option().getServiceCode());
+        BookingRequest request = request(acting, booking, start.quote(), start.option());
 
         BookingOutcome outcome;
         try {
@@ -166,7 +166,9 @@ public class PortalBookingService {
         }
     }
 
-    private BookingRequest request(ActingCustomer acting, PortalBooking booking, RateQuote q, String serviceCode) {
+    private BookingRequest request(ActingCustomer acting, PortalBooking booking, RateQuote q,
+                                   com.courier.modules.customerportal.rates.domain.RateQuoteOption option) {
+        String serviceCode = option.getServiceCode();
         Map<String, Object> snapshot = q.getRequest();
         @SuppressWarnings("unchecked")
         Map<String, Object> pkg = (Map<String, Object>) snapshot.getOrDefault("package", Map.of());
@@ -179,7 +181,17 @@ public class PortalBookingService {
                         q.getPackageCount(), str(pkg.get("contents")), q.getDeclaredValue(), q.getPaymentMode())));
         return new BookingRequest(acting.companyId(), acting.customerId(), booking.getId().toString(), serviceCode, rate,
                 BookingRequest.Party.of(snapshot.get("pickup")), BookingRequest.Party.of(snapshot.get("delivery")),
-                str(pkg.get("contents")), booking.getTotalAmount());
+                str(pkg.get("contents")), booking.getTotalAmount(),
+                RateComparisonService.lines(option).stream().map(l -> new com.courier.modules.customerportal.rates.domain.ChargeLine(
+                        l.label(), l.label(), component(l.component()), l.amount())).toList());
+    }
+
+    private static com.courier.modules.customerportal.rates.domain.ChargeComponent component(String name) {
+        try {
+            return com.courier.modules.customerportal.rates.domain.ChargeComponent.valueOf(name);
+        } catch (IllegalArgumentException e) {
+            return com.courier.modules.customerportal.rates.domain.ChargeComponent.OTHER;
+        }
     }
 
     private static RateComparisonService.PartyInput party(Object raw) {

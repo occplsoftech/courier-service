@@ -119,6 +119,11 @@ public class PickupRequest extends CompanyOwnedEntity {
     @Column(name = "shipment_no", length = 50)
     private String shipmentNo;
 
+    /** The branch this pickup belongs to (the one its pincode is mapped to); it assigns the pickup. Null when unmapped. */
+    @JdbcTypeCode(SqlTypes.BINARY)
+    @Column(name = "booking_branch_id", columnDefinition = "BINARY(16)")
+    private UUID bookingBranchId;
+
     /** Moves to {@code next} or fails with the two states named. */
     public void moveTo(PickupStatus next) {
         if (!status.canMoveTo(next)) {

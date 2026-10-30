@@ -55,6 +55,13 @@ public interface PickupService {
     PickupRequest cancel(UUID id, String reason);
 
     /**
+     * Ties the shipment issued when a customer booked in the portal to its pickup request, without moving the request: it
+     * is collected as usual and becomes BOOKED by itself when the parcel is picked up. No {@code @PreAuthorize}: the portal
+     * is the only caller.
+     */
+    PickupRequest attachPortalShipment(UUID id, UUID shipmentId, String shipmentNo, UUID bookingBranchId);
+
+    /**
      * A pickup booked by a business customer in the customer portal (OCCPL network service). No
      * {@code @PreAuthorize}: the portal has resolved the customer from the signed-in account and is the only
      * caller. Created REQUESTED like a staff-entered one; operations assign and book it as usual.

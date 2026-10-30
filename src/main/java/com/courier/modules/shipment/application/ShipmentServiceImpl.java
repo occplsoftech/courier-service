@@ -185,6 +185,9 @@ public class ShipmentServiceImpl implements ShipmentService {
     private final com.courier.modules.company.application.UserService userService;
     private final com.courier.modules.company.application.BranchService branchService;
     private final com.courier.modules.shipment.domain.BranchLookupPort branchLookup;
+    private final com.courier.modules.master.domain.PaymentModeRepository paymentModeRepository;
+    private final com.courier.modules.master.domain.ServiceTypeRepository serviceTypeRepository;
+    private final com.courier.modules.master.domain.PackageTypeRepository packageTypeRepository;
     private final CustomerService customerService;
     private final CrossingService crossingService;
     private final TicketService ticketService;
@@ -394,6 +397,116 @@ public class ShipmentServiceImpl implements ShipmentService {
         eventPublisher.publishEvent(new ShipmentEvent.Booked(saved.getId(), companyId, Instant.now()));
 
         return saved;
+    }
+
+
+    // ------------------------------------------------------------------- portal booking
+
+    @Override
+    @Transactional
+    public Shipment createFromPortalBooking(com.courier.modules.shipment.application.command.PortalShipmentCommand c) {
+        UUID companyId = requireCompany();
+        var branch = branchLookup.findBranch(c.bookingBranchId(), companyId).filter(b -> b.active())
+                .orElseThrow(() -> new BusinessRuleException("The booking branch is not available."));
+        PaymentMode paymentMode = portalPaymentMode(companyId, c.paymentKind());
+        ServiceType serviceType = portalServiceType(companyId, c.serviceCode());
+        com.courier.modules.master.domain.PackageType packageType = packageTypeRepository.findAll().stream()
+                .filter(p -> companyId.equals(p.getCompanyId()) && p.isActive())
+                .min(java.util.Comparator.comparing(com.courier.modules.master.domain.PackageType::isDocumentType)
+                        .thenComparing(p -> p.getCode() == null ? "" : p.getCode()))
+                .orElseThrow(() -> new BusinessRuleException("No active package type is set up."));
+
+        List<ShipmentItem> items = buildItems(List.of(), c.actualWeight(), c.length(), c.breadth(), c.height());
+        WeightSummary weight = summariseWeight(items);
+        LocalDate bookingDate = LocalDate.now();
+
+        Shipment shipment = Shipment.builder()
+                .shipmentNumber(nextShipmentNumber(c.bookingBranchId(), branch.branchCode()))
+                .trackingNumber(nextTrackingNumber(companyId))
+                .bookingDate(bookingDate)
+                .bookingBranchId(c.bookingBranchId())
+                .flowType(FlowType.STANDARD)
+                .fromCity(c.fromCity())
+                .toCity(c.toCity())
+                .currentLocationId(c.bookingBranchId())
+                .pickupPincode(c.pickupPincode())
+                .deliveryPincode(c.deliveryPincode())
+                .businessCustomerId(c.businessCustomerId())
+                .senderName(c.senderName()).senderAddress(c.senderAddress()).senderContact(c.senderContact())
+                .receiverName(c.receiverName()).receiverAddress(c.receiverAddress()).receiverContact(c.receiverContact())
+                .serviceTypeId(serviceType.getId())
+                .packageTypeId(packageType.getId())
+                .paymentModeId(paymentMode.getId())
+                .shipmentType(ShipmentType.NON_DOCUMENT)
+                .expectedDeliveryDate(expectedDeliveryDate(bookingDate, serviceType))
+                .actualWeight(weight.actualWeight())
+                .volumetricWeight(weight.volumetricWeight())
+                .chargeableWeight(c.chargeableWeight() == null ? weight.chargeableWeight() : c.chargeableWeight())
+                .declaredValue(c.declaredValue())
+                .numberOfPackages(Math.max(1, c.numberOfPackages()))
+                .status(ShipmentStatus.BOOKED)
+                .remarks(("Customer portal booking " + c.reference() + (c.contents() == null ? "" : ". Contents: " + c.contents())))
+                .deliveryType(DeliveryType.DOOR)
+                .build();
+        shipment.applyInvariants();
+        Shipment saved = shipmentRepository.save(shipment);
+        persistItems(saved, companyId, items);
+
+        BigDecimal zero = BigDecimal.ZERO;
+        BigDecimal known = nz(c.freight()).add(nz(c.fuel())).add(nz(c.handling())).add(nz(c.oda())).add(nz(c.insurance()))
+                .add(nz(c.gst())).add(nz(c.other()));
+        ShipmentCharge charge = ShipmentCharge.builder().build();
+        charge.setCompanyId(companyId);
+        charge.setShipmentId(saved.getId());
+        charge.setFreight(nz(c.freight()));
+        charge.setFuelCharge(nz(c.fuel()));
+        charge.setHandlingCharge(nz(c.handling()));
+        charge.setOdaCharge(nz(c.oda()));
+        charge.setInsuranceCharge(nz(c.insurance()));
+        charge.setGstAmount(nz(c.gst()));
+        charge.setOtherCharges(nz(c.other()));
+        charge.setRoundOff(c.total().subtract(known));
+        charge.setNetAmount(c.total());
+        charge.setTotalCommission(zero);
+        chargeRepository.save(charge);
+
+        appendHistory(saved, companyId, null, ShipmentStatus.BOOKED, "Booked from the customer portal; awaiting pickup");
+        auditService.record(AuditAction.SHIPMENT_BOOKED, ENTITY, saved.getId(),
+                Map.of("shipmentNumber", saved.getShipmentNumber(), "trackingNumber", saved.getTrackingNumber(),
+                        "netAmount", c.total().toPlainString(), "source", "CUSTOMER_PORTAL"));
+        log.info("Shipment {} issued for portal booking {} at branch {}", saved.getShipmentNumber(), c.reference(), branch.branchCode());
+        // Booked only: the branch wallet is not debited (the customer paid the quote), so no PrepaidBookingConfirmed.
+        eventPublisher.publishEvent(new ShipmentEvent.Booked(saved.getId(), companyId, Instant.now()));
+        return saved;
+    }
+
+    private static BigDecimal nz(BigDecimal v) {
+        return v == null ? BigDecimal.ZERO : v;
+    }
+
+    /** The company's payment mode for a portal booking, found by what it does (not by its code, which the company chose). */
+    private PaymentMode portalPaymentMode(UUID companyId, String kind) {
+        java.util.function.Predicate<PaymentMode> match = switch (kind == null ? "PAID" : kind) {
+            case "TOPAY" -> m -> m.isCollectAtDelivery() && !m.isCashOnDelivery();
+            case "COD" -> PaymentMode::isCashOnDelivery;
+            case "CREDIT" -> PaymentMode::isRequiresCreditAccount;
+            default -> m -> m.isCollectAtBooking() && !m.isCollectAtDelivery() && !m.isCashOnDelivery() && !m.isRequiresCreditAccount();
+        };
+        return paymentModeRepository.findAll().stream()
+                .filter(m -> companyId.equals(m.getCompanyId()) && m.isActive() && match.test(m))
+                .min(java.util.Comparator.comparing(m -> m.getCode() == null ? "" : m.getCode()))
+                .orElseThrow(() -> new BusinessRuleException("No " + kind + " payment mode is set up for this company."));
+    }
+
+    /** The quoted service's type when its code matches ("OCCPL_SURFACE" -> SURFACE), else the company's first active one. */
+    private ServiceType portalServiceType(UUID companyId, String serviceCode) {
+        List<ServiceType> active = serviceTypeRepository.findAll().stream()
+                .filter(t -> companyId.equals(t.getCompanyId()) && t.isActive()).toList();
+        String wanted = serviceCode == null ? "" : serviceCode.replaceFirst("^OCCPL_", "");
+        return active.stream().filter(t -> t.getCode() != null && t.getCode().equalsIgnoreCase(wanted)).findFirst()
+                .or(() -> active.stream().min(java.util.Comparator.comparing(ServiceType::isExpress)
+                        .thenComparing(t -> t.getPriority() == null ? 0 : t.getPriority())))
+                .orElseThrow(() -> new BusinessRuleException("No active service type is set up."));
     }
 
     // ------------------------------------------------------------------- update

@@ -127,7 +127,7 @@ class ShipmentMovementServiceImplTest {
                 branchShipmentSequenceRepository, releasedShipmentNumberRepository, companyShipmentSequenceRepository, companyDrsSequenceRepository,
                 serviceTypeService, packageTypeService, paymentModeService,
                 rateService, routeService, pricingEngine, new PricingProperties(), walletService,
-                userService, branchService, org.mockito.Mockito.mock(com.courier.modules.shipment.domain.BranchLookupPort.class), customerService, crossingService, ticketService, ticketCategoryService,
+                userService, branchService, org.mockito.Mockito.mock(com.courier.modules.shipment.domain.BranchLookupPort.class), org.mockito.Mockito.mock(com.courier.modules.master.domain.PaymentModeRepository.class), org.mockito.Mockito.mock(com.courier.modules.master.domain.ServiceTypeRepository.class), org.mockito.Mockito.mock(com.courier.modules.master.domain.PackageTypeRepository.class), customerService, crossingService, ticketService, ticketCategoryService,
                 ewayBillService, freightCalculationService,
                 applicableChargesCalculator, auditService, eventPublisher, fileStoragePort,
                 shipmentAssetRepository, deliveryDispatchOtpRepository, passwordEncoder, companySettingsService,

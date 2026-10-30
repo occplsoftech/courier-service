@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-30 — Portal booking issues the shipment (AWB + shipment number) at booking (V148)
+
+- Booking with OCCPL Network now creates the real shipment straight away (`ShipmentService.createFromPortalBooking`), at the branch the pickup pincode is mapped to (Pincode Branch Mapping; the branch must be active, allow booking and not be a pickup partner). The customer gets the shipment number and tracking number (AWB) immediately; the branch only collects the parcel.
+- The shipment carries exactly the quoted price (freight, fuel, handling, ODA, insurance, GST from the quote breakdown; net = quote total, any difference in round-off). No pricing engine run, no branch wallet debit, no `PrepaidBookingConfirmed`; commission fields are zero. Payment mode is found by flags (PAID / TOPAY / COD / CREDIT); service type from the quoted service code else the company's first active one; package type the first active non-document one.
+- `pickup_requests.booking_branch_id` (V148) records the owning branch. A pickup that already has its shipment moves to BOOKED by itself when collected (no second booking; the partner pickup earning is still recorded).
+- Safe fallback: no mapped branch, or any failure issuing the shipment, leaves the old behaviour (pickup only, branch books later); the customer's booking never fails because of it.
+
 ## 2026-10-30 — Bulk booking: nothing about the pickup or parcel size in the sheet
 
 - Pickup name/phone (customer's contact person and mobile), pickup address and pincode (default pickup address, else first address) now come from the customer's profile; no profile address = a clear "add a pickup address" message. Length/breadth/height are no longer in the sheet; every shipment is priced at 10 x 10 x 10 cm (weight sets the charge). Delivery city/state are not in the sheet either (filled from the pincode), and neither is the declared value (always Rs 2000). Old sheets with extra columns still upload (extra columns ignored).

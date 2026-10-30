@@ -90,6 +90,16 @@ public class PickupServiceImpl implements PickupService {
     }
 
     @Override
+    @Transactional
+    public PickupRequest attachPortalShipment(UUID id, UUID shipmentId, String shipmentNo, UUID bookingBranchId) {
+        PickupRequest p = load(id);
+        p.setShipmentId(shipmentId);
+        p.setShipmentNo(shipmentNo);
+        p.setBookingBranchId(bookingBranchId);
+        return pickups.save(p);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public java.util.Optional<PickupRequest> findByNumberForCustomer(String pickupNo, UUID customerId) {
         return pickups.findByPickupNo(requireCompany(), pickupNo).filter(p -> customerId.equals(p.getCustomerId()));
@@ -231,6 +241,14 @@ public class PickupServiceImpl implements PickupService {
         p.setPickedUpAt(Instant.now());
         PickupRequest saved = pickups.save(p);
         audit(AuditAction.PICKUP_COMPLETED, saved);
+        if (saved.getShipmentId() != null) {
+            // The customer's portal booking already issued the shipment: collecting the parcel finishes the pickup, no second booking.
+            saved.moveTo(PickupStatus.BOOKED);
+            saved = pickups.save(saved);
+            earningService.recordPickup(saved.getPdpBranchId(), saved.getId(), saved.getPickupNo(), saved.getPincode(),
+                    saved.getActualWeightKg(), java.time.LocalDate.now(java.time.ZoneOffset.UTC));
+            audit(AuditAction.PICKUP_BOOKED, saved);
+        }
         return saved;
     }
 

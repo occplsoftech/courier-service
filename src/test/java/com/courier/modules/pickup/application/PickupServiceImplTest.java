@@ -166,6 +166,27 @@ class PickupServiceImplTest {
     }
 
     @Test
+    @DisplayName("a pickup that already has its portal shipment becomes BOOKED when collected, with no second booking")
+    void collectedPortalPickupIsBookedByItself() {
+        PickupRequest p = created(PDP);
+        UUID shipment = UUID.randomUUID();
+        UUID branch = UUID.randomUUID();
+        service.attachPortalShipment(p.getId(), shipment, "PUN-000007", branch);
+        assertThat(p.getStatus()).isEqualTo(PickupStatus.ASSIGNED);
+        assertThat(p.getBookingBranchId()).isEqualTo(branch);
+
+        as(PDP_USER, Roles.BRANCH_MANAGER);
+        service.accept(p.getId());
+        service.start(p.getId());
+        service.complete(p.getId(), 1, new BigDecimal("3"));
+
+        assertThat(p.getStatus()).isEqualTo(PickupStatus.BOOKED);
+        assertThat(p.getShipmentNo()).isEqualTo("PUN-000007");
+        org.mockito.Mockito.verify(earningService).recordPickup(eq(PDP), eq(p.getId()), eq(p.getPickupNo()),
+                eq("411001"), eq(new BigDecimal("3")), any());
+    }
+
+    @Test
     @DisplayName("a partner cannot work a pickup assigned to another partner")
     void foreignPartnerBlocked() {
         PickupRequest p = created(OTHER_PDP);
