@@ -46,8 +46,13 @@ public class ZoneRateSlab extends CompanyOwnedEntity {
     @Column(name = "rate_per_kg", nullable = false, precision = 12, scale = 2)
     private BigDecimal ratePerKg;
 
+    /**
+     * A slab covers the weights above its minimum up to and including its maximum, so with slabs 0-5 and 5-10 a 5 kg parcel is in the
+     * first and 5.3 kg is in the second. A slab that starts at 0 also covers 0 itself. No maximum means no upper limit.
+     */
     public boolean covers(BigDecimal weight) {
-        return weight.compareTo(minWeight) >= 0 && (maxWeight == null || weight.compareTo(maxWeight) < 0);
+        boolean aboveMin = weight.compareTo(minWeight) > 0 || (minWeight.signum() == 0 && weight.signum() >= 0);
+        return aboveMin && (maxWeight == null || weight.compareTo(maxWeight) <= 0);
     }
 
     public void applyInvariants() {
