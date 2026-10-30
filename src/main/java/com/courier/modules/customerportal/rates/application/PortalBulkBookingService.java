@@ -1,5 +1,9 @@
 package com.courier.modules.customerportal.rates.application;
 
+import com.courier.modules.customer.application.CustomerPortalAddressBook;
+import com.courier.modules.customer.application.CustomerPortalLookup;
+import com.courier.modules.customerportal.application.ActingCustomer;
+import com.courier.modules.customerportal.application.CurrentCustomerResolver;
 import com.courier.modules.customerportal.rates.application.PortalBookingService.BookingView;
 import com.courier.modules.customerportal.rates.application.RateComparisonService.BulkQuote;
 import com.courier.modules.customerportal.rates.application.RateComparisonService.CompareCommand;
@@ -45,13 +49,35 @@ public class PortalBulkBookingService {
     public static final int MAX_ROWS = 100;
 
     private static final String[] HEADERS = {
-            "Pickup Name", "Pickup Phone", "Pickup Address", "Pickup Pincode",
             "Delivery Name", "Delivery Phone", "Delivery Address", "Delivery Pincode", "Delivery City", "Delivery State",
             "Weight (kg)", "Length (cm)", "Breadth (cm)", "Height (cm)", "Packages", "Contents", "Declared Value (Rs)",
             "Payment Mode (PREPAID/COD/TOPAY)"};
 
+    /** Columns a sheet may leave out altogether (their values default to 10 cm). */
+    private static final java.util.Set<String> OPTIONAL = java.util.Set.of("Length (cm)", "Breadth (cm)", "Height (cm)");
+
     private final RateComparisonService comparison;
     private final PortalBookingService booking;
+    private final CurrentCustomerResolver resolver;
+    private final CustomerPortalLookup customers;
+    private final CustomerPortalAddressBook addressBook;
+
+    /** Where and by whom the parcels are handed over: the customer's own profile, so the sheet does not repeat it on every row. */
+    private record Contact(String name, String phone, String address, String pincode) {
+    }
+
+    private Contact contact() {
+        ActingCustomer acting = resolver.require();
+        var c = customers.findActiveBusinessCustomer(acting.companyId(), acting.customerId())
+                .orElseThrow(() -> new BusinessRuleException("Your customer profile could not be found."));
+        var addresses = addressBook.list(acting.companyId(), acting.customerId());
+        var pickup = addresses.stream().filter(a -> a.defaultPickup()).findFirst()
+                .or(() -> addresses.stream().findFirst())
+                .orElseThrow(() -> new BusinessRuleException("Add a pickup address to your profile first: bulk booking picks up from it."));
+        String line = java.util.stream.Stream.of(pickup.addressLine1(), pickup.addressLine2(), pickup.landmark())
+                .filter(t -> t != null && !t.isBlank()).map(String::trim).collect(java.util.stream.Collectors.joining(", "));
+        return new Contact(blank(c.getContactPerson()) ? c.displayName() : c.getContactPerson().trim(), c.getMobile(), line, pickup.pincode());
+    }
 
     public record PreviewRow(int row, String deliveryName, String deliveryPincode, BigDecimal weightKg, String paymentMode,
                              boolean ok, String error, UUID quoteId, UUID optionId, String providerCode, String providerName,
@@ -81,7 +107,7 @@ public class PortalBulkBookingService {
                 c.setCellStyle(head);
                 sheet.setColumnWidth(i, 20 * 256);
             }
-            String[] sample = {"Acme Traders", "9800000001", "12 MG Road, Pune", "411001",
+            String[] sample = {
                     "Ravi Kumar", "9800000002", "5 Park Street, Mumbai", "400001", "Mumbai", "Maharashtra",
                     "2.5", "20", "15", "10", "1", "Garments", "1500", "PREPAID"};
             Row r = sheet.createRow(1);
@@ -90,10 +116,10 @@ public class PortalBulkBookingService {
             }
             Sheet help = wb.createSheet("Instructions");
             String[] lines = {
-                    "One row per shipment, starting on row 2 of the Shipments sheet (replace the sample row). Up to " + MAX_ROWS + " rows.",
+                    "Pickup name, phone and address are your own contact person, mobile and default pickup address from your profile; you do not enter them. One row per shipment, starting on row 2 of the Shipments sheet (replace the sample row). Up to " + MAX_ROWS + " rows.",
                     "Pincodes are 6 digits. Phone numbers are 10 digits. Dimensions are in cm; weight in kg, per shipment.",
                     "Payment mode: PREPAID, COD or TOPAY (left blank means PREPAID).",
-                    "Length, Breadth and Height may be left blank: 10 cm is used for each.",
+                    "Length, Breadth and Height (cm) are optional: leave them blank, or delete the columns, and 10 cm is used for each.",
                     "Each row is priced at your business rate when you have one for that destination, otherwise at the cheapest courier you are allowed to use.",
                     "After upload you see every row checked, with its price. Nothing is booked until you confirm."};
             for (int i = 0; i < lines.length; i++) {
@@ -112,9 +138,10 @@ public class PortalBulkBookingService {
         if (sheetRows.isEmpty()) {
             throw new BusinessRuleException("The sheet has no shipments. Fill one row per shipment under the headings.");
         }
+        Contact contact = contact();
         List<PreviewRow> rows = new ArrayList<>();
         for (int i = 0; i < sheetRows.size(); i++) {
-            rows.add(previewRow(Integer.parseInt(sheetRows.get(i).get("#")), sheetRows.get(i)));
+            rows.add(previewRow(Integer.parseInt(sheetRows.get(i).get("#")), sheetRows.get(i), contact));
         }
         long ok = rows.stream().filter(PreviewRow::ok).count();
         BigDecimal total = rows.stream().filter(PreviewRow::ok).map(PreviewRow::total).reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -151,17 +178,14 @@ public class PortalBulkBookingService {
 
     // ------------------------------------------------------------------ rows
 
-    private PreviewRow previewRow(int rowNo, Map<String, String> v) {
+    private PreviewRow previewRow(int rowNo, Map<String, String> v, Contact contact) {
         String dName = v.get("Delivery Name");
         String dPin = v.get("Delivery Pincode");
         String mode = blank(v.get("Payment Mode (PREPAID/COD/TOPAY)")) ? "PREPAID" : v.get("Payment Mode (PREPAID/COD/TOPAY)").toUpperCase(Locale.ROOT);
         BigDecimal weight = null;
         try {
             weight = decimal(v.get("Weight (kg)"), "Weight");
-            require(v, "Pickup Name", "Pickup name");
-            phone(v.get("Pickup Phone"), "Pickup phone");
-            require(v, "Pickup Address", "Pickup address");
-            require(v, "Delivery Name", "Delivery name");
+                        require(v, "Delivery Name", "Delivery name");
             phone(v.get("Delivery Phone"), "Delivery phone");
             require(v, "Delivery Address", "Delivery address");
             BigDecimal ten = BigDecimal.TEN;
@@ -173,7 +197,7 @@ public class PortalBulkBookingService {
                     blank(v.get("Contents")) ? "General goods" : v.get("Contents"),
                     decimal(v.get("Declared Value (Rs)"), "Declared value"), mode);
             CompareCommand cmd = new CompareCommand(
-                    new PartyInput(v.get("Pickup Name"), v.get("Pickup Phone"), v.get("Pickup Address"), v.get("Pickup Pincode"), null, null),
+                    new PartyInput(contact.name(), contact.phone(), contact.address(), contact.pincode(), null, null),
                     new PartyInput(dName, v.get("Delivery Phone"), v.get("Delivery Address"), dPin, v.get("Delivery City"), v.get("Delivery State")),
                     pkg);
             BulkQuote q = comparison.compareForBulk(cmd);
@@ -252,7 +276,7 @@ public class PortalBulkBookingService {
                     }
                 }
             }
-            if (cols.size() < HEADERS.length) {
+            if (!cols.values().containsAll(java.util.Arrays.stream(HEADERS).filter(h -> !OPTIONAL.contains(h)).toList())) {
                 throw new BusinessRuleException("The column headings do not match the template. Download the template again and use it as is.");
             }
             List<Map<String, String>> rows = new ArrayList<>();
@@ -268,6 +292,9 @@ public class PortalBulkBookingService {
                     m.put(e.getValue(), val);
                 }
                 if (!any) continue;
+                for (String h : HEADERS) {
+                    m.putIfAbsent(h, "");
+                }
                 if (rows.size() >= MAX_ROWS) {
                     throw new BusinessRuleException("The sheet has more than " + MAX_ROWS + " shipments. Split it into smaller files.");
                 }

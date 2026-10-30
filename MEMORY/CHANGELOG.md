@@ -8,6 +8,10 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-30 — Bulk booking: length/breadth/height columns optional
+
+- A sheet may now omit the Length/Breadth/Height columns entirely (blank cells already meant 10 cm each); the other headings are still required.
+
 ## 2026-10-30 — Bulk shipment booking from an Excel sheet (customer portal)
 
 - `/api/v1/customer-portal/bulk-bookings`: `GET /template` (xlsx), `POST /preview` (upload; checks and prices up to 100 rows, books nothing), `POST /book` (the confirmed quote/option pairs). No new tables: each row is an ordinary rate quote and books through `PortalBookingService`, so wallet / To Pay / credit rules are unchanged; idempotency key `bulk-<quoteId>` stops a double confirm booking twice.
