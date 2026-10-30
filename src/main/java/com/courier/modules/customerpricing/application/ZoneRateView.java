@@ -6,5 +6,6 @@ import com.courier.modules.customerpricing.domain.ZoneRateSlab;
 
 import java.util.List;
 
-public record ZoneRateView(ZoneRate rate, PricingZone zone, String customerName, List<ZoneRateSlab> slabs) {
+public record ZoneRateView(ZoneRate rate, PricingZone zone, String customerName, List<ZoneRateSlab> slabs,
+                           String serviceTypeCode, String serviceTypeName) {
 }

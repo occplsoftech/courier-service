@@ -208,7 +208,7 @@ public class PricingZoneServiceImpl implements PricingZoneService {
             l.softDelete(actor);
             locations.save(l);
         });
-        rates.findByZone(companyId, zone.getId()).ifPresent(r -> {
+        rates.findAllByZone(companyId, zone.getId()).forEach(r -> {
             slabs.findByRate(companyId, r.getId()).forEach(s -> {
                 s.softDelete(actor);
                 slabs.save(s);
@@ -281,7 +281,7 @@ public class PricingZoneServiceImpl implements PricingZoneService {
         // zone auto-flushed in that window would trip the company-isolation guard. Flush first.
         zones.flush();
         return toView(zone, locations.findByZone(companyId, zone.getId()),
-                rates.findByZone(companyId, zone.getId()).isPresent(), new Names());
+                !rates.findAllByZone(companyId, zone.getId()).isEmpty(), new Names());
     }
 
     private PricingZoneView toView(PricingZone zone, List<ZoneLocation> zoneLocations, boolean hasRate, Names names) {

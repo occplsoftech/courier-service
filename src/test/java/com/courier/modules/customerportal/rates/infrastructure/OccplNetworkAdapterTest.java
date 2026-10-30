@@ -75,14 +75,54 @@ class OccplNetworkAdapterTest {
                 new PincodeLocation(UUID.randomUUID(), UUID.randomUUID(), null, DISTRICT, true, true, false)));
     }
 
+    private static ZoneRateService.Quote quote(String total) {
+        return new ZoneRateService.Quote(UUID.randomUUID(), "North", new BigDecimal("12"), new BigDecimal("12"), new BigDecimal("40"),
+                new BigDecimal("480.00"), new BigDecimal("50"), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("48.00"),
+                new BigDecimal("10.00"), new BigDecimal(total));
+    }
+
+    @Test
+    @DisplayName("a rate card per service type gives one option per type, marked as the customer's business rate")
+    void rateCardPerServiceType() {
+        served();
+        when(zoneRates.calculateEach(any())).thenReturn(List.of(
+                new ZoneRateService.ServiceQuote(UUID.randomUUID(), "AIR", "Air", quote("900.00")),
+                new ZoneRateService.ServiceQuote(UUID.randomUUID(), "SURFACE", "Surface", quote("588.00"))));
+        when(tariff.quoteOptions(any(), org.mockito.ArgumentMatchers.eq(false))).thenReturn(List.of());
+
+        ProviderResult result = adapter.getRates(request());
+
+        assertThat(result.rates()).extracting(r -> r.serviceCode()).containsExactly("OCCPL_AIR", "OCCPL_SURFACE");
+        assertThat(result.rates()).extracting(r -> r.serviceName()).containsExactly("OCCPL Air", "OCCPL Surface");
+        assertThat(result.rates()).extracting(r -> r.providerQuoteRef()).containsOnly(OccplNetworkAdapter.BUSINESS_REFERENCE);
+    }
+
+    @Test
+    @DisplayName("a service type with no card of its own is priced at the company's rates, an all-services card covers every type")
+    void typesWithoutACardUseCompanyRates() {
+        served();
+        TariffPriceCalculator.Price price = new TariffPriceCalculator.Price(new BigDecimal("12"), null, new BigDecimal("12"),
+                new TariffPriceCalculator.Freight(new BigDecimal("1200.00"), null, null, 0, "Fixed"), List.of(),
+                new BigDecimal("1200.00"), List.of(), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("1200.00"));
+        TariffZoneService.Resolution where = new TariffZoneService.Resolution(TariffZone.builder().code("PUNE").name("Pune").build(), null, null);
+        TariffRateCard card = TariffRateCard.builder().code("PUNE_CASH").build();
+        when(tariff.quoteOptions(any(), org.mockito.ArgumentMatchers.eq(false))).thenReturn(List.of(
+                new TariffQuoteService.Quote(card, where, where, UUID.randomUUID(), "AIR", "Air", 2, UUID.randomUUID(), "NONDOC", false, price),
+                new TariffQuoteService.Quote(card, where, where, UUID.randomUUID(), "CARGO", "Cargo", 5, UUID.randomUUID(), "NONDOC", false, price)));
+
+        when(zoneRates.calculateEach(any())).thenReturn(List.of(new ZoneRateService.ServiceQuote(UUID.randomUUID(), "AIR", "Air", quote("900.00"))));
+        assertThat(adapter.getRates(request()).rates()).extracting(r -> r.serviceCode()).containsExactly("OCCPL_AIR", "OCCPL_CARGO");
+        assertThat(adapter.getRates(request()).rates().get(1).providerQuoteRef()).isNotEqualTo(OccplNetworkAdapter.BUSINESS_REFERENCE);
+
+        when(zoneRates.calculateEach(any())).thenReturn(List.of(new ZoneRateService.ServiceQuote(null, null, null, quote("588.00"))));
+        assertThat(adapter.getRates(request()).rates()).extracting(r -> r.serviceCode()).containsExactly(OccplNetworkAdapter.BUSINESS_SERVICE_CODE);
+    }
+
     @Test
     @DisplayName("prices from the customer's own rate card, one line per charge, no zero lines")
     void pricesFromRateCard() {
         served();
-        when(zoneRates.calculate(any())).thenReturn(new ZoneRateService.Quote(UUID.randomUUID(), "North",
-                new BigDecimal("12"), new BigDecimal("12"), new BigDecimal("40"), new BigDecimal("480.00"),
-                new BigDecimal("50"), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("48.00"),
-                new BigDecimal("10.00"), new BigDecimal("588.00")));
+        when(zoneRates.calculateEach(any())).thenReturn(List.of(new ZoneRateService.ServiceQuote(null, null, null, quote("588.00"))));
 
         ProviderResult result = adapter.getRates(request());
 
@@ -96,7 +136,7 @@ class OccplNetworkAdapterTest {
     @DisplayName("no zone/rate for the destination means unavailable, not an error")
     void noRateCard() {
         served();
-        when(zoneRates.calculate(any())).thenThrow(new BusinessRuleException("No active pricing zone"));
+        when(zoneRates.calculateEach(any())).thenReturn(List.of());
 
         ProviderResult result = adapter.getRates(request());
 
@@ -108,7 +148,7 @@ class OccplNetworkAdapterTest {
     @DisplayName("no contract rate: the company's zone tariff, one option per service type, with its charges and GST")
     void zoneTariffFallback() {
         served();
-        when(zoneRates.calculate(any())).thenThrow(new BusinessRuleException("No active pricing zone"));
+        when(zoneRates.calculateEach(any())).thenReturn(List.of());
         TariffPriceCalculator.Price price = new TariffPriceCalculator.Price(new BigDecimal("12"), null, new BigDecimal("12"),
                 new TariffPriceCalculator.Freight(new BigDecimal("1200.00"), null, null, 0, "Fixed"),
                 List.of(new TariffPriceCalculator.ChargeLine("FUEL", "Fuel surcharge", new BigDecimal("120.00"), true, "10% of freight", null)),

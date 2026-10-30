@@ -8,6 +8,11 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-30 — Customer rate card per service type (V151)
+
+- A customer's zone can now hold one rate card per service type (AIR, SURFACE, CARGO, PREMIUM...) plus the existing "all services" card (`customer_zone_rates.service_type_id`, null = all services; every existing card stays that). Endpoints take an optional `serviceTypeId` (`GET/PUT /customer-rates/zone/{id}`, activate, deactivate, delete); `GET /customer-rates/zone/{id}/cards` lists a zone's cards; rate responses carry the service type.
+- Pricing: `calculate` uses the card of the requested service type, else the all-services card; `calculateEach` prices every active card. The branch counter passes the booking's service type.
+- Customer portal: one OCCPL option per service type the customer has a card for (marked `BUSINESS_RATE`), or the single "OCCPL Standard" for an all-services card; service types without a card are priced at the company's rates. Bulk booking prefers the cheapest business-rate option.
 ## 2026-10-30 — Geography for all of India (V149) and OCCPL's zones filled with it (V150)
 
 - **V149** loads the rest of India into the global masters: 35 states and union territories, 589 districts, 5,112 talukas (as cities),
