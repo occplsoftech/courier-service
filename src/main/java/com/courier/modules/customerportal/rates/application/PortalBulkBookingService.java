@@ -119,7 +119,7 @@ public class PortalBulkBookingService {
             Sheet help = wb.createSheet("Instructions");
             String[] lines = {
                     "Pickup name, phone and address are your own contact person, mobile and default pickup address from your profile; you do not enter them. One row per shipment, starting on row 2 of the Shipments sheet (replace the sample row). Up to " + MAX_ROWS + " rows.",
-                    "Pincodes are 6 digits. Phone numbers are 10 digits. Dimensions are in cm; weight in kg, per shipment.",
+                    "Pincodes are 6 digits. Phone numbers are 10 digits. Weight is in kg, for the whole shipment.",
                     "Payment mode: PREPAID, COD or TOPAY (left blank means PREPAID).",
                     "Parcel size is not needed: every shipment is priced by its weight.",
                     "Each row is priced at your business rate when you have one for that destination, otherwise at the cheapest courier you are allowed to use.",
