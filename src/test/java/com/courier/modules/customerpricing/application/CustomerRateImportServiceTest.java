@@ -142,7 +142,7 @@ class CustomerRateImportServiceTest {
 
         assertThat(p.rows()).hasSize(5);
         assertThat(p.okCount()).isEqualTo(2);
-        assertThat(p.rows().get(0).slabsSummary()).isEqualTo("0-5 kg @ 90, 5-10 kg @ 80, 10-no limit kg @ 70");
+        assertThat(p.rows().get(0).slabsSummary()).isEqualTo("0-5 kg @ 90, 5-10 kg @ 80, 10+ kg @ 70");
         assertThat(p.rows().get(2).error()).contains("BULLET");
         assertThat(p.rows().get(3).error()).contains("Atlantis");
         assertThat(p.rows().get(4).error()).contains("already appears");

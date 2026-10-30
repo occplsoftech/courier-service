@@ -288,8 +288,8 @@ public class CustomerRateImportService {
                         throw new BusinessRuleException("Slab " + i + " rate cannot be negative.");
                     }
                     slabs.add(new SlabInput(prev, max, price));
-                    summary.append(summary.length() == 0 ? "" : ", ").append(plain(prev)).append('-')
-                            .append(max == null ? "no limit" : plain(max)).append(" kg @ ").append(plain(price));
+                    summary.append(summary.length() == 0 ? "" : ", ")
+                            .append(max == null ? plain(prev) + "+" : plain(prev) + "-" + plain(max)).append(" kg @ ").append(plain(price));
                     if (max == null) {
                         // an open-ended slab must be the last one used
                         for (int j = i + 1; j <= MAX_SLABS; j++) {
