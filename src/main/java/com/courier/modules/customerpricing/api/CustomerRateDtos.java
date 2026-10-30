@@ -48,6 +48,7 @@ public final class CustomerRateDtos {
             BigDecimal minChargeableWeight, BigDecimal docketCharge, BigDecimal mathadiCharge,
             BigDecimal packCharge, BigDecimal odaCharge, BigDecimal fuelSurchargePercent, BigDecimal fovPercent,
             LocalDate effectiveFrom, LocalDate effectiveTo, ZoneStatus status,
+            UUID serviceTypeId, String serviceTypeCode, String serviceTypeName,
             List<SlabResponse> slabs, Instant createdDate, Instant updatedDate, Long version) {
     }
 
@@ -58,7 +59,8 @@ public final class CustomerRateDtos {
             @NotNull @DecimalMin(value = "0", inclusive = false) BigDecimal actualWeight,
             @DecimalMin("0") BigDecimal declaredValue,
             boolean odaApplicable,
-            LocalDate bookingDate) {
+            LocalDate bookingDate,
+            UUID serviceTypeId) {
     }
 
     public record CalculateResponse(

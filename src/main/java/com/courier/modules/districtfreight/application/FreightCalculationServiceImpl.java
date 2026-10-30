@@ -91,7 +91,7 @@ public class FreightCalculationServiceImpl implements FreightCalculationService 
 
         if (businessCustomerId != null) {
             FreightCalculationResult zonePriced = priceFromCustomerZone(businessCustomerId, branch, coverage,
-                    chargeableWeight, declaredValue);
+                    chargeableWeight, declaredValue, tariff == null ? null : tariff.serviceTypeId());
             if (zonePriced != null) {
                 return zonePriced;
             }
@@ -142,7 +142,8 @@ public class FreightCalculationServiceImpl implements FreightCalculationService 
      *  theirs covers it (the caller then falls back to District Level Freight). */
     private FreightCalculationResult priceFromCustomerZone(UUID customerId, BranchLookupPort.BranchRef branch,
                                                            PincodeCoverageLookupPort.CoverageRef coverage,
-                                                           BigDecimal chargeableWeight, BigDecimal declaredValue) {
+                                                           BigDecimal chargeableWeight, BigDecimal declaredValue,
+                                                           UUID serviceTypeId) {
         PricingZoneView zone = zoneService.resolve(customerId, coverage.districtId(), coverage.cityId())
                 .orElse(null);
         if (zone == null) {
@@ -150,7 +151,7 @@ public class FreightCalculationServiceImpl implements FreightCalculationService 
         }
         ZoneRateService.Quote quote = zoneRateService.calculate(new ZoneRateService.QuoteCommand(
                 customerId, coverage.districtId(), coverage.cityId(), chargeableWeight, declaredValue,
-                coverage.odaApplicable(), null));
+                coverage.odaApplicable(), null, serviceTypeId));
         BigDecimal oda = quote.odaCharge().setScale(MONEY_SCALE, RoundingMode.HALF_UP);
         BigDecimal extras = quote.docketCharge().add(quote.mathadiCharge()).add(quote.packCharge())
                 .add(quote.fuelSurcharge()).add(quote.fovCharge()).setScale(MONEY_SCALE, RoundingMode.HALF_UP);

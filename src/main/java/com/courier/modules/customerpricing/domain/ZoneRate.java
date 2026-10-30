@@ -44,6 +44,11 @@ public class ZoneRate extends CompanyOwnedEntity {
     @Column(name = "customer_id", columnDefinition = "BINARY(16)", nullable = false, updatable = false)
     private UUID customerId;
 
+    /** The service type (AIR, SURFACE...) this card prices; null is the card for every service. */
+    @JdbcTypeCode(SqlTypes.BINARY)
+    @Column(name = "service_type_id", columnDefinition = "BINARY(16)", updatable = false)
+    private UUID serviceTypeId;
+
     @Column(name = "min_chargeable_weight", nullable = false, precision = 12, scale = 3)
     @Builder.Default
     private BigDecimal minChargeableWeight = BigDecimal.ZERO;

@@ -84,15 +84,19 @@ public class RateComparisonService {
                 chosen == null ? null : (isBusinessRate(chosen) ? "BUSINESS_RATE" : "CHEAPEST"));
     }
 
-    /** The customer's own business rate when OCCPL Network priced one; otherwise the cheapest available option. Null when nothing is available. */
+    /**
+     * The customer's own business rate when OCCPL Network priced one (the cheapest of them if there is one per service type);
+     * otherwise the cheapest available option. Null when nothing is available.
+     */
     static RateQuoteOption chooseForBulk(List<RateQuoteOption> options) {
         List<RateQuoteOption> ok = options.stream().filter(RateQuoteOption::isAvailable).toList();
-        return ok.stream().filter(RateComparisonService::isBusinessRate).findFirst()
-                .orElseGet(() -> ok.stream().min(Comparator.comparing(RateQuoteOption::getTotalAmount)).orElse(null));
+        Comparator<RateQuoteOption> byTotal = Comparator.comparing(RateQuoteOption::getTotalAmount);
+        return ok.stream().filter(RateComparisonService::isBusinessRate).min(byTotal)
+                .orElseGet(() -> ok.stream().min(byTotal).orElse(null));
     }
 
     private static boolean isBusinessRate(RateQuoteOption o) {
-        return "OCCPL_NETWORK".equals(o.getProviderCode()) && "OCCPL_BUSINESS_RATE".equals(o.getServiceCode());
+        return "OCCPL_NETWORK".equals(o.getProviderCode()) && "BUSINESS_RATE".equals(o.getProviderQuoteRef());
     }
 
     private record Compared(QuoteView view, List<RateQuoteOption> options) {

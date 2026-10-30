@@ -38,6 +38,7 @@ class PortalBulkBookingServiceTest {
 
     private static RateQuoteOption option(String provider, String service, String total) {
         return RateQuoteOption.builder().providerCode(provider).serviceCode(service).availability("AVAILABLE")
+                .providerQuoteRef("OCCPL_BUSINESS_RATE".equals(service) || service.startsWith("OCCPL_BR_") ? "BUSINESS_RATE" : null)
                 .totalAmount(new BigDecimal(total)).build();
     }
 
@@ -46,6 +47,14 @@ class PortalBulkBookingServiceTest {
         RateQuoteOption business = option("OCCPL_NETWORK", "OCCPL_BUSINESS_RATE", "300");
         RateQuoteOption cheaper = option("DELHIVERY", "SURFACE", "200");
         assertThat(RateComparisonService.chooseForBulk(List.of(cheaper, business))).isSameAs(business);
+    }
+
+    @Test
+    void severalBusinessRatesPickTheCheapestOfThem() {
+        RateQuoteOption air = option("OCCPL_NETWORK", "OCCPL_BR_AIR", "900");
+        RateQuoteOption surface = option("OCCPL_NETWORK", "OCCPL_BR_SURFACE", "300");
+        RateQuoteOption cheaperCourier = option("DELHIVERY", "SURFACE", "100");
+        assertThat(RateComparisonService.chooseForBulk(List.of(air, cheaperCourier, surface))).isSameAs(surface);
     }
 
     @Test

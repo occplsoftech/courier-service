@@ -66,40 +66,47 @@ public class CustomerRateController {
     }
 
     @GetMapping("/zone/{zoneId}")
-    @Operation(summary = "Fetch a zone's rate card", description = "`data` is null if the zone has none yet.")
-    public ApiResponse<RateResponse> get(@PathVariable UUID zoneId) {
-        return ApiResponse.success(service.getByZone(zoneId).map(this::toResponse).orElse(null));
+    @Operation(summary = "Fetch a zone's rate card for one service type", description = "`serviceTypeId` omitted is the card for "
+            + "every service. `data` is null if the zone has none yet.")
+    public ApiResponse<RateResponse> get(@PathVariable UUID zoneId, @RequestParam(required = false) UUID serviceTypeId) {
+        return ApiResponse.success(service.getByZone(zoneId, serviceTypeId).map(this::toResponse).orElse(null));
+    }
+
+    @GetMapping("/zone/{zoneId}/cards")
+    @Operation(summary = "Every rate card of a zone", description = "The \"all services\" card and one per service type (AIR, SURFACE...).")
+    public ApiResponse<List<RateResponse>> cards(@PathVariable UUID zoneId) {
+        return ApiResponse.success(service.cardsOfZone(zoneId).stream().map(this::toResponse).toList());
     }
 
     @PutMapping("/zone/{zoneId}")
     @Operation(summary = "Create or replace a zone's rate card", description = "Header charges plus per-kg weight "
             + "slabs, half-open [min,max), non-overlapping; only the last slab may have no maximum. `version` "
             + "is required only when a rate card already exists.")
-    public ApiResponse<RateResponse> save(@PathVariable UUID zoneId, @Valid @RequestBody SaveRequest r) {
+    public ApiResponse<RateResponse> save(@PathVariable UUID zoneId, @RequestParam(required = false) UUID serviceTypeId, @Valid @RequestBody SaveRequest r) {
         List<SlabInput> slabs = r.slabs().stream()
                 .map(s -> new SlabInput(s.minWeight(), s.maxWeight(), s.ratePerKg())).toList();
         SaveCommand command = new SaveCommand(r.minChargeableWeight(), r.docketCharge(), r.mathadiCharge(),
                 r.packCharge(), r.odaCharge(), r.fuelSurchargePercent(), r.fovPercent(),
                 r.effectiveFrom(), r.effectiveTo(), slabs, r.version());
-        return ApiResponse.success(toResponse(service.save(zoneId, command)), "Rate saved");
+        return ApiResponse.success(toResponse(service.save(zoneId, serviceTypeId, command)), "Rate saved");
     }
 
     @PatchMapping("/zone/{zoneId}/activate")
     @Operation(summary = "Activate a zone's rate card")
-    public ApiResponse<RateResponse> activate(@PathVariable UUID zoneId) {
-        return ApiResponse.success(toResponse(service.activate(zoneId)), "Rate activated");
+    public ApiResponse<RateResponse> activate(@PathVariable UUID zoneId, @RequestParam(required = false) UUID serviceTypeId) {
+        return ApiResponse.success(toResponse(service.activate(zoneId, serviceTypeId)), "Rate activated");
     }
 
     @PatchMapping("/zone/{zoneId}/deactivate")
     @Operation(summary = "Deactivate a zone's rate card")
-    public ApiResponse<RateResponse> deactivate(@PathVariable UUID zoneId) {
-        return ApiResponse.success(toResponse(service.deactivate(zoneId)), "Rate deactivated");
+    public ApiResponse<RateResponse> deactivate(@PathVariable UUID zoneId, @RequestParam(required = false) UUID serviceTypeId) {
+        return ApiResponse.success(toResponse(service.deactivate(zoneId, serviceTypeId)), "Rate deactivated");
     }
 
     @DeleteMapping("/zone/{zoneId}")
     @Operation(summary = "Delete a zone's rate card")
-    public ApiResponse<Void> delete(@PathVariable UUID zoneId) {
-        service.delete(zoneId);
+    public ApiResponse<Void> delete(@PathVariable UUID zoneId, @RequestParam(required = false) UUID serviceTypeId) {
+        service.delete(zoneId, serviceTypeId);
         return ApiResponse.success("Rate deleted");
     }
 
@@ -108,7 +115,7 @@ public class CustomerRateController {
             + "active zone for the destination, then prices from its rate card. Read-only.")
     public ApiResponse<CalculateResponse> calculate(@Valid @RequestBody CalculateRequest r) {
         Quote q = service.calculate(new QuoteCommand(r.customerId(), r.districtId(), r.cityId(),
-                r.actualWeight(), r.declaredValue(), r.odaApplicable(), r.bookingDate()));
+                r.actualWeight(), r.declaredValue(), r.odaApplicable(), r.bookingDate(), r.serviceTypeId()));
         return ApiResponse.success(new CalculateResponse(q.zoneId(), q.zoneName(), q.actualWeight(),
                 q.chargeableWeight(), q.ratePerKg(), q.freight(), q.docketCharge(), q.mathadiCharge(),
                 q.packCharge(), q.odaCharge(), q.fuelSurcharge(), q.fovCharge(), q.total()), "Rate calculated");
@@ -120,6 +127,7 @@ public class CustomerRateController {
                 v.customerName(), r.getMinChargeableWeight(), r.getDocketCharge(), r.getMathadiCharge(),
                 r.getPackCharge(), r.getOdaCharge(), r.getFuelSurchargePercent(), r.getFovPercent(),
                 r.getEffectiveFrom(), r.getEffectiveTo(), r.getStatus(),
+                r.getServiceTypeId(), v.serviceTypeCode(), v.serviceTypeName(),
                 v.slabs().stream().map(s -> new SlabResponse(s.getId(), s.getMinWeight(), s.getMaxWeight(),
                         s.getRatePerKg())).toList(),
                 r.getCreatedAt(), r.getUpdatedAt(), r.getVersion());

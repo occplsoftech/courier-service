@@ -52,22 +52,24 @@ public class ZoneRateServiceImpl implements ZoneRateService {
     private final PricingZoneRepository zones;
     private final PricingZoneService zoneService;
     private final CustomerService customerService;
+    private final com.courier.modules.master.domain.ServiceTypeRepository serviceTypes;
     private final AuditService auditService;
 
     @Override
     @Transactional
     @PreAuthorize(WRITE)
-    public ZoneRateView save(UUID zoneId, SaveCommand c) {
+    public ZoneRateView save(UUID zoneId, UUID serviceTypeId, SaveCommand c) {
         UUID companyId = requireCompany();
         PricingZone zone = loadZone(zoneId, companyId);
+        requireServiceType(serviceTypeId, companyId);
         List<SlabInput> inputs = c.slabs() == null ? List.of() : c.slabs();
         if (inputs.isEmpty()) {
             throw new BusinessRuleException("A rate needs at least one per-kg weight slab.");
         }
 
-        Optional<ZoneRate> existing = rates.findByZone(companyId, zone.getId());
+        Optional<ZoneRate> existing = rates.findByZoneAndServiceType(companyId, zone.getId(), serviceTypeId);
         ZoneRate rate = existing.orElseGet(() -> ZoneRate.builder()
-                .zoneId(zone.getId()).customerId(zone.getCustomerId()).build());
+                .zoneId(zone.getId()).customerId(zone.getCustomerId()).serviceTypeId(serviceTypeId).build());
         if (existing.isPresent() && c.expectedVersion() != null
                 && !Objects.equals(rate.getVersion(), c.expectedVersion())) {
             throw new ObjectOptimisticLockingFailureException(ZoneRate.class, rate.getId());
@@ -104,17 +106,27 @@ public class ZoneRateServiceImpl implements ZoneRateService {
         log.info("Customer rate for zone {} saved in company {} by {} ({} slab(s))",
                 zone.getId(), companyId, actor(), newSlabs.size());
         auditService.record(AuditAction.CUSTOMER_RATE_SAVED, ENTITY, saved.getId(),
-                Map.of("zoneId", zone.getId().toString(), "slabs", newSlabs.size()));
+                Map.of("zoneId", zone.getId().toString(), "slabs", newSlabs.size(),
+                        "serviceType", serviceTypeId == null ? "ALL" : serviceTypeId.toString()));
         return view(companyId, zone, saved);
     }
 
     @Override
     @Transactional(readOnly = true)
     @PreAuthorize(READ)
-    public Optional<ZoneRateView> getByZone(UUID zoneId) {
+    public Optional<ZoneRateView> getByZone(UUID zoneId, UUID serviceTypeId) {
         UUID companyId = requireCompany();
         PricingZone zone = loadZone(zoneId, companyId);
-        return rates.findByZone(companyId, zone.getId()).map(r -> view(companyId, zone, r));
+        return rates.findByZoneAndServiceType(companyId, zone.getId(), serviceTypeId).map(r -> view(companyId, zone, r));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize(READ)
+    public List<ZoneRateView> cardsOfZone(UUID zoneId) {
+        UUID companyId = requireCompany();
+        PricingZone zone = loadZone(zoneId, companyId);
+        return rates.findAllByZone(companyId, zone.getId()).stream().map(r -> view(companyId, zone, r)).toList();
     }
 
     @Override
@@ -123,17 +135,17 @@ public class ZoneRateServiceImpl implements ZoneRateService {
     public List<ZoneRateView> search(UUID customerId) {
         UUID companyId = requireCompany();
         return zones.search(companyId, customerId, null, null).stream()
-                .flatMap(z -> rates.findByZone(companyId, z.getId()).map(r -> view(companyId, z, r)).stream())
+                .flatMap(z -> rates.findAllByZone(companyId, z.getId()).stream().map(r -> view(companyId, z, r)))
                 .toList();
     }
 
     @Override
     @Transactional
     @PreAuthorize(WRITE)
-    public ZoneRateView activate(UUID zoneId) {
+    public ZoneRateView activate(UUID zoneId, UUID serviceTypeId) {
         UUID companyId = requireCompany();
         PricingZone zone = loadZone(zoneId, companyId);
-        ZoneRate rate = loadRate(zone, companyId);
+        ZoneRate rate = loadRate(zone, serviceTypeId, companyId);
         rate.activate();
         ZoneRate saved = rates.save(rate);
         // Audit after save — see PricingZoneServiceImpl.activate for why the order matters.
@@ -145,10 +157,10 @@ public class ZoneRateServiceImpl implements ZoneRateService {
     @Override
     @Transactional
     @PreAuthorize(WRITE)
-    public ZoneRateView deactivate(UUID zoneId) {
+    public ZoneRateView deactivate(UUID zoneId, UUID serviceTypeId) {
         UUID companyId = requireCompany();
         PricingZone zone = loadZone(zoneId, companyId);
-        ZoneRate rate = loadRate(zone, companyId);
+        ZoneRate rate = loadRate(zone, serviceTypeId, companyId);
         rate.deactivate();
         ZoneRate saved = rates.save(rate);
         // Audit after save — see PricingZoneServiceImpl.activate for why the order matters.
@@ -160,10 +172,10 @@ public class ZoneRateServiceImpl implements ZoneRateService {
     @Override
     @Transactional
     @PreAuthorize(WRITE)
-    public void delete(UUID zoneId) {
+    public void delete(UUID zoneId, UUID serviceTypeId) {
         UUID companyId = requireCompany();
         PricingZone zone = loadZone(zoneId, companyId);
-        ZoneRate rate = loadRate(zone, companyId);
+        ZoneRate rate = loadRate(zone, serviceTypeId, companyId);
         UUID actor = SecurityUtils.getCurrentUserId().orElse(null);
         slabs.findByRate(companyId, rate.getId()).forEach(s -> {
             s.softDelete(actor);
@@ -179,28 +191,75 @@ public class ZoneRateServiceImpl implements ZoneRateService {
     @PreAuthorize(READ)
     public Quote calculate(QuoteCommand q) {
         UUID companyId = requireCompany();
+        requireWeight(q);
+        PricingZone zone = resolveZone(q);
+        LocalDate date = q.bookingDate() == null ? LocalDate.now() : q.bookingDate();
+        // The service type's own card, else the zone's "all services" card.
+        ZoneRate rate = rates.findByZoneAndServiceType(companyId, zone.getId(), q.serviceTypeId())
+                .filter(r -> r.isActive() && r.coversDate(date))
+                .or(() -> q.serviceTypeId() == null ? Optional.empty()
+                        : rates.findByZoneAndServiceType(companyId, zone.getId(), null).filter(r -> r.isActive() && r.coversDate(date)))
+                .orElseThrow(() -> new BusinessRuleException(
+                        "Zone '%s' has no active rate effective on %s.".formatted(zone.getZoneName(), date)));
+        return price(companyId, zone, rate, q, true);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize(READ)
+    public List<ServiceQuote> calculateEach(QuoteCommand q) {
+        UUID companyId = requireCompany();
+        requireWeight(q);
+        PricingZone zone;
+        try {
+            zone = resolveZone(q);
+        } catch (BusinessRuleException noZone) {
+            return List.of();
+        }
+        LocalDate date = q.bookingDate() == null ? LocalDate.now() : q.bookingDate();
+        List<ServiceQuote> out = new java.util.ArrayList<>();
+        for (ZoneRate rate : rates.findAllByZone(companyId, zone.getId())) {
+            if (!rate.isActive() || !rate.coversDate(date)) {
+                continue;
+            }
+            Quote quote = price(companyId, zone, rate, q, false);
+            if (quote == null) {
+                continue; // no slab covers this weight on that card
+            }
+            var type = rate.getServiceTypeId() == null ? java.util.Optional.<com.courier.modules.master.domain.ServiceType>empty()
+                    : serviceTypes.findByIdWithinCompany(rate.getServiceTypeId(), companyId);
+            out.add(new ServiceQuote(rate.getServiceTypeId(), type.map(com.courier.modules.master.domain.ServiceType::getCode).orElse(null),
+                    type.map(com.courier.modules.master.domain.ServiceType::getName).orElse(null), quote));
+        }
+        return out;
+    }
+
+    private static void requireWeight(QuoteCommand q) {
         if (q.actualWeight() == null || q.actualWeight().signum() <= 0) {
             throw new BusinessRuleException("Actual weight must be greater than zero.");
         }
-        PricingZoneView zoneView = zoneService.resolve(q.customerId(), q.districtId(), q.cityId())
-                .orElseThrow(() -> new BusinessRuleException(
-                        "No active pricing zone of this customer covers that destination."));
-        PricingZone zone = zoneView.zone();
-        LocalDate date = q.bookingDate() == null ? LocalDate.now() : q.bookingDate();
-        ZoneRate rate = rates.findByZone(companyId, zone.getId())
-                .filter(ZoneRate::isActive)
-                .filter(r -> r.coversDate(date))
-                .orElseThrow(() -> new BusinessRuleException(
-                        "Zone '%s' has no active rate effective on %s.".formatted(zone.getZoneName(), date)));
+    }
 
+    private PricingZone resolveZone(QuoteCommand q) {
+        return zoneService.resolve(q.customerId(), q.districtId(), q.cityId())
+                .orElseThrow(() -> new BusinessRuleException("No active pricing zone of this customer covers that destination."))
+                .zone();
+    }
+
+    /** The price from one card; when no slab covers the weight, throws if {@code strict}, else null. */
+    private Quote price(UUID companyId, PricingZone zone, ZoneRate rate, QuoteCommand q, boolean strict) {
         BigDecimal chargeable = q.actualWeight().max(rate.getMinChargeableWeight());
         ZoneRateSlab slab = slabs.findByRate(companyId, rate.getId()).stream()
                 .filter(s -> s.covers(chargeable))
                 .findFirst()
-                .orElseThrow(() -> new BusinessRuleException(
-                        "No weight slab of zone '%s' covers %s kg.".formatted(zone.getZoneName(),
-                                chargeable.stripTrailingZeros().toPlainString())));
-
+                .orElse(null);
+        if (slab == null) {
+            if (strict) {
+                throw new BusinessRuleException("No weight slab of zone '%s' covers %s kg.".formatted(zone.getZoneName(),
+                        chargeable.stripTrailingZeros().toPlainString()));
+            }
+            return null;
+        }
         BigDecimal freight = money(chargeable.multiply(slab.getRatePerKg()));
         BigDecimal oda = q.odaApplicable() ? rate.getOdaCharge() : BigDecimal.ZERO;
         BigDecimal fuel = money(freight.multiply(rate.getFuelSurchargePercent()).divide(HUNDRED, 6, RoundingMode.HALF_UP));
@@ -241,7 +300,11 @@ public class ZoneRateServiceImpl implements ZoneRateService {
         } catch (ResourceNotFoundException ignored) {
             // customer soft-deleted: the rate stays readable, just unnamed
         }
-        return new ZoneRateView(rate, zone, customerName, slabs.findByRate(companyId, rate.getId()));
+        var type = rate.getServiceTypeId() == null ? java.util.Optional.<com.courier.modules.master.domain.ServiceType>empty()
+                : serviceTypes.findByIdWithinCompany(rate.getServiceTypeId(), companyId);
+        return new ZoneRateView(rate, zone, customerName, slabs.findByRate(companyId, rate.getId()),
+                type.map(com.courier.modules.master.domain.ServiceType::getCode).orElse(null),
+                type.map(com.courier.modules.master.domain.ServiceType::getName).orElse(null));
     }
 
     private PricingZone loadZone(UUID id, UUID companyId) {
@@ -249,9 +312,15 @@ public class ZoneRateServiceImpl implements ZoneRateService {
                 .orElseThrow(() -> new ResourceNotFoundException("PricingZone", id));
     }
 
-    private ZoneRate loadRate(PricingZone zone, UUID companyId) {
-        return rates.findByZone(companyId, zone.getId())
+    private ZoneRate loadRate(PricingZone zone, UUID serviceTypeId, UUID companyId) {
+        return rates.findByZoneAndServiceType(companyId, zone.getId(), serviceTypeId)
                 .orElseThrow(() -> new ResourceNotFoundException(ENTITY, zone.getId()));
+    }
+
+    private void requireServiceType(UUID serviceTypeId, UUID companyId) {
+        if (serviceTypeId != null && serviceTypes.findByIdWithinCompany(serviceTypeId, companyId).filter(t -> t.isActive()).isEmpty()) {
+            throw new BusinessRuleException("That service type does not exist or is not active.");
+        }
     }
 
     private static BigDecimal orZero(BigDecimal v) {

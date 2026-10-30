@@ -60,6 +60,8 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
     public static final String CODE = "OCCPL_NETWORK";
     /** Service code of the option priced from the customer's own rate card (the bulk upload prefers it). */
     public static final String BUSINESS_SERVICE_CODE = "OCCPL_BUSINESS_RATE";
+    /** Stored as the option's provider reference on every option priced from the customer's own rate card. */
+    public static final String BUSINESS_REFERENCE = "BUSINESS_RATE";
 
     private final PincodeService pincodes;
     private final ZoneRateService zoneRates;
@@ -88,15 +90,28 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
         if (r.cod() && !delivery.codAvailable()) {
             return unavailable("Cash on delivery is not available at " + r.deliveryPincode() + " on OCCPL network.");
         }
-        Quote q;
-        try {
-            q = zoneRates.calculate(new QuoteCommand(r.customerId(), delivery.districtId(), delivery.cityId(),
-                    r.actualWeightKg(), r.declaredValue(), delivery.odaApplicable(), LocalDate.now()));
-        } catch (ApiException e) {
-            // No zone / no active rate / no slab for this weight: the customer has no contract price here.
-            log.debug("No OCCPL network rate for customer {} to {}: {}", r.customerId(), r.deliveryPincode(), e.getMessage());
+        List<ZoneRateService.ServiceQuote> cards = zoneRates.calculateEach(new QuoteCommand(r.customerId(), delivery.districtId(),
+                delivery.cityId(), r.actualWeightKg(), r.declaredValue(), delivery.odaApplicable(), LocalDate.now()));
+        if (cards.isEmpty()) {
+            // No zone / no active card / no slab for this weight: the customer has no contract price here.
+            log.debug("No OCCPL network rate for customer {} to {}", r.customerId(), r.deliveryPincode());
             return tariffRates(r);
         }
+        // One option per service type the customer has a card for (AIR, SURFACE...), or one "Standard" option for an
+        // all-services card. Service types the customer has no card for are priced at the company's rates.
+        List<ProviderRate> rates = new ArrayList<>(cards.stream().map(OccplNetworkAdapter::businessRate).toList());
+        if (cards.stream().noneMatch(c -> c.serviceTypeId() == null)) {
+            java.util.Set<String> covered = cards.stream().map(c -> c.serviceTypeCode() == null ? "" : c.serviceTypeCode().toUpperCase())
+                    .collect(java.util.stream.Collectors.toSet());
+            tariffQuotes(r).stream().filter(t -> !covered.contains(t.serviceTypeCode().toUpperCase()))
+                    .map(OccplNetworkAdapter::tariffRate).forEach(rates::add);
+        }
+        return ProviderResult.available(CODE, displayName(), rates);
+    }
+
+    /** An option priced from the customer's own rate card; the {@code BUSINESS_RATE} reference marks it (the bulk upload prefers these). */
+    static ProviderRate businessRate(ZoneRateService.ServiceQuote c) {
+        Quote q = c.quote();
         List<ChargeLine> lines = new ArrayList<>();
         lines.add(new ChargeLine("FREIGHT", "Freight", ChargeComponent.FREIGHT, q.freight()));
         add(lines, "DOCKET", "Docket charge", ChargeComponent.HANDLING, q.docketCharge());
@@ -105,25 +120,34 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
         add(lines, "ODA", "Out-of-delivery-area charge", ChargeComponent.REMOTE_AREA, q.odaCharge());
         add(lines, "FUEL", "Fuel surcharge", ChargeComponent.FUEL_SURCHARGE, q.fuelSurcharge());
         add(lines, "FOV", "Risk cover (FOV)", ChargeComponent.INSURANCE, q.fovCharge());
-        return ProviderResult.available(CODE, displayName(), List.of(new ProviderRate(
-                BUSINESS_SERVICE_CODE, "OCCPL Standard", "SURFACE", null, null, q.chargeableWeight(), lines, null, null)));
+        if (c.serviceTypeId() == null) {
+            return new ProviderRate(BUSINESS_SERVICE_CODE, "OCCPL Standard", "SURFACE", null, null, q.chargeableWeight(), lines,
+                    BUSINESS_REFERENCE, null);
+        }
+        String code = c.serviceTypeCode() == null ? "SERVICE" : c.serviceTypeCode().toUpperCase();
+        String mode = code.length() <= 20 ? code : code.substring(0, 20);
+        return new ProviderRate("OCCPL_" + code, "OCCPL " + (c.serviceTypeName() == null ? code : c.serviceTypeName()), mode,
+                null, null, q.chargeableWeight(), lines, BUSINESS_REFERENCE, null);
     }
 
     /** The company's zone tariff for parcels, one option per service type; unavailable when it has none. */
     private ProviderResult tariffRates(RateRequest r) {
-        List<TariffQuoteService.Quote> quotes;
-        try {
-            quotes = tariff.quoteOptions(new TariffQuoteService.QuoteInput(r.pickupPincode(), r.deliveryPincode(), null, null,
-                    r.actualWeightKg(), r.lengthCm(), r.breadthCm(), r.heightCm(), r.packageCount(), r.declaredValue(),
-                    r.cod(), null), false);
-        } catch (ApiException e) {
-            log.debug("No zone tariff rate from {} to {}: {}", r.pickupPincode(), r.deliveryPincode(), e.getMessage());
-            quotes = List.of();
-        }
+        List<TariffQuoteService.Quote> quotes = tariffQuotes(r);
         if (quotes.isEmpty()) {
             return unavailable("No OCCPL network rate is set up for this destination and weight. Contact your account manager.");
         }
         return ProviderResult.available(CODE, displayName(), quotes.stream().map(OccplNetworkAdapter::tariffRate).toList());
+    }
+
+    private List<TariffQuoteService.Quote> tariffQuotes(RateRequest r) {
+        try {
+            return tariff.quoteOptions(new TariffQuoteService.QuoteInput(r.pickupPincode(), r.deliveryPincode(), null, null,
+                    r.actualWeightKg(), r.lengthCm(), r.breadthCm(), r.heightCm(), r.packageCount(), r.declaredValue(),
+                    r.cod(), null), false);
+        } catch (ApiException e) {
+            log.debug("No zone tariff rate from {} to {}: {}", r.pickupPincode(), r.deliveryPincode(), e.getMessage());
+            return List.of();
+        }
     }
 
     static ProviderRate tariffRate(TariffQuoteService.Quote q) {
