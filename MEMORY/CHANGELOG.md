@@ -8,6 +8,10 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-30 — Import a customer's rates from one Excel sheet
+
+- `GET /api/v1/customer-rates/import/template`, `POST .../import/preview` (customerId + file; checks every row, saves nothing), `POST /api/v1/customer-rates/import` (all-or-nothing). One row per zone and service type: zone name, destination districts (comma-separated), service type code (blank = all services), min chargeable weight, docket/mathadi/pack/ODA, fuel %, FOV %, up to five slabs (Up To kg + Rate/kg; blank last Up To = no limit). Zones are created by district (a zone the customer already has is reused, an existing card is replaced) and the customer is switched to business rates. Up to 300 rows; the template lists the company's service type codes.
+
 ## 2026-10-30 — Customer rate card per service type (V149)
 
 - A customer's zone can now hold one rate card per service type (AIR, SURFACE, CARGO, PREMIUM...) plus the existing "all services" card (`customer_zone_rates.service_type_id`, null = all services; every existing card stays that). Endpoints take an optional `serviceTypeId` (`GET/PUT /customer-rates/zone/{id}`, activate, deactivate, delete); `GET /customer-rates/zone/{id}/cards` lists a zone's cards; rate responses carry the service type.
