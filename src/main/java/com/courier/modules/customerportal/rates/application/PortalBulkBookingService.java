@@ -2,6 +2,7 @@ package com.courier.modules.customerportal.rates.application;
 
 import com.courier.modules.customer.application.CustomerPortalAddressBook;
 import com.courier.modules.customer.application.CustomerPortalLookup;
+import com.courier.modules.master.application.PincodeService;
 import com.courier.modules.customerportal.application.ActingCustomer;
 import com.courier.modules.customerportal.application.CurrentCustomerResolver;
 import com.courier.modules.customerportal.rates.application.PortalBookingService.BookingView;
@@ -62,6 +63,7 @@ public class PortalBulkBookingService {
     private final CurrentCustomerResolver resolver;
     private final CustomerPortalLookup customers;
     private final CustomerPortalAddressBook addressBook;
+    private final PincodeService pincodes;
 
     /** Where and by whom the parcels are handed over: the customer's own profile, so the sheet does not repeat it on every row. */
     private record Contact(String name, String phone, String address, String pincode) {
@@ -209,7 +211,7 @@ public class PortalBulkBookingService {
                     decimal(v.get("Declared Value (Rs)"), "Declared value"), mode);
             CompareCommand cmd = new CompareCommand(
                     new PartyInput(contact.name(), contact.phone(), contact.address(), contact.pincode(), null, null),
-                    new PartyInput(dName, v.get("Delivery Phone"), v.get("Delivery Address"), dPin, null, null),
+                    new PartyInput(dName, v.get("Delivery Phone"), v.get("Delivery Address"), dPin, city(dPin), state(dPin)),
                     pkg);
             BulkQuote q = comparison.compareForBulk(cmd);
             if (q.optionId() == null) {
@@ -225,6 +227,23 @@ public class PortalBulkBookingService {
         } catch (RuntimeException e) {
             log.warn("Bulk preview row {} failed", rowNo, e);
             return failed(rowNo, dName, dPin, weight, mode, "This row could not be priced.", v);
+        }
+    }
+
+    /** City and state of the delivery pincode from the pincode master (couriers such as Delhivery need them; the sheet does not ask). */
+    private String city(String pincode) {
+        return geography(pincode).map(g -> !blank(g.cityName()) ? g.cityName() : g.districtName()).orElse(null);
+    }
+
+    private String state(String pincode) {
+        return geography(pincode).map(com.courier.modules.master.application.PincodeGeography::stateName).orElse(null);
+    }
+
+    private java.util.Optional<com.courier.modules.master.application.PincodeGeography> geography(String pincode) {
+        try {
+            return pincode == null ? java.util.Optional.empty() : pincodes.geography(pincode.trim());
+        } catch (RuntimeException e) {
+            return java.util.Optional.empty();
         }
     }
 

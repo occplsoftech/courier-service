@@ -30,7 +30,10 @@ class PortalBulkBookingServiceTest {
         var book = mock(com.courier.modules.customer.application.CustomerPortalAddressBook.class);
         when(book.list(any(), any())).thenReturn(List.of(new com.courier.modules.customer.application.CustomerPortalAddressBook.PortalAddress(
                 UUID.randomUUID(), "OFFICE", "BOTH", "12 MG Road", "Pune", null, "411001", true, false, 0L)));
-        return new PortalBulkBookingService(comparison, booking, resolver, customers, book);
+        var pins = mock(com.courier.modules.master.application.PincodeService.class);
+        when(pins.geography("400001")).thenReturn(java.util.Optional.of(
+                new com.courier.modules.master.application.PincodeGeography("400001", "Fort", "Mumbai", "Mumbai", "Maharashtra")));
+        return new PortalBulkBookingService(comparison, booking, resolver, customers, book, pins);
     }
 
     private static RateQuoteOption option(String provider, String service, String total) {
@@ -77,6 +80,8 @@ class PortalBulkBookingServiceTest {
         assertThat(cap.getValue().pickup().phone()).isEqualTo("9800000001");
         assertThat(cap.getValue().pickup().address()).isEqualTo("12 MG Road, Pune");
         assertThat(cap.getValue().pickup().pincode()).isEqualTo("411001");
+        assertThat(cap.getValue().delivery().city()).isEqualTo("Mumbai");
+        assertThat(cap.getValue().delivery().state()).isEqualTo("Maharashtra");
         assertThat(cap.getValue().pkg().length()).isEqualByComparingTo("10");
         assertThat(cap.getValue().pkg().breadth()).isEqualByComparingTo("10");
         assertThat(cap.getValue().pkg().height()).isEqualByComparingTo("10");
