@@ -21,6 +21,7 @@ import com.courier.modules.shipment.application.ShipmentService;
 import com.courier.modules.shipment.application.command.CreateShipmentCommand;
 import com.courier.modules.shipment.application.command.ShipmentItemCommand;
 import com.courier.modules.shipment.application.command.UpdateShipmentCommand;
+import com.courier.modules.shipment.application.storage.SignedLinks;
 import com.courier.modules.shipment.domain.BranchCommissionSummary;
 import com.courier.modules.shipment.domain.BranchPerformanceSummary;
 import com.courier.modules.shipment.domain.DeliveryAssignment;
@@ -46,6 +47,7 @@ import java.util.List;
 public class ShipmentMapper {
 
     private final UserLookupPort userLookup;
+    private final SignedLinks links;
 
     public CreateShipmentCommand toCommand(CreateShipmentRequest r) {
         return new CreateShipmentCommand(
@@ -160,7 +162,7 @@ public class ShipmentMapper {
             return null;
         }
         return new ShipmentResponse.EwayBillInfo(s.id(), s.ewayBillNumber(), s.status(),
-                s.invoiceValue(), s.validFrom(), s.validUntil(), s.documentUrl(), s.lastError());
+                s.invoiceValue(), s.validFrom(), s.validUntil(), links.of(s.documentUrl()), s.lastError());
     }
 
     /** Assets arrive newest-first ({@code ShipmentAssetRepository}'s own ordering) — the
@@ -170,6 +172,7 @@ public class ShipmentMapper {
                 .filter(a -> a.getAssetType() == type && kind.equals(a.getKind()))
                 .findFirst()
                 .map(ShipmentAsset::getAssetUrl)
+                .map(links::of)
                 .orElse(null);
     }
 
@@ -289,7 +292,7 @@ public class ShipmentMapper {
 
     public ShipmentDocumentResponse toResponse(ShipmentDocument d) {
         return new ShipmentDocumentResponse(
-                d.getId(), d.getDocumentType(), d.getDocumentName(), d.getDocumentUrl(),
+                d.getId(), d.getDocumentType(), d.getDocumentName(), links.of(d.getDocumentUrl()),
                 d.getRemarks(), d.getCreatedBy(), d.getCreatedAt());
     }
 }
