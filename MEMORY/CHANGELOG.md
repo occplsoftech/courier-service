@@ -8,12 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
-## 2026-10-30 — OCCPL's PUNE, EXPUNE and METRO zones as in the previous software (V152)
+## 2026-10-30 — OCCPL's PUNE, EXPUNE, METRO, WEST and NORTH_EAST zones as in the previous software (V152)
 
 - METRO: New Delhi (all of Delhi), Hyderabad, Bangalore, Chennai; Mumbai now prices as MAHARASHTRA, Kolkata as EAST.
 - PUNE: Pune City taluka (Pune, Pimpri, Chinchwad) plus 411057 Wakad/Hinjewadi and 411061 Pimple Gurav.
 - EXPUNE: Maval taluka and the towns' pincodes (Chakan, Alandi, Dehu Road, Pirangut, Loni Kalbhor, Talegaon Dhamdhere, Ranjangaon,
   Fursungi) plus 411025; no longer the whole district (the rest of Pune district is MAHARASHTRA, same rates).
+- WEST: adds Dadra & Nagar Haveli (Silvassa). NORTH_EAST: adds Jammu & Kashmir (moved from NORTH), Ladakh, Andaman & Nicobar. EXMAHARASHTRA stays empty (its towns price as MAHARASHTRA, which has Cargo).
 - Soft deletes and guarded inserts, OCCPL and OCCPL_COURIER only. Tested on MySQL 8.0 (V1–V152, rerun adds nothing, 17 sample
   pincodes resolve as the old software).
 

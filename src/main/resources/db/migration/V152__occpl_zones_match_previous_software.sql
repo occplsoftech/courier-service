@@ -10,6 +10,9 @@
 --   Ranjangaon, Fursungi, not the whole district: the Pune district place (V142/V143) comes out, Maval
 --   taluka goes in as a city, each town as its pincode(s), plus 411025 (Khadakwasla villages). The rest
 --   of Pune district (Baramati, Junnar, Indapur…) prices as MAHARASHTRA, whose rates equal EXPUNE's.
+-- WEST: Gujarat, Goa, Daman & Diu (V150) and Dadra & Nagar Haveli (Silvassa), which V150 left out.
+-- NORTH_EAST: the eight north-eastern states (V150) and also Jammu & Kashmir (out of NORTH), Ladakh and
+--   Andaman & Nicobar (no zone until now).
 --
 -- Only companies OCCPL and OCCPL_COURIER. Removing is a soft delete, as Zone Tariff -> Zones does; a
 -- place is added only when no live TO/BOTH zone of the company holds it already. Running it twice
@@ -51,6 +54,36 @@ JOIN master_states s ON s.id = d.state_id AND s.name = 'Maharashtra'
 WHERE z.code = 'EXPUNE' AND z.deleted = FALSE AND z.zone_usage IN ('TO', 'BOTH')
   AND NOT EXISTS (SELECT 1 FROM tariff_zone_locations l JOIN tariff_zones oz ON oz.id = l.zone_id AND oz.deleted = FALSE AND oz.zone_usage IN ('TO', 'BOTH')
                   WHERE l.company_id = z.company_id AND l.deleted = FALSE AND l.scope = 'CITY' AND l.city_id = c.id);
+
+-- WEST: Dadra & Nagar Haveli.
+INSERT INTO tariff_zone_locations (id, company_id, zone_id, scope, state_id, district_id, city_id, pincode, created_at, updated_at, deleted, version)
+SELECT UNHEX(REPLACE(UUID(), '-', '')), z.company_id, z.id, 'STATE', s.id, NULL, NULL, NULL, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6), FALSE, 0
+FROM tariff_zones z
+JOIN companies co ON co.company_id = z.company_id AND co.company_code IN ('OCCPL', 'OCCPL_COURIER') AND co.deleted = FALSE
+JOIN master_states s ON s.company_id = @g AND s.deleted = FALSE
+  AND UPPER(REPLACE(s.name, '&', 'AND')) IN ('DADRA AND NAGAR HAVELI', 'DADRA AND NAGAR HAVELI AND DAMAN AND DIU')
+WHERE z.code = 'WEST' AND z.deleted = FALSE AND z.zone_usage IN ('TO', 'BOTH')
+  AND NOT EXISTS (SELECT 1 FROM tariff_zone_locations l JOIN tariff_zones oz ON oz.id = l.zone_id AND oz.deleted = FALSE AND oz.zone_usage IN ('TO', 'BOTH')
+                  WHERE l.company_id = z.company_id AND l.deleted = FALSE AND l.scope = 'STATE' AND l.state_id = s.id);
+
+-- NORTH: Jammu & Kashmir (and Ladakh, if a separate state exists) out…
+UPDATE tariff_zone_locations l
+JOIN tariff_zones z ON z.id = l.zone_id AND z.code = 'NORTH'
+JOIN companies co ON co.company_id = z.company_id AND co.company_code IN ('OCCPL', 'OCCPL_COURIER') AND co.deleted = FALSE
+JOIN master_states s ON s.id = l.state_id AND UPPER(REPLACE(s.name, '&', 'AND')) IN ('JAMMU AND KASHMIR', 'LADAKH')
+SET l.deleted = TRUE, l.deleted_at = UTC_TIMESTAMP(6), l.updated_at = UTC_TIMESTAMP(6)
+WHERE l.deleted = FALSE AND l.scope = 'STATE';
+
+-- …and into NORTH_EAST with Andaman & Nicobar.
+INSERT INTO tariff_zone_locations (id, company_id, zone_id, scope, state_id, district_id, city_id, pincode, created_at, updated_at, deleted, version)
+SELECT UNHEX(REPLACE(UUID(), '-', '')), z.company_id, z.id, 'STATE', s.id, NULL, NULL, NULL, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6), FALSE, 0
+FROM tariff_zones z
+JOIN companies co ON co.company_id = z.company_id AND co.company_code IN ('OCCPL', 'OCCPL_COURIER') AND co.deleted = FALSE
+JOIN master_states s ON s.company_id = @g AND s.deleted = FALSE
+  AND UPPER(REPLACE(s.name, '&', 'AND')) IN ('JAMMU AND KASHMIR', 'LADAKH', 'ANDAMAN AND NICOBAR ISLANDS', 'ANDAMAN AND NICOBAR')
+WHERE z.code = 'NORTH_EAST' AND z.deleted = FALSE AND z.zone_usage IN ('TO', 'BOTH')
+  AND NOT EXISTS (SELECT 1 FROM tariff_zone_locations l JOIN tariff_zones oz ON oz.id = l.zone_id AND oz.deleted = FALSE AND oz.zone_usage IN ('TO', 'BOTH')
+                  WHERE l.company_id = z.company_id AND l.deleted = FALSE AND l.scope = 'STATE' AND l.state_id = s.id);
 
 -- Town pincodes: EXPUNE's towns and 411025; PUNE's 411057 and 411061.
 INSERT INTO tariff_zone_locations (id, company_id, zone_id, scope, state_id, district_id, city_id, pincode, created_at, updated_at, deleted, version)
