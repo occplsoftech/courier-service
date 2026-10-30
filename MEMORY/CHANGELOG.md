@@ -8,6 +8,17 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-30 — Uploaded files open from a private bucket everywhere (SignedLinks)
+
+- Audit of every upload: top-up proof (signed in #48), customer-invoice proof and public-tracking POD (already signed), and now also
+  **proof of delivery / shipment photos** (`ShipmentMapper`), **shipment documents and the e-way bill document** (`ShipmentMapper`,
+  `EwayBillMapper`), **POD review rows and verification** (`PodVerificationMapper`) and **ticket attachments** (`TicketMapper`). They
+  returned the bucket's plain address, which a private bucket refuses. New `SignedLinks` (one-hour signed link; pasted URLs and the
+  no-storage case come back unchanged) is applied where each response is built; stored values are unchanged.
+- Not done: company logo/favicon (`uploadBranding`) is read by the sign-in payload and token claims, so a link that expires does not
+  fit there; with a private bucket those images will not load. Needs its own decision (public prefix or database-backed).
+- Upload endpoints still return the plain address, because the client sends it back when saving; signing happens when it is read.
+
 ## 2026-10-30 — Top-up proof images open from a private bucket
 
 - With file storage on (private S3 bucket), the proof image's stored address is not openable, so the staff approval screen showed

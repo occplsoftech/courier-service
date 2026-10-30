@@ -11,7 +11,10 @@ import org.springframework.stereotype.Component;
 
 /** Wire contract <-> application/domain types for E-Way Bill Management. */
 @Component
+@lombok.RequiredArgsConstructor
 public class EwayBillMapper {
+
+    private final com.courier.modules.shipment.application.storage.SignedLinks links;
 
     public CreateEwayBillCommand toCommand(CreateEwayBillRequest r) {
         return new CreateEwayBillCommand(r.shipmentId(), new EwayBillDataCommand(
@@ -42,7 +45,7 @@ public class EwayBillMapper {
                 b.getProviderName(), b.getProviderReference(),
                 b.getPartAGeneratedAt(), b.getPartBGeneratedAt(),
                 b.getLastError(), b.getRetryCount(),
-                b.getDocumentUrl(), b.getRemarks(),
+                links.of(b.getDocumentUrl()), b.getRemarks(),
                 b.getCreatedBy(), b.getCreatedAt(), b.getUpdatedBy(), b.getUpdatedAt(), b.getVersion());
     }
 }

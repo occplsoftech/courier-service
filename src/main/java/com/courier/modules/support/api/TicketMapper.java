@@ -22,7 +22,10 @@ import java.time.Instant;
 import java.util.List;
 
 @Component
+@lombok.RequiredArgsConstructor
 public class TicketMapper {
+
+    private final com.courier.modules.shipment.application.storage.SignedLinks links;
 
     public CreateTicketCommand toCommand(CreateTicketRequest r) {
         return new CreateTicketCommand(r.subject(), r.description(), r.categoryId(), r.subCategoryId(),
@@ -56,7 +59,7 @@ public class TicketMapper {
     }
 
     public TicketAttachmentResponse toResponse(TicketAttachment a) {
-        return new TicketAttachmentResponse(a.getId(), a.getTicketId(), a.getMessageId(), a.getAssetUrl(),
+        return new TicketAttachmentResponse(a.getId(), a.getTicketId(), a.getMessageId(), links.of(a.getAssetUrl()),
                 a.getFilename(), a.getContentType(), a.getSizeBytes(), a.getUploadedByUserId(), a.getCreatedAt());
     }
 

@@ -13,7 +13,10 @@ import java.time.Instant;
 import java.util.List;
 
 @Component
+@lombok.RequiredArgsConstructor
 public class PodVerificationMapper {
+
+    private final com.courier.modules.shipment.application.storage.SignedLinks links;
 
     public PodVerificationResponse toResponse(PodVerification v, Shipment shipment,
                                                String photoUrl, String signatureUrl) {
@@ -21,7 +24,7 @@ public class PodVerificationMapper {
                 v.getId(), v.getShipmentId(),
                 shipment == null ? null : shipment.getShipmentNumber(),
                 shipment == null ? null : shipment.getTrackingNumber(),
-                v.getPodDocumentId(), photoUrl, signatureUrl,
+                v.getPodDocumentId(), links.of(photoUrl), links.of(signatureUrl),
                 v.getVerificationStatus().name(), v.getVerificationScore(), v.reasons(),
                 v.getDetectedReceiverName(), v.getDetectedAwb(), v.getDetectedShipmentNumber(), v.getDetectedDate(),
                 v.getDeliveryDate(), v.getDeliveredBy(), v.getPodDate(), v.getPodTime(),
@@ -58,8 +61,8 @@ public class PodVerificationMapper {
                 v == null ? null : v.getAiProvider(), v == null ? null : v.getAiModel());
     }
 
-    private static String latestAssetUrl(List<ShipmentAsset> assets, String kind) {
+    private String latestAssetUrl(List<ShipmentAsset> assets, String kind) {
         return assets.stream().filter(a -> kind.equals(a.getKind()))
-                .findFirst().map(ShipmentAsset::getAssetUrl).orElse(null);
+                .findFirst().map(ShipmentAsset::getAssetUrl).map(links::of).orElse(null);
     }
 }
