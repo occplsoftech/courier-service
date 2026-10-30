@@ -13,6 +13,23 @@ All notable changes to this project. Format based on
 - A customer's zone can now hold one rate card per service type (AIR, SURFACE, CARGO, PREMIUM...) plus the existing "all services" card (`customer_zone_rates.service_type_id`, null = all services; every existing card stays that). Endpoints take an optional `serviceTypeId` (`GET/PUT /customer-rates/zone/{id}`, activate, deactivate, delete); `GET /customer-rates/zone/{id}/cards` lists a zone's cards; rate responses carry the service type.
 - Pricing: `calculate` uses the card of the requested service type, else the all-services card; `calculateEach` prices every active card. The branch counter passes the booking's service type.
 - Customer portal: one OCCPL option per service type the customer has a card for (marked `BUSINESS_RATE`), or the single "OCCPL Standard" for an all-services card; service types without a card are priced at the company's rates. Bulk booking prefers the cheapest business-rate option.
+## 2026-10-30 — Geography for all of India (V149) and OCCPL's zones filled with it (V150)
+
+- **V149** loads the rest of India into the global masters: 35 states and union territories, 589 districts, 5,112 talukas (as cities),
+  142,144 post offices (as areas) and 17,521 pincodes, from the India Post directory (data.gov.in, via the GitHub mirror
+  saravanakumargn/All-India-Pincode-Directory). Maharashtra is left to V141. Same rules as V141 (city = taluka of the main post office,
+  or the district when there is none; every post office an area; existing pincodes untouched; states also matched under older names:
+  Orissa, Pondicherry, Chattisgarh, Uttaranchal…). Set-based through scratch tables `tmp_geo_*`, so it runs in ~25 s, not minutes.
+  Generator: `scripts/geography/gen_india_geography.py`.
+- **V150** adds the places V142/V143 skipped because the geography was missing: states of NORTH, SOUTH, KERALA, EAST, WEST, CENTRAL,
+  NORTH_EAST, and METRO as whole districts (all of Delhi, Mumbai, Kolkata, Chennai, Bangalore, Hyderabad), for companies OCCPL and
+  OCCPL_COURIER. Before this, a Pune booking to any state outside Maharashtra found no zone. A place another live TO/BOTH zone already
+  holds is skipped.
+- Tested on MySQL 8.0 through Flyway: V1–V148 then V149–V150 (with OCCPL / OCCPL_COURIER seeded), a failed-then-repaired rerun, a
+  second run (adds nothing), and a clean database with an old "Orissa" state and an existing pincode (both reused, pincode unchanged).
+  28 sample pincodes resolve to the expected zone. No zone: Andaman & Nicobar, Dadra & Nagar Haveli, Lakshadweep (not in the rate sheet).
+
+---
 
 ## 2026-10-30 — Branch manager can actually assign a pickup (partner lookup no longer hidden)
 

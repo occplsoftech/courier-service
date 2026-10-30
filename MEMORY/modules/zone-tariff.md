@@ -88,6 +88,15 @@ Writes `COMPANY_ADMIN` (on the service); reads any signed-in user. Audit: `TARIF
 ## Setup the company does (Step 1, no code)
 Service Type master: `SURFACE`, `AIR`, `PREMIUM`, `CARGO`. Package Type master: `DOC`, `NONDOC`. Phase 2 rate lines point at these.
 
+## Geography and OCCPL's zone places (V149, V150 — 2026-10-30)
+- V142/V143 add places by name and skip what the global masters lack. They ran when only Maharashtra was loaded (V141), so
+  NORTH, SOUTH, KERALA, EAST, WEST, CENTRAL, NORTH_EAST were empty and METRO held Mumbai's city only: no Pune lane outside
+  Maharashtra could be priced.
+- V149 loads every other state (India Post directory). V150 then adds those zones' states, and METRO's metros as **districts**
+  (Delhi's every district, Mumbai, Kolkata, Chennai, Bangalore, Hyderabad): the directory files a metro's pincodes under many
+  talukas, so city places would miss most of them. District beats state, so METRO wins over SOUTH/EAST/NORTH.
+- Still no zone: Andaman & Nicobar, Dadra & Nagar Haveli, Daman & Diu is WEST, Lakshadweep none. EXMAHARASHTRA stays empty.
+
 ## Next
 - Excel import (built 2026-10-28): header row found in the first 15 rows ("Admin" title row first); names matched ignoring case
   and punctuation against codes and names ("BY AIR" → AIR, "Document" → DOC by prefix, "EX PUNE" → EXPUNE); a row with State/City
