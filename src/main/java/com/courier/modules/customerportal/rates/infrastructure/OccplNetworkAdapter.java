@@ -58,6 +58,8 @@ import java.util.Optional;
 public class OccplNetworkAdapter implements CourierProviderAdapter {
 
     public static final String CODE = "OCCPL_NETWORK";
+    /** Service code of the option priced from the customer's own rate card (the bulk upload prefers it). */
+    public static final String BUSINESS_SERVICE_CODE = "OCCPL_BUSINESS_RATE";
 
     private final PincodeService pincodes;
     private final ZoneRateService zoneRates;
@@ -101,7 +103,7 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
         add(lines, "FUEL", "Fuel surcharge", ChargeComponent.FUEL_SURCHARGE, q.fuelSurcharge());
         add(lines, "FOV", "Risk cover (FOV)", ChargeComponent.INSURANCE, q.fovCharge());
         return ProviderResult.available(CODE, displayName(), List.of(new ProviderRate(
-                "OCCPL_STANDARD", "OCCPL Standard", "SURFACE", null, null, q.chargeableWeight(), lines, null, null)));
+                BUSINESS_SERVICE_CODE, "OCCPL Standard", "SURFACE", null, null, q.chargeableWeight(), lines, null, null)));
     }
 
     /** The company's zone tariff for parcels, one option per service type; unavailable when it has none. */

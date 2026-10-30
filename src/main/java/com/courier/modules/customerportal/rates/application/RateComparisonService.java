@@ -73,9 +73,40 @@ public class RateComparisonService {
     }
 
     public QuoteView compare(CompareCommand c) {
+        return compareInternal(c, true).view();
+    }
+
+    /** One row of a bulk upload: the quote, and the option to book. The per-minute comparison cap does not apply (the batch size is capped instead). */
+    public BulkQuote compareForBulk(CompareCommand c) {
+        Compared r = compareInternal(c, false);
+        RateQuoteOption chosen = chooseForBulk(r.options());
+        return new BulkQuote(r.view(), chosen == null ? null : chosen.getId(),
+                chosen == null ? null : (isBusinessRate(chosen) ? "BUSINESS_RATE" : "CHEAPEST"));
+    }
+
+    /** The customer's own business rate when OCCPL Network priced one; otherwise the cheapest available option. Null when nothing is available. */
+    static RateQuoteOption chooseForBulk(List<RateQuoteOption> options) {
+        List<RateQuoteOption> ok = options.stream().filter(RateQuoteOption::isAvailable).toList();
+        return ok.stream().filter(RateComparisonService::isBusinessRate).findFirst()
+                .orElseGet(() -> ok.stream().min(Comparator.comparing(RateQuoteOption::getTotalAmount)).orElse(null));
+    }
+
+    private static boolean isBusinessRate(RateQuoteOption o) {
+        return "OCCPL_NETWORK".equals(o.getProviderCode()) && "OCCPL_BUSINESS_RATE".equals(o.getServiceCode());
+    }
+
+    private record Compared(QuoteView view, List<RateQuoteOption> options) {
+    }
+
+    public record BulkQuote(QuoteView view, UUID optionId, String basis) {
+    }
+
+    private Compared compareInternal(CompareCommand c, boolean limited) {
         ActingCustomer acting = resolver.require();
         requireDifferentAddresses(c);
-        limiter.check(acting.userId());
+        if (limited) {
+            limiter.check(acting.userId());
+        }
         RateRequest request = toRequest(acting, c);
         BigDecimal volumetric = request.lengthCm().multiply(request.breadthCm()).multiply(request.heightCm())
                 .multiply(BigDecimal.valueOf(request.packageCount()))
@@ -106,7 +137,7 @@ public class RateComparisonService {
                 saved.quote().getId(), acting.customerId(),
                 saved.options().stream().filter(RateQuoteOption::isAvailable).count(),
                 saved.options().stream().filter(o -> !o.isAvailable()).count());
-        return view(saved.quote(), saved.options(), now);
+        return new Compared(view(saved.quote(), saved.options(), now), saved.options());
     }
 
     /** Prices every provider's answer (markup and tax included); the unavailable ones are kept with their reason. */
