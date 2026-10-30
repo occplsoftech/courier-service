@@ -8,6 +8,17 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-30 — Which couriers a business customer sees in the portal (V146)
+
+- New `customer_courier_access` table and `CustomerCourierAccessService`. A customer with **no** courier assigned sees **OCCPL Network only**
+  (changes what every existing customer sees: Delhivery, Shiprocket etc. now have to be switched on per customer). With couriers assigned,
+  exactly those are shown, and OCCPL Network only if it is one of them. A courier the customer was not given is not listed at all, not even
+  as "not available". Applied in `RateComparisonService` (compare, calculator estimate, international estimate and countries).
+- COMPANY_ADMIN endpoints: `GET/PUT /api/v1/courier-integrations/customer-access/{customerId}` (PUT replaces the list; an empty list
+  returns the customer to the default). Audited as `CUSTOMER_COURIER_ACCESS_CHANGED`.
+- Not enforced at booking: a quote made before a change stays bookable for its validity (30 minutes). Branch-level assignment is not built
+  (customers are not linked to a branch).
+
 ## 2026-10-30 — Customer tracking follows the shipment a branch books from the customer's pickup
 
 - Found on dev: a branch booked `TEST_BR-000001` (AWB 26100000001) from the customer's picked-up pickup, but the customer's shipment page
