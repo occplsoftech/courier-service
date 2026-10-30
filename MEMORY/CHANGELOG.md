@@ -8,9 +8,16 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-30 — Bulk booking: nothing about the pickup or parcel size in the sheet
+
+- Pickup name/phone (customer's contact person and mobile), pickup address and pincode (default pickup address, else first address) now come from the customer's profile; no profile address = a clear "add a pickup address" message. Length/breadth/height are no longer in the sheet; every shipment is priced at 10 x 10 x 10 cm (weight sets the charge). Old sheets with extra columns still upload (extra columns ignored).
+
 ## 2026-10-30 — Bulk booking: length/breadth/height columns optional
 
 - A sheet may now omit the Length/Breadth/Height columns entirely (blank cells already meant 10 cm each); the other headings are still required.
+## 2026-10-30 — Bulk booking: edit a row on screen
+
+- `POST /api/v1/customer-portal/bulk-bookings/row` re-checks and re-prices one edited row; preview rows now carry their raw `fields` (template headings, in order) so the screen can edit them.
 
 ## 2026-10-30 — Bulk shipment booking from an Excel sheet (customer portal)
 

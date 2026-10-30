@@ -30,6 +30,7 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -50,11 +51,11 @@ public class PortalBulkBookingService {
 
     private static final String[] HEADERS = {
             "Delivery Name", "Delivery Phone", "Delivery Address", "Delivery Pincode", "Delivery City", "Delivery State",
-            "Weight (kg)", "Length (cm)", "Breadth (cm)", "Height (cm)", "Packages", "Contents", "Declared Value (Rs)",
+            "Weight (kg)", "Packages", "Contents", "Declared Value (Rs)",
             "Payment Mode (PREPAID/COD/TOPAY)"};
 
-    /** Columns a sheet may leave out altogether (their values default to 10 cm). */
-    private static final java.util.Set<String> OPTIONAL = java.util.Set.of("Length (cm)", "Breadth (cm)", "Height (cm)");
+    /** Parcel size is not asked: every shipment is priced at 10 x 10 x 10 cm, so the weight (not volume) sets the charge. */
+    private static final BigDecimal DEFAULT_DIMENSION_CM = BigDecimal.TEN;
 
     private final RateComparisonService comparison;
     private final PortalBookingService booking;
@@ -81,7 +82,8 @@ public class PortalBulkBookingService {
 
     public record PreviewRow(int row, String deliveryName, String deliveryPincode, BigDecimal weightKg, String paymentMode,
                              boolean ok, String error, UUID quoteId, UUID optionId, String providerCode, String providerName,
-                             String serviceName, String basis, BigDecimal total) {
+                             String serviceName, String basis, BigDecimal total,
+                             Map<String, String> fields) {
     }
 
     public record Preview(List<PreviewRow> rows, int okCount, int errorCount, BigDecimal okTotal) {
@@ -109,7 +111,7 @@ public class PortalBulkBookingService {
             }
             String[] sample = {
                     "Ravi Kumar", "9800000002", "5 Park Street, Mumbai", "400001", "Mumbai", "Maharashtra",
-                    "2.5", "20", "15", "10", "1", "Garments", "1500", "PREPAID"};
+                    "2.5", "1", "Garments", "1500", "PREPAID"};
             Row r = sheet.createRow(1);
             for (int i = 0; i < sample.length; i++) {
                 r.createCell(i).setCellValue(sample[i]);
@@ -119,7 +121,7 @@ public class PortalBulkBookingService {
                     "Pickup name, phone and address are your own contact person, mobile and default pickup address from your profile; you do not enter them. One row per shipment, starting on row 2 of the Shipments sheet (replace the sample row). Up to " + MAX_ROWS + " rows.",
                     "Pincodes are 6 digits. Phone numbers are 10 digits. Dimensions are in cm; weight in kg, per shipment.",
                     "Payment mode: PREPAID, COD or TOPAY (left blank means PREPAID).",
-                    "Length, Breadth and Height (cm) are optional: leave them blank, or delete the columns, and 10 cm is used for each.",
+                    "Parcel size is not needed: every shipment is priced by its weight.",
                     "Each row is priced at your business rate when you have one for that destination, otherwise at the cheapest courier you are allowed to use.",
                     "After upload you see every row checked, with its price. Nothing is booked until you confirm."};
             for (int i = 0; i < lines.length; i++) {
@@ -178,7 +180,20 @@ public class PortalBulkBookingService {
 
     // ------------------------------------------------------------------ rows
 
-    private PreviewRow previewRow(int rowNo, Map<String, String> v, Contact contact) {
+    /** Re-checks one row after the customer edited it on screen: the same checks and pricing as the upload. */
+    public PreviewRow checkRow(int rowNo, Map<String, String> edited) {
+        Map<String, String> v = new LinkedHashMap<>();
+        for (String h : HEADERS) {
+            v.put(h, edited == null || edited.get(h) == null ? "" : edited.get(h).trim());
+        }
+        return previewRow(rowNo, v, contact());
+    }
+
+    private PreviewRow previewRow(int rowNo, Map<String, String> raw, Contact contact) {
+        Map<String, String> v = new LinkedHashMap<>();
+        for (String h : HEADERS) {
+            v.put(h, raw.get(h) == null ? "" : raw.get(h));
+        }
         String dName = v.get("Delivery Name");
         String dPin = v.get("Delivery Pincode");
         String mode = blank(v.get("Payment Mode (PREPAID/COD/TOPAY)")) ? "PREPAID" : v.get("Payment Mode (PREPAID/COD/TOPAY)").toUpperCase(Locale.ROOT);
@@ -188,11 +203,7 @@ public class PortalBulkBookingService {
                         require(v, "Delivery Name", "Delivery name");
             phone(v.get("Delivery Phone"), "Delivery phone");
             require(v, "Delivery Address", "Delivery address");
-            BigDecimal ten = BigDecimal.TEN;
-            PackageInput pkg = new PackageInput(weight,
-                    blank(v.get("Length (cm)")) ? ten : decimal(v.get("Length (cm)"), "Length"),
-                    blank(v.get("Breadth (cm)")) ? ten : decimal(v.get("Breadth (cm)"), "Breadth"),
-                    blank(v.get("Height (cm)")) ? ten : decimal(v.get("Height (cm)"), "Height"), "CM",
+            PackageInput pkg = new PackageInput(weight, DEFAULT_DIMENSION_CM, DEFAULT_DIMENSION_CM, DEFAULT_DIMENSION_CM, "CM",
                     blank(v.get("Packages")) ? 1 : integer(v.get("Packages"), "Packages"),
                     blank(v.get("Contents")) ? "General goods" : v.get("Contents"),
                     decimal(v.get("Declared Value (Rs)"), "Declared value"), mode);
@@ -204,21 +215,22 @@ public class PortalBulkBookingService {
             if (q.optionId() == null) {
                 String why = q.view().unavailable().stream().map(u -> u.providerName() + ": " + u.reason()).findFirst()
                         .orElse("No courier is available for this shipment.");
-                return failed(rowNo, dName, dPin, weight, mode, why);
+                return failed(rowNo, dName, dPin, weight, mode, why, v);
             }
             OptionView o = q.view().options().stream().filter(x -> x.optionId().equals(q.optionId())).findFirst().orElseThrow();
             return new PreviewRow(rowNo, dName, dPin, weight, mode, true, null, q.view().quoteId(), o.optionId(), o.providerCode(),
-                    o.providerName(), o.serviceName(), q.basis(), o.totalAmount());
+                    o.providerName(), o.serviceName(), q.basis(), o.totalAmount(), v);
         } catch (ApiException e) {
-            return failed(rowNo, dName, dPin, weight, mode, e.getMessage());
+            return failed(rowNo, dName, dPin, weight, mode, e.getMessage(), v);
         } catch (RuntimeException e) {
             log.warn("Bulk preview row {} failed", rowNo, e);
-            return failed(rowNo, dName, dPin, weight, mode, "This row could not be priced.");
+            return failed(rowNo, dName, dPin, weight, mode, "This row could not be priced.", v);
         }
     }
 
-    private static PreviewRow failed(int row, String name, String pin, BigDecimal weight, String mode, String error) {
-        return new PreviewRow(row, name, pin, weight, mode, false, error, null, null, null, null, null, null, null);
+    private static PreviewRow failed(int row, String name, String pin, BigDecimal weight, String mode, String error,
+                                     Map<String, String> fields) {
+        return new PreviewRow(row, name, pin, weight, mode, false, error, null, null, null, null, null, null, null, fields);
     }
 
     private static void require(Map<String, String> v, String key, String label) {
@@ -276,7 +288,7 @@ public class PortalBulkBookingService {
                     }
                 }
             }
-            if (!cols.values().containsAll(java.util.Arrays.stream(HEADERS).filter(h -> !OPTIONAL.contains(h)).toList())) {
+            if (!cols.values().containsAll(java.util.Arrays.asList(HEADERS))) {
                 throw new BusinessRuleException("The column headings do not match the template. Download the template again and use it as is.");
             }
             List<Map<String, String>> rows = new ArrayList<>();

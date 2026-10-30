@@ -77,6 +77,9 @@ class PortalBulkBookingServiceTest {
         assertThat(cap.getValue().pickup().phone()).isEqualTo("9800000001");
         assertThat(cap.getValue().pickup().address()).isEqualTo("12 MG Road, Pune");
         assertThat(cap.getValue().pickup().pincode()).isEqualTo("411001");
+        assertThat(cap.getValue().pkg().length()).isEqualByComparingTo("10");
+        assertThat(cap.getValue().pkg().breadth()).isEqualByComparingTo("10");
+        assertThat(cap.getValue().pkg().height()).isEqualByComparingTo("10");
     }
 
     @Test
@@ -87,31 +90,15 @@ class PortalBulkBookingServiceTest {
     }
 
     @Test
-    void sheetWithoutDimensionColumnsIsAccepted() throws Exception {
-        RateComparisonService comparison = mock(RateComparisonService.class);
-        PortalBulkBookingService service = svc(comparison, mock(PortalBookingService.class));
-        UUID quote = UUID.randomUUID(), opt = UUID.randomUUID();
-        OptionView o = new OptionView(opt, "OCCPL_NETWORK", "OCCPL Network", "OCCPL Standard", "SURFACE", null, null,
-                BigDecimal.ONE, BigDecimal.TEN, BigDecimal.ONE, null, null, BigDecimal.ONE, new BigDecimal("59"), "INR", List.of(), Instant.now());
-        QuoteView view = new QuoteView(quote, "OPEN", Instant.now(), "411001", "411004", BigDecimal.ONE, BigDecimal.ONE, 1,
-                BigDecimal.TEN, "PREPAID", List.of(o), List.of());
-        org.mockito.ArgumentCaptor<RateComparisonService.CompareCommand> cap = org.mockito.ArgumentCaptor.forClass(RateComparisonService.CompareCommand.class);
-        when(comparison.compareForBulk(cap.capture())).thenReturn(new BulkQuote(view, opt, "CHEAPEST"));
-
-        byte[] withDims = service.template();
-        try (var in = new org.apache.poi.xssf.usermodel.XSSFWorkbook(new ByteArrayInputStream(withDims));
-             var out = new java.io.ByteArrayOutputStream()) {
-            var sheet = in.getSheetAt(0);
-            for (int r = 0; r <= 1; r++) {
-                var row = sheet.getRow(r);
-                for (int c = 7; c <= 9; c++) {
-                    row.removeCell(row.getCell(c));
-                }
-            }
-            in.write(out);
-            var preview = service.preview(new ByteArrayInputStream(out.toByteArray()));
-            assertThat(preview.rows().get(0).ok()).isTrue();
-        }
-        assertThat(cap.getValue().pkg().length()).isEqualByComparingTo("10");
+    void editedRowIsRecheckedAndKeepsItsValues() {
+        PortalBulkBookingService service = svc(mock(RateComparisonService.class), mock(PortalBookingService.class));
+        java.util.Map<String, String> f = new java.util.HashMap<>();
+        f.put("Delivery Name", "B"); f.put("Delivery Phone", "12345"); f.put("Delivery Address", "y"); f.put("Delivery Pincode", "400001");
+        f.put("Weight (kg)", "2"); f.put("Declared Value (Rs)", "100");
+        var bad = service.checkRow(7, f);
+        assertThat(bad.ok()).isFalse();
+        assertThat(bad.row()).isEqualTo(7);
+        assertThat(bad.error()).contains("Delivery phone");
+        assertThat(bad.fields()).containsEntry("Delivery Phone", "12345");
     }
 }
