@@ -51,10 +51,10 @@ public class CustomerPortalProperties {
         /** On: a booking is debited from the customer's wallet before the courier is asked, and refunded if refused. */
         private boolean enabled = false;
         /**
-         * Providers that are not paid from the wallet. OCCPL's own network is billed through the branch when the parcel
-         * is collected, so debiting it here as well would charge twice.
+         * Providers that are not paid from the wallet. None by default: OCCPL's own network is debited at booking like any
+         * other courier (V-wallet decision, 2026-10), so the branch must not bill the same parcel again at pickup.
          */
-        private java.util.List<String> excludedProviders = new java.util.ArrayList<>(java.util.List.of("OCCPL_NETWORK"));
+        private java.util.List<String> excludedProviders = new java.util.ArrayList<>();
 
         public boolean covers(String providerCode) {
             return enabled && (excludedProviders == null || excludedProviders.stream().noneMatch(p -> p.equalsIgnoreCase(providerCode)));

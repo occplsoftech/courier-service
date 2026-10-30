@@ -239,6 +239,9 @@ public class RateComparisonService {
             }
             if (!a.configured(request.companyId())) {
                 results.add(ProviderResult.unavailable(a.code(), a.displayName(), a.displayName() + " is not connected yet."));
+            } else if (a.external() && request.topay()) {
+                // only OCCPL's own network can collect the freight from the receiver
+                results.add(ProviderResult.unavailable(a.code(), a.displayName(), "To Pay is available on OCCPL Network only."));
             } else if (a.external()) {
                 pending.put(a, CompletableFuture.supplyAsync(() -> a.getRates(request), executor));
             }
@@ -303,7 +306,7 @@ public class RateComparisonService {
         try {
             mode = RateRequest.PaymentMode.valueOf(p.paymentMode() == null ? "PREPAID" : p.paymentMode().toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new BusinessRuleException("Payment mode must be PREPAID or COD.");
+            throw new BusinessRuleException("Payment mode must be PREPAID, COD or TOPAY.");
         }
         return new RateRequest(acting.companyId(), acting.customerId(), from, to, weight, l, b, h,
                 p.packageCount(), value, mode);

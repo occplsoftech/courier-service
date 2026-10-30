@@ -134,9 +134,10 @@ app:
     markup-gst-percent: ${CUSTOMER_PORTAL_MARKUP_GST_PERCENT:18}
     occpl-network-gst-percent: ${CUSTOMER_PORTAL_OCCPL_NETWORK_GST_PERCENT:18}
     # Pay portal bookings from the customer's wallet (debit before the courier call, refund if refused or cancelled).
-    # Off until customers have funded wallets. OCCPL's own network is billed at the branch and never debited here.
+    # On: a prepaid or COD booking takes its freight from the customer's wallet (OCCPL's own network included).
+    # To Pay bookings and credit customers (Credit payment mode) never touch the wallet.
     wallet-payment:
-      enabled: ${CUSTOMER_PORTAL_WALLET_PAYMENT_ENABLED:false}
+      enabled: ${CUSTOMER_PORTAL_WALLET_PAYMENT_ENABLED:true}
     shiprocket:
       enabled: ${SHIPROCKET_ENABLED:false}
       base-url: ${SHIPROCKET_BASE_URL:https://apiv2.shiprocket.in}
