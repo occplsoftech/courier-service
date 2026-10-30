@@ -20,6 +20,10 @@ public interface PortalBookingRepository extends JpaRepository<PortalBooking, UU
     Optional<PortalBooking> findOwned(@Param("id") UUID id, @Param("companyId") UUID companyId,
                                       @Param("customerId") UUID customerId);
 
+    @Query("select b from PortalBooking b where b.companyId = :companyId and b.providerCode = :provider and b.providerOrderRef = :ref")
+    Optional<PortalBooking> findByProviderRef(@Param("companyId") UUID companyId, @Param("provider") String provider,
+                                              @Param("ref") String ref);
+
     @Query("select count(b) > 0 from PortalBooking b where b.quoteId = :quoteId and b.companyId = :companyId "
             + "and b.status in :statuses")
     boolean existsForQuote(@Param("quoteId") UUID quoteId, @Param("companyId") UUID companyId,
