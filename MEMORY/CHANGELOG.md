@@ -10,7 +10,7 @@ All notable changes to this project. Format based on
 
 ## 2026-10-30 — Bulk booking: nothing about the pickup or parcel size in the sheet
 
-- Pickup name/phone (customer's contact person and mobile), pickup address and pincode (default pickup address, else first address) now come from the customer's profile; no profile address = a clear "add a pickup address" message. Length/breadth/height are no longer in the sheet; every shipment is priced at 10 x 10 x 10 cm (weight sets the charge). Old sheets with extra columns still upload (extra columns ignored).
+- Pickup name/phone (customer's contact person and mobile), pickup address and pincode (default pickup address, else first address) now come from the customer's profile; no profile address = a clear "add a pickup address" message. Length/breadth/height are no longer in the sheet; every shipment is priced at 10 x 10 x 10 cm (weight sets the charge). Delivery city/state are not in the sheet either (the pincode decides). Old sheets with extra columns still upload (extra columns ignored).
 
 ## 2026-10-30 — Bulk booking: length/breadth/height columns optional
 

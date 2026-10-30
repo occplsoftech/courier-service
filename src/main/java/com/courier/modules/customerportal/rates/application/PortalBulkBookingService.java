@@ -50,7 +50,7 @@ public class PortalBulkBookingService {
     public static final int MAX_ROWS = 100;
 
     private static final String[] HEADERS = {
-            "Delivery Name", "Delivery Phone", "Delivery Address", "Delivery Pincode", "Delivery City", "Delivery State",
+            "Delivery Name", "Delivery Phone", "Delivery Address", "Delivery Pincode",
             "Weight (kg)", "Packages", "Contents", "Declared Value (Rs)",
             "Payment Mode (PREPAID/COD/TOPAY)"};
 
@@ -110,7 +110,7 @@ public class PortalBulkBookingService {
                 sheet.setColumnWidth(i, 20 * 256);
             }
             String[] sample = {
-                    "Ravi Kumar", "9800000002", "5 Park Street, Mumbai", "400001", "Mumbai", "Maharashtra",
+                    "Ravi Kumar", "9800000002", "5 Park Street, Mumbai", "400001",
                     "2.5", "1", "Garments", "1500", "PREPAID"};
             Row r = sheet.createRow(1);
             for (int i = 0; i < sample.length; i++) {
@@ -209,7 +209,7 @@ public class PortalBulkBookingService {
                     decimal(v.get("Declared Value (Rs)"), "Declared value"), mode);
             CompareCommand cmd = new CompareCommand(
                     new PartyInput(contact.name(), contact.phone(), contact.address(), contact.pincode(), null, null),
-                    new PartyInput(dName, v.get("Delivery Phone"), v.get("Delivery Address"), dPin, v.get("Delivery City"), v.get("Delivery State")),
+                    new PartyInput(dName, v.get("Delivery Phone"), v.get("Delivery Address"), dPin, null, null),
                     pkg);
             BulkQuote q = comparison.compareForBulk(cmd);
             if (q.optionId() == null) {
