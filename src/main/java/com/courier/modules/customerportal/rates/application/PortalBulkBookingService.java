@@ -52,11 +52,14 @@ public class PortalBulkBookingService {
 
     private static final String[] HEADERS = {
             "Delivery Name", "Delivery Phone", "Delivery Address", "Delivery Pincode",
-            "Weight (kg)", "Packages", "Contents", "Declared Value (Rs)",
+            "Weight (kg)", "Packages", "Contents",
             "Payment Mode (PREPAID/COD/TOPAY)"};
 
     /** Parcel size is not asked: every shipment is priced at 10 x 10 x 10 cm, so the weight (not volume) sets the charge. */
     private static final BigDecimal DEFAULT_DIMENSION_CM = BigDecimal.TEN;
+
+    /** The sheet does not ask for a declared value: every shipment is booked at this one. */
+    private static final BigDecimal DEFAULT_DECLARED_VALUE = new BigDecimal("2000");
 
     private final RateComparisonService comparison;
     private final PortalBookingService booking;
@@ -113,7 +116,7 @@ public class PortalBulkBookingService {
             }
             String[] sample = {
                     "Ravi Kumar", "9800000002", "5 Park Street, Mumbai", "400001",
-                    "2.5", "1", "Garments", "1500", "PREPAID"};
+                    "2.5", "1", "Garments", "PREPAID"};
             Row r = sheet.createRow(1);
             for (int i = 0; i < sample.length; i++) {
                 r.createCell(i).setCellValue(sample[i]);
@@ -208,7 +211,7 @@ public class PortalBulkBookingService {
             PackageInput pkg = new PackageInput(weight, DEFAULT_DIMENSION_CM, DEFAULT_DIMENSION_CM, DEFAULT_DIMENSION_CM, "CM",
                     blank(v.get("Packages")) ? 1 : integer(v.get("Packages"), "Packages"),
                     blank(v.get("Contents")) ? "General goods" : v.get("Contents"),
-                    decimal(v.get("Declared Value (Rs)"), "Declared value"), mode);
+                    DEFAULT_DECLARED_VALUE, mode);
             CompareCommand cmd = new CompareCommand(
                     new PartyInput(contact.name(), contact.phone(), contact.address(), contact.pincode(), null, null),
                     new PartyInput(dName, v.get("Delivery Phone"), v.get("Delivery Address"), dPin, city(dPin), state(dPin)),

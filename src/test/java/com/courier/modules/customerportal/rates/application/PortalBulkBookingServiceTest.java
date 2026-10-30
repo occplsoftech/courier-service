@@ -80,6 +80,7 @@ class PortalBulkBookingServiceTest {
         assertThat(cap.getValue().pickup().phone()).isEqualTo("9800000001");
         assertThat(cap.getValue().pickup().address()).isEqualTo("12 MG Road, Pune");
         assertThat(cap.getValue().pickup().pincode()).isEqualTo("411001");
+        assertThat(cap.getValue().pkg().declaredValue()).isEqualByComparingTo("2000");
         assertThat(cap.getValue().delivery().city()).isEqualTo("Mumbai");
         assertThat(cap.getValue().delivery().state()).isEqualTo("Maharashtra");
         assertThat(cap.getValue().pkg().length()).isEqualByComparingTo("10");
