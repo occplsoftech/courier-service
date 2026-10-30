@@ -12,6 +12,10 @@ All notable changes to this project. Format based on
 
 - `/api/v1/customer-portal/bulk-bookings`: `GET /template` (xlsx), `POST /preview` (upload; checks and prices up to 100 rows, books nothing), `POST /book` (the confirmed quote/option pairs). No new tables: each row is an ordinary rate quote and books through `PortalBookingService`, so wallet / To Pay / credit rules are unchanged; idempotency key `bulk-<quoteId>` stops a double confirm booking twice.
 - Row pricing: the customer's business rate when OCCPL Network priced one (service code `OCCPL_BUSINESS_RATE`), else the cheapest courier the customer may use. The per-minute comparison cap is skipped for bulk (batch size is capped instead).
+## 2026-10-30 — Business rates or company rates per customer (V147)
+
+- `customers.use_business_rates` (default off; customers with an active pricing zone are switched on by the migration, so nothing changes for them). Off: the customer's rate card is ignored and the company's rates (zone tariff / district freight) apply, at the counter and in the portal. On: the rate card applies where it covers, company rates otherwise.
+- Gate is `PricingZoneServiceImpl.resolve`. `GET/PUT /api/v1/customer-rates/customer/{id}/source` (write: COMPANY_ADMIN, audited).
 ## 2026-10-30 — Customer rate slabs include their upper weight
 
 - A business customer's weight slab now covers the weights above its minimum **up to and including its maximum** (`ZoneRateSlab.covers`).
