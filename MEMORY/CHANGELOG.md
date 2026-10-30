@@ -8,6 +8,10 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-30 — Business rates or company rates per customer (V147)
+
+- `customers.use_business_rates` (default off; customers with an active pricing zone are switched on by the migration, so nothing changes for them). Off: the customer's rate card is ignored and the company's rates (zone tariff / district freight) apply, at the counter and in the portal. On: the rate card applies where it covers, company rates otherwise.
+- Gate is `PricingZoneServiceImpl.resolve`. `GET/PUT /api/v1/customer-rates/customer/{id}/source` (write: COMPANY_ADMIN, audited).
 ## 2026-10-30 — Customer rate slabs include their upper weight
 
 - A business customer's weight slab now covers the weights above its minimum **up to and including its maximum** (`ZoneRateSlab.covers`).

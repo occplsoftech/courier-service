@@ -36,6 +36,13 @@ public class CustomerPortalLookup {
                 .filter(Customer::isActive);
     }
 
+    /** Whether the customer is priced from their own rate card (true) or the company's rates (false, also when unknown). */
+    @Transactional(readOnly = true)
+    public boolean usesBusinessRates(UUID companyId, UUID customerId) {
+        return customerRepository.findByIdWithinCompany(customerId, companyId)
+                .map(Customer::isUseBusinessRates).orElse(false);
+    }
+
     /** The customer's ACTIVE addresses, oldest first. */
     @Transactional(readOnly = true)
     public List<CustomerAddress> activeAddresses(UUID companyId, UUID customerId) {

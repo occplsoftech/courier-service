@@ -111,6 +111,11 @@ public class Customer extends CompanyOwnedEntity {
     @Builder.Default
     private BillingFrequency billingFrequency = BillingFrequency.MONTHLY;
 
+    /** True: this customer's own rate card (pricing zones) prices their bookings. False: the company's rates apply. */
+    @Column(name = "use_business_rates", nullable = false)
+    @Builder.Default
+    private boolean useBusinessRates = false;
+
     @Column(name = "billing_address_line1", length = 255)
     private String billingAddressLine1;
 
