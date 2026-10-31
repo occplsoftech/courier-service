@@ -36,6 +36,16 @@ public interface PickupService {
     /** The active Pickup-Delivery Partner mapped to this pickup's pincode (Pincode Branch Mapping), if any. */
     java.util.Optional<UUID> suggestPartner(UUID id);
 
+    /** An active pickup partner a pickup can be assigned to. */
+    record PartnerOption(UUID id, String code, String name) {
+    }
+
+    /**
+     * The active Pickup-Delivery Partners (allowed to do pickups) a pickup can be assigned to: for the company admin and for the
+     * manager of a branch, who may not otherwise "see" other branches. A partner's own staff get an empty list.
+     */
+    java.util.List<PartnerOption> assignablePartners();
+
     PickupRequest accept(UUID id);
 
     /** Back to the pool (REQUESTED); the reason is kept for staff. */

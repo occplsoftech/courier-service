@@ -81,9 +81,17 @@ public class PickupController {
         return ApiResponse.success(toResponse(service.get(id), new HashMap<>()));
     }
 
+    @GetMapping("/partners")
+    @Operation(summary = "Pickup partners a pickup can be assigned to", description = "Active partners that may do pickups. For the company "
+            + "admin and branch managers (who cannot list other branches); empty for a partner's own staff.")
+    public ApiResponse<java.util.List<PickupService.PartnerOption>> partners() {
+        return ApiResponse.success(service.assignablePartners());
+    }
+
     @GetMapping("/{id}/suggested-partner")
     @Operation(summary = "Partner suggested for this pickup", description = "The active Pickup-Delivery Partner mapped to "
-            + "the pickup's pincode in Pincode Branch Mapping. `data` is null when there is none. Admin only.")
+            + "the pickup's pincode in Pincode Branch Mapping. `data` is null when there is none. Admin, or the manager of the "
+            + "branch the pickup belongs to.")
     public ApiResponse<UUID> suggestedPartner(@PathVariable UUID id) {
         return ApiResponse.success(service.suggestPartner(id).orElse(null));
     }

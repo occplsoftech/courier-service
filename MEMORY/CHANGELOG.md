@@ -8,6 +8,10 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-31 — Branch manager: suggested partner and partner list no longer admin-only
+
+- Found on dev: a branch manager got "You do not have permission" when assigning a pickup. `GET /pickups/{id}/suggested-partner` was admin-only (now: admin or the manager of the owning branch), and the partner list came from the branch listing, which hides other branches from a branch manager. New `GET /pickups/partners` returns the active pickup partners for the admin and for branch managers; the staff assign dialog uses it.
+
 ## 2026-10-30 — OCCPL's PUNE, EXPUNE, METRO, WEST and NORTH_EAST zones as in the previous software (V152)
 
 - METRO: New Delhi (all of Delhi), Hyderabad, Bangalore, Chennai; Mumbai now prices as MAHARASHTRA, Kolkata as EAST.
