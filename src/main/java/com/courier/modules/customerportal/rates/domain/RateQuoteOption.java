@@ -64,6 +64,8 @@ public class RateQuoteOption extends CompanyOwnedEntity {
     private List<Map<String, Object>> breakdown;
 
     @Column(name = "provider_quote_ref", length = 120, updatable = false) private String providerQuoteRef;
+    /** A short note shown next to the price, e.g. "Minimum chargeable weight 20 kg". */
+    @Column(name = "note", length = 255, updatable = false) private String note;
     @Column(name = "valid_until", updatable = false) private Instant validUntil;
 
     public boolean isAvailable() {

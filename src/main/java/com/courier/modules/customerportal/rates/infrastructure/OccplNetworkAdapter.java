@@ -120,14 +120,19 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
         add(lines, "ODA", "Out-of-delivery-area charge", ChargeComponent.REMOTE_AREA, q.odaCharge());
         add(lines, "FUEL", "Fuel surcharge", ChargeComponent.FUEL_SURCHARGE, q.fuelSurcharge());
         add(lines, "FOV", "Risk cover (FOV)", ChargeComponent.INSURANCE, q.fovCharge());
+        // A card with a minimum chargeable weight above 1 kg says so (e.g. Cargo: 20 kg), whatever the parcel weighs.
+        String note = q.minChargeableWeight() != null && q.minChargeableWeight().compareTo(BigDecimal.ONE) > 0
+                ? "Minimum chargeable weight " + q.minChargeableWeight().stripTrailingZeros().toPlainString() + " kg" : null;
         if (c.serviceTypeId() == null) {
             return new ProviderRate(BUSINESS_SERVICE_CODE, "OCCPL Standard", "SURFACE", null, null, q.chargeableWeight(), lines,
-                    BUSINESS_REFERENCE, null);
+                    BUSINESS_REFERENCE, null, note);
         }
         String code = c.serviceTypeCode() == null ? "SERVICE" : c.serviceTypeCode().toUpperCase();
-        String mode = code.length() <= 20 ? code : code.substring(0, 20);
-        return new ProviderRate("OCCPL_" + code, "OCCPL " + (c.serviceTypeName() == null ? code : c.serviceTypeName()), mode,
-                null, null, q.chargeableWeight(), lines, BUSINESS_REFERENCE, null);
+        // The mode label is the service type's name (CARGO, not its code CRG), which is what the portal shows and filters by.
+        String name = c.serviceTypeName() == null ? code : c.serviceTypeName();
+        String mode = name.toUpperCase().length() <= 20 ? name.toUpperCase() : name.toUpperCase().substring(0, 20);
+        return new ProviderRate("OCCPL_" + code, "OCCPL " + name, mode,
+                null, null, q.chargeableWeight(), lines, BUSINESS_REFERENCE, null, note);
     }
 
     /** The company's zone tariff for parcels, one option per service type; unavailable when it has none. */

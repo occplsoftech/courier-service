@@ -271,7 +271,7 @@ public class ZoneRateServiceImpl implements ZoneRateService {
                 .add(rate.getPackCharge()).add(oda).add(fuel).add(fov);
         return new Quote(zone.getId(), zone.getZoneName(), q.actualWeight(), chargeable, effectivePerKg,
                 freight, rate.getDocketCharge(), rate.getMathadiCharge(), rate.getPackCharge(), oda, fuel, fov,
-                money(total), slab.isFixedRate());
+                money(total), slab.isFixedRate(), rate.getMinChargeableWeight());
     }
 
     // ------------------------------------------------------------------ helpers

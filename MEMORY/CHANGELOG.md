@@ -8,6 +8,11 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-03 — Quote option note and clean service labels (V154)
+
+- `rate_quote_options.note` (V154): a short note shown next to an option's price. A customer rate card with a minimum chargeable weight above 1 kg adds "Minimum chargeable weight N kg" (e.g. Cargo 20 kg), whatever the parcel weighs. `OptionView` and `ProviderRate` carry it.
+- A per-service-type option's transport mode is now the service type's **name** in capitals (CARGO), not its code (CRG), so the portal cards and filter tabs read "Cargo", "Surface", "Air", "Premium".
+
 ## 2026-11-03 — Fixed-price slabs on customer rates (V153)
 
 - A customer rate slab can now be a **fixed** price for the whole slab (`customer_zone_rate_slabs.fixed_rate`): slab 0-10 kg at 100 fixed costs 100 for 1 kg and 100 for 10 kg; the next slab can be per kg again. Per-kg stays the default for every existing slab. The quote carries `fixedRate`, and its `ratePerKg` is then the flat price spread over the chargeable weight.
