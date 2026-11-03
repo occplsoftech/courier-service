@@ -57,6 +57,15 @@ public class CourierProvidersConfig {
     }
 
     @Bean
+    public CourierProviderAdapter porterAdapter(RestClient.Builder builder, CustomerPortalProperties props,
+                                                CourierCredentials credentials,
+                                                com.courier.modules.company.application.geocoding.GeocodingPort geocoder) {
+        log.info("Customer portal: Porter {} (companies can also connect their own account)",
+                props.getPorter().configured() ? "connected by the server settings" : "not set in the server settings");
+        return new PorterAdapter(withTimeouts(builder, props), props.getPorter(), credentials::porter, geocoder);
+    }
+
+    @Bean
     public CourierProviderAdapter blueDartAdapter() {
         return new NotConfiguredAdapter("BLUEDART", "Blue Dart");
     }

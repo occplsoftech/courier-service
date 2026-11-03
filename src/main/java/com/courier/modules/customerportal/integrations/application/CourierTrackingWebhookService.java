@@ -3,6 +3,7 @@ package com.courier.modules.customerportal.integrations.application;
 import com.courier.modules.customerportal.integrations.domain.CourierIntegration;
 import com.courier.modules.customerportal.integrations.domain.CourierIntegrationRepository;
 import com.courier.modules.customerportal.rates.application.TrackingSyncService;
+import com.courier.modules.customerportal.rates.infrastructure.PorterAdapter;
 import com.courier.modules.customerportal.rates.infrastructure.ProviderTimes;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +23,8 @@ import java.util.Optional;
  * <p>Couriers send different shapes, so reading is lenient: the usual Shiprocket fields ({@code awb},
  * {@code current_status}, {@code current_timestamp}, {@code scans[].location}) and Delhivery's scan push
  * ({@code Shipment.AWB}, {@code Shipment.Status.Status / StatusLocation / StatusDateTime}) are understood, a list of such
- * objects too. Whatever is pushed is confirmed with the courier's own API by the tracking sync shortly after
+ * objects too, and Porter's order push ({@code order_id} = the CRN stored as the tracking number, {@code status} such as
+ * {@code order_accepted} or {@code order_end_job}, {@code order_details.event_ts}). Whatever is pushed is confirmed with the courier's own API by the tracking sync shortly after
  * ({@link TrackingSyncService#recordPushed}), so a garbled push does not stick.
  */
 @Slf4j
@@ -31,7 +33,7 @@ import java.util.Optional;
 public class CourierTrackingWebhookService {
 
     private static final List<String> AWB_KEYS = List.of("awb", "AWB", "awb_code", "awb_number", "waybill", "Waybill", "wbn",
-            "tracking_number", "trackingNumber");
+            "tracking_number", "trackingNumber", "order_id");
     private static final List<String> STATUS_KEYS = List.of("current_status", "shipment_status", "status", "Status");
     private static final List<String> LOCATION_KEYS = List.of("location", "current_location", "StatusLocation", "ScannedLocation");
     private static final List<String> TIME_KEYS = List.of("current_timestamp", "StatusDateTime", "timestamp", "date", "ScanDateTime");
@@ -93,6 +95,12 @@ public class CourierTrackingWebhookService {
             status = text(statusNode, STATUS_KEYS);
             location = text(statusNode, LOCATION_KEYS);
             at = text(statusNode, TIME_KEYS);
+        } else if (body.has("order_id") && String.valueOf(text(body, STATUS_KEYS)).startsWith("order_")) { // Porter
+            status = PorterAdapter.describe(text(body, STATUS_KEYS));
+            location = null;
+            JsonNode ts = body.path("order_details").path("event_ts");
+            out.add(new Update(awb, status, null, ts.isNumber() && ts.asLong() > 0 ? Instant.ofEpochSecond(ts.asLong()) : null));
+            return out;
         } else {
             status = text(body, STATUS_KEYS);
             location = text(body, LOCATION_KEYS);

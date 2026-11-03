@@ -23,6 +23,7 @@ public final class CourierCatalog {
     public static final String DELHIVERY = "DELHIVERY";
     public static final String SHIPYAARI = "SHIPYAARI";
     public static final String SKART = "SKART";
+    public static final String PORTER = "PORTER";
 
     private static final List<Provider> PROVIDERS = List.of(
             new Provider(SHIPROCKET, "Shiprocket", true,
@@ -46,6 +47,14 @@ public final class CourierCatalog {
                             + "Shown in the portal's international rate calculator.",
                     List.of(new Field("userName", "User name", false, true, "The user name of your sKart API account."),
                             new Field("password", "Password", true, true, "Stored encrypted; never shown again."))),
+            new Provider(PORTER, "Porter", true,
+                    "Same-city deliveries by two-wheeler (up to 20 kg) through your Porter for Enterprise account. Shown only when the "
+                            + "pickup and delivery are in the same city; the fare is paid from your Porter wallet.",
+                    List.of(new Field("apiKey", "API key", true, true, "The x-api-key Porter sent you. Stored encrypted; never shown again."),
+                            new Field("mobile", "Account mobile", false, true,
+                                    "The 10-digit mobile number registered with your Porter account. Quotes are asked in its name."),
+                            new Field("system", "Porter system", false, false,
+                                    "Type TEST to use Porter's test (UAT) system with a test key. Leave empty for live orders."))),
             new Provider("BLUEDART", "Blue Dart", false, "Integration not built yet.", List.of()),
             new Provider("EKART", "Ekart", false, "Integration not built yet.", List.of()));
 

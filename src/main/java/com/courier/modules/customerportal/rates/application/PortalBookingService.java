@@ -69,7 +69,23 @@ public class PortalBookingService {
     }
 
     public BookingView book(UUID quoteId, UUID optionId, String idempotencyKey) {
+        return book(quoteId, optionId, idempotencyKey, Pins.NONE);
+    }
+
+    /** A point the customer placed on the map. */
+    public record Pin(BigDecimal lat, BigDecimal lng) {
+    }
+
+    /** The pickup and delivery map pins placed at booking; either may be null. */
+    public record Pins(Pin pickup, Pin delivery) {
+        public static final Pins NONE = new Pins(null, null);
+    }
+
+    public BookingView book(UUID quoteId, UUID optionId, String idempotencyKey, Pins pins) {
         ActingCustomer acting = resolver.require();
+        Pins where = pins == null ? Pins.NONE : pins;
+        checkPin(where.pickup(), "pickup");
+        checkPin(where.delivery(), "delivery");
         if (quoteId == null || optionId == null) {
             throw new BusinessRuleException("Choose a courier service to book.");
         }
@@ -105,7 +121,7 @@ public class PortalBookingService {
         if (paidFromWallet) {
             payFromWallet(acting, booking);
         }
-        BookingRequest request = request(acting, booking, start.quote(), start.option());
+        BookingRequest request = request(acting, booking, start.quote(), start.option(), where);
 
         BookingOutcome outcome;
         try {
@@ -166,8 +182,25 @@ public class PortalBookingService {
         }
     }
 
+    /** A pin must be a real point in India: a swapped or zero latitude/longitude would send a rider somewhere else. */
+    private static void checkPin(Pin pin, String which) {
+        if (pin == null) {
+            return;
+        }
+        if (pin.lat() == null || pin.lng() == null
+                || pin.lat().compareTo(BigDecimal.valueOf(6)) < 0 || pin.lat().compareTo(BigDecimal.valueOf(37.5)) > 0
+                || pin.lng().compareTo(BigDecimal.valueOf(68)) < 0 || pin.lng().compareTo(BigDecimal.valueOf(97.5)) > 0) {
+            throw new BusinessRuleException("The " + which + " pin is not in India. Please place it on the map again.");
+        }
+    }
+
+    private static BookingRequest.Party pinned(BookingRequest.Party p, Pin pin) {
+        return pin == null ? p
+                : new BookingRequest.Party(p.name(), p.phone(), p.address(), p.pincode(), p.city(), p.state(), pin.lat(), pin.lng());
+    }
+
     private BookingRequest request(ActingCustomer acting, PortalBooking booking, RateQuote q,
-                                   com.courier.modules.customerportal.rates.domain.RateQuoteOption option) {
+                                   com.courier.modules.customerportal.rates.domain.RateQuoteOption option, Pins pins) {
         String serviceCode = option.getServiceCode();
         Map<String, Object> snapshot = q.getRequest();
         @SuppressWarnings("unchecked")
@@ -180,7 +213,8 @@ public class PortalBookingService {
                         num(pkg.get("breadth")), num(pkg.get("height")), str(pkg.get("dimensionUnit")),
                         q.getPackageCount(), str(pkg.get("contents")), q.getDeclaredValue(), q.getPaymentMode())));
         return new BookingRequest(acting.companyId(), acting.customerId(), booking.getId().toString(), serviceCode, rate,
-                BookingRequest.Party.of(snapshot.get("pickup")), BookingRequest.Party.of(snapshot.get("delivery")),
+                pinned(BookingRequest.Party.of(snapshot.get("pickup")), pins.pickup()),
+                pinned(BookingRequest.Party.of(snapshot.get("delivery")), pins.delivery()),
                 str(pkg.get("contents")), booking.getTotalAmount(),
                 RateComparisonService.lines(option).stream().map(l -> new com.courier.modules.customerportal.rates.domain.ChargeLine(
                         l.label(), l.label(), component(l.component()), l.amount())).toList(),

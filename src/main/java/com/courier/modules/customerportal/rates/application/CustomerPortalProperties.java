@@ -39,6 +39,7 @@ public class CustomerPortalProperties {
     private Delhivery delhivery = new Delhivery();
     private Shipyaari shipyaari = new Shipyaari();
     private Skart skart = new Skart();
+    private Porter porter = new Porter();
     private TrackingSync trackingSync = new TrackingSync();
 
     /**
@@ -151,6 +152,30 @@ public class CustomerPortalProperties {
 
         public boolean configured() {
             return enabled && notBlank(userName) && notBlank(password);
+        }
+    }
+
+    /**
+     * Porter (porter.in, same-city two-wheeler deliveries): the API key Porter issues, and the mobile number quotes are asked in
+     * the name of. Two fixed hosts (Porter API contract 1.0): live and the UAT test system, chosen by {@code testMode}.
+     */
+    @Getter
+    @Setter
+    public static class Porter {
+        private boolean enabled = false;
+        private String baseUrl = "https://pfe-apigw.porter.in";
+        private String testBaseUrl = "https://pfe-apigw-uat.porter.in";
+        private boolean testMode = false;
+        private String apiKey;
+        /** A 10-digit mobile registered with the Porter account; Porter's quote API asks for a customer mobile. */
+        private String mobile;
+
+        public boolean configured() {
+            return enabled && notBlank(apiKey) && notBlank(mobile);
+        }
+
+        public String host() {
+            return testMode ? testBaseUrl : baseUrl;
         }
     }
 

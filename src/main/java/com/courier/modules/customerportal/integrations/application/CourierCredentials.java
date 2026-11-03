@@ -87,6 +87,23 @@ public class CourierCredentials {
         return c;
     }
 
+    public CustomerPortalProperties.Porter porter(UUID companyId) {
+        CustomerPortalProperties.Porter env = properties.getPorter();
+        Resolved row = resolved(companyId, CourierCatalog.PORTER);
+        if (row.useEnvironment()) {
+            return env;
+        }
+        CustomerPortalProperties.Porter c = new CustomerPortalProperties.Porter();
+        c.setBaseUrl(env.getBaseUrl());
+        c.setTestBaseUrl(env.getTestBaseUrl());
+        c.setEnabled(row.enabled());
+        c.setApiKey(row.value("apiKey"));
+        c.setMobile(row.value("mobile"));
+        String mode = row.value("system");
+        c.setTestMode(mode != null && mode.trim().toUpperCase(java.util.Locale.ROOT).startsWith("TEST"));
+        return c;
+    }
+
     private Resolved resolved(UUID companyId, String code) {
         if (companyId == null) {
             return Resolved.ENVIRONMENT;

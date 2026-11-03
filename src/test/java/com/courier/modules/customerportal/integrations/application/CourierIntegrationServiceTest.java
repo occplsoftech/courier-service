@@ -74,7 +74,7 @@ class CourierIntegrationServiceTest {
     void lists() {
         List<IntegrationView> all = service.list();
 
-        assertThat(all).extracting(IntegrationView::code).containsExactly("SHIPROCKET", "DELHIVERY", "SHIPYAARI", "SKART", "BLUEDART", "EKART");
+        assertThat(all).extracting(IntegrationView::code).containsExactly("SHIPROCKET", "DELHIVERY", "SHIPYAARI", "SKART", "PORTER", "BLUEDART", "EKART");
         assertThat(find(all, "SHIPROCKET").source()).isEqualTo("NONE");
         assertThat(find(all, "SHIPYAARI").available()).isTrue();
         assertThat(find(all, "SHIPYAARI").source()).isEqualTo("NONE");
