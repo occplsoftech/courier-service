@@ -11,6 +11,30 @@ All notable changes to this project. Format based on
 ## 2026-10-30 — Roadmap for the customer portal and courier forwarding
 
 - New `MEMORY/modules/customer-portal-roadmap.md`: phases 6-13 as tables (done work, stabilise, hub forwarding to couriers, customer quick wins, notifications, money, returns and reports, integrations), with repos, sizes, dependencies and owner decisions. Linked from `BACKLOG.md`, `customer-portal.md` and `AI_CONTEXT.md`.
+## 2026-11-03 — Quote option note and clean service labels (V154)
+
+- `rate_quote_options.note` (V154): a short note shown next to an option's price. A customer rate card with a minimum chargeable weight above 1 kg adds "Minimum chargeable weight N kg" (e.g. Cargo 20 kg), whatever the parcel weighs. `OptionView` and `ProviderRate` carry it.
+- A per-service-type option's transport mode is now the service type's **name** in capitals (CARGO), not its code (CRG), so the portal cards and filter tabs read "Cargo", "Surface", "Air", "Premium".
+
+## 2026-11-03 — Fixed-price slabs on customer rates (V153)
+
+- A customer rate slab can now be a **fixed** price for the whole slab (`customer_zone_rate_slabs.fixed_rate`): slab 0-10 kg at 100 fixed costs 100 for 1 kg and 100 for 10 kg; the next slab can be per kg again. Per-kg stays the default for every existing slab. The quote carries `fixedRate`, and its `ratePerKg` is then the flat price spread over the chargeable weight.
+- Excel rate import: each slab has a `Slab n Pricing (PER_KG/FIXED)` column (blank = per kg); the template and instructions explain it and show the minimum chargeable weight (e.g. 20 kg for Cargo).
+## 2026-10-31 — Branch manager: suggested partner and partner list no longer admin-only
+
+- Found on dev: a branch manager got "You do not have permission" when assigning a pickup. `GET /pickups/{id}/suggested-partner` was admin-only (now: admin or the manager of the owning branch), and the partner list came from the branch listing, which hides other branches from a branch manager. New `GET /pickups/partners` returns the active pickup partners for the admin and for branch managers; the staff assign dialog uses it.
+
+## 2026-10-30 — OCCPL's PUNE, EXPUNE, METRO, WEST and NORTH_EAST zones as in the previous software (V152)
+
+- METRO: New Delhi (all of Delhi), Hyderabad, Bangalore, Chennai; Mumbai now prices as MAHARASHTRA, Kolkata as EAST.
+- PUNE: Pune City taluka (Pune, Pimpri, Chinchwad) plus 411057 Wakad/Hinjewadi and 411061 Pimple Gurav.
+- EXPUNE: Maval taluka and the towns' pincodes (Chakan, Alandi, Dehu Road, Pirangut, Loni Kalbhor, Talegaon Dhamdhere, Ranjangaon,
+  Fursungi) plus 411025; no longer the whole district (the rest of Pune district is MAHARASHTRA, same rates).
+- WEST: adds Dadra & Nagar Haveli (Silvassa). NORTH_EAST: adds Jammu & Kashmir (moved from NORTH), Ladakh, Andaman & Nicobar. EXMAHARASHTRA stays empty (its towns price as MAHARASHTRA, which has Cargo).
+- Soft deletes and guarded inserts, OCCPL and OCCPL_COURIER only. Tested on MySQL 8.0 (V1–V152, rerun adds nothing, 17 sample
+  pincodes resolve as the old software).
+
+---
 
 ## 2026-10-30 — Import a customer's rates from one Excel sheet
 

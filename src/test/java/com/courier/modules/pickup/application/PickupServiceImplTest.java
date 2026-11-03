@@ -28,6 +28,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -216,10 +217,16 @@ class PickupServiceImplTest {
 
         as(otherManager, Roles.BRANCH_MANAGER);
         assertThatThrownBy(() -> service.assign(p.getId(), PDP)).hasMessageContaining("Only the branch");
+        assertThatThrownBy(() -> service.suggestPartner(p.getId())).hasMessageContaining("Only the branch");
         assertThatThrownBy(() -> service.get(p.getId())).isInstanceOf(com.courier.shared.exception.ResourceNotFoundException.class);
 
         as(manager, Roles.BRANCH_MANAGER);
         assertThat(service.get(p.getId())).isSameAs(p);
+        // the branch manager may ask for the suggested partner and the list of partners (no admin-only 403)
+        service.suggestPartner(p.getId());
+        when(branches.findAllByCompanyIdAndStatusOrderByBranchCodeAsc(eq(COMPANY), any())).thenReturn(List.of(
+                partner(PDP, BranchType.PICKUP_DELIVERY_PARTNER, true), partner(otherBranch, BranchType.BRANCH, true)));
+        assertThat(service.assignablePartners()).extracting(PickupService.PartnerOption::id).containsExactly(PDP);
         service.assign(p.getId(), PDP);
         assertThat(p.getStatus()).isEqualTo(PickupStatus.ASSIGNED);
         assertThat(p.getPdpBranchId()).isEqualTo(PDP);

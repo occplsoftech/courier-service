@@ -50,7 +50,12 @@ public interface ZoneRateService {
                        List<SlabInput> slabs, Long expectedVersion) {
     }
 
-    record SlabInput(BigDecimal minWeight, BigDecimal maxWeight, BigDecimal ratePerKg) {
+    /** {@code ratePerKg} is the price per kg, or the flat price of the whole slab when {@code fixedRate}. */
+    record SlabInput(BigDecimal minWeight, BigDecimal maxWeight, BigDecimal ratePerKg, boolean fixedRate) {
+
+        public SlabInput(BigDecimal minWeight, BigDecimal maxWeight, BigDecimal ratePerKg) {
+            this(minWeight, maxWeight, ratePerKg, false);
+        }
     }
 
     record QuoteCommand(UUID customerId, UUID districtId, UUID cityId, BigDecimal actualWeight,
@@ -66,6 +71,22 @@ public interface ZoneRateService {
     record Quote(UUID zoneId, String zoneName, BigDecimal actualWeight, BigDecimal chargeableWeight,
                  BigDecimal ratePerKg, BigDecimal freight, BigDecimal docketCharge, BigDecimal mathadiCharge,
                  BigDecimal packCharge, BigDecimal odaCharge, BigDecimal fuelSurcharge, BigDecimal fovCharge,
-                 BigDecimal total) {
+                 BigDecimal total, boolean fixedRate, BigDecimal minChargeableWeight) {
+
+        /** Without the card's minimum chargeable weight. */
+        public Quote(UUID zoneId, String zoneName, BigDecimal actualWeight, BigDecimal chargeableWeight, BigDecimal ratePerKg,
+                     BigDecimal freight, BigDecimal docketCharge, BigDecimal mathadiCharge, BigDecimal packCharge, BigDecimal odaCharge,
+                     BigDecimal fuelSurcharge, BigDecimal fovCharge, BigDecimal total, boolean fixedRate) {
+            this(zoneId, zoneName, actualWeight, chargeableWeight, ratePerKg, freight, docketCharge, mathadiCharge, packCharge,
+                    odaCharge, fuelSurcharge, fovCharge, total, fixedRate, null);
+        }
+
+        /** {@code ratePerKg} is the slab's rate, or (fixed slab) the flat price spread over the chargeable weight. */
+        public Quote(UUID zoneId, String zoneName, BigDecimal actualWeight, BigDecimal chargeableWeight, BigDecimal ratePerKg,
+                     BigDecimal freight, BigDecimal docketCharge, BigDecimal mathadiCharge, BigDecimal packCharge, BigDecimal odaCharge,
+                     BigDecimal fuelSurcharge, BigDecimal fovCharge, BigDecimal total) {
+            this(zoneId, zoneName, actualWeight, chargeableWeight, ratePerKg, freight, docketCharge, mathadiCharge, packCharge,
+                    odaCharge, fuelSurcharge, fovCharge, total, false);
+        }
     }
 }

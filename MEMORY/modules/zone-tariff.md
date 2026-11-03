@@ -95,6 +95,13 @@ Service Type master: `SURFACE`, `AIR`, `PREMIUM`, `CARGO`. Package Type master: 
 - V149 loads every other state (India Post directory). V150 then adds those zones' states, and METRO's metros as **districts**
   (Delhi's every district, Mumbai, Kolkata, Chennai, Bangalore, Hyderabad): the directory files a metro's pincodes under many
   talukas, so city places would miss most of them. District beats state, so METRO wins over SOUTH/EAST/NORTH.
+- **V152 (2026-10-30): PUNE, EXPUNE, METRO as in the previous software** (its "Edit Domestic Zone" screens, pasted by the
+  user). METRO = New Delhi (all Delhi), Hyderabad, Bangalore, Chennai: Mumbai → MAHARASHTRA, Kolkata → EAST. PUNE = Pune City
+  taluka (holds Pimpri, Chinchwad) + pincodes 411057 (Wakad/Hinjewadi), 411061 (Pimple Gurav). EXPUNE = Maval taluka + town pincodes
+  410501 Chakan, 412105 Alandi, 412101 Dehu Road, 412115 Pirangut, 412201 Loni Kalbhor, 412208 Talegaon Dhamdhere, 412209/412220
+  Ranjangaon, 412308 Fursungi, 411025 Khadakwasla; the rest of Pune district is MAHARASHTRA (same rates as EXPUNE). WEST gains Dadra &
+  Nagar Haveli (Silvassa); NORTH_EAST gains Jammu & Kashmir (out of NORTH), Ladakh, Andaman & Nicobar. CENTRAL, EAST, MAHARASHTRA (whole state), VIDHARBHA (11 districts) checked: no change; EXMAHARASHTRA
+  left empty on purpose (its towns are also in the old MAHARASHTRA list, and only MAHARASHTRA has Cargo rates).
 - Still no zone: Andaman & Nicobar, Dadra & Nagar Haveli, Daman & Diu is WEST, Lakshadweep none. EXMAHARASHTRA stays empty.
 
 ## Next

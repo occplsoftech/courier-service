@@ -30,13 +30,16 @@
 | Pickup belongs to the branch of its pincode; that branch's manager sees and assigns it | CS, CW | |
 | Per-customer courier visibility (default OCCPL Network only) | CS, CW | V146 |
 | Wallet, To Pay and credit customers; parcel photos; S3 files with signed links; label printing (A4, Code128) | CS, EC | |
+| **Fixed-price slabs** (a slab can be a flat price: 0-10 kg at 100 fixed = 100 for 1 kg and for 10 kg) and the Excel import's `Slab n Pricing` column | CS, CW | V153 |
+| **Quote option note** ("Minimum chargeable weight 20 kg" on Cargo) and clean service labels (Cargo, not CRG) in the calculator and booking screens | CS, EC | V154 |
+| Branch manager can see the suggested partner and the partner list, and assign a pickup | CS, CW | `GET /pickups/partners` |
 | Page headers (brand band with icon) and Bulk booking table layout | EC | |
 
 ## Phase 7 — Stabilise and verify `[~]`
 
 | # | Item | Repos | Size | Status |
 |---|---|---|---|---|
-| 7.1 | Retest on dev: branch manager assigns a pickup (#60), collected pickup becomes BOOKED, Excel rate import screen, per-service rates end to end | all | S | `[ ]` |
+| 7.1 | Retest on dev after the latest releases: branch manager assigns through the screen (#66, courier-web #27), fixed-price slab quotes, Cargo note on the live calculator | all | S | `[ ]` |
 | 7.2 | Rate import: accept the service type **name** as well as the code | CS | S | `[ ]` |
 | 7.3 | Warn when no slab covers the card's minimum chargeable weight | CS, CW | S | `[ ]` |
 | 7.4 | Remove the old all-services "OCCPL Standard" test rate if the owner wants only the four services | dev data | S | `[ ]` |
