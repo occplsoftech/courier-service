@@ -184,13 +184,27 @@ public class PickupServiceImpl implements PickupService {
 
     @Override
     @Transactional(readOnly = true)
-    @PreAuthorize(STAFF)
+    @PreAuthorize(READ)
     public java.util.Optional<UUID> suggestPartner(UUID id) {
         PickupRequest p = load(id);
+        requireMayRoute(p);
         return coverage.findByPincode(p.getPincode())
                 .flatMap(ref -> pincodeMappings.findBranchForPincode(ref.pincodeId()))
                 .filter(b -> b.getBranchType() == BranchType.PICKUP_DELIVERY_PARTNER && b.isActive() && b.isAllowPickup())
                 .map(Branch::getId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize(READ)
+    public java.util.List<PartnerOption> assignablePartners() {
+        Scope own = scope();
+        if (own.pdp() != null) {
+            return java.util.List.of(); // a partner's own staff do not route pickups
+        }
+        return branches.findAllByCompanyIdAndStatusOrderByBranchCodeAsc(requireCompany(), com.courier.modules.company.domain.BranchStatus.ACTIVE)
+                .stream().filter(b -> b.getBranchType() == BranchType.PICKUP_DELIVERY_PARTNER && b.isAllowPickup())
+                .map(b -> new PartnerOption(b.getId(), b.getBranchCode(), b.getBranchName())).toList();
     }
 
     @Override

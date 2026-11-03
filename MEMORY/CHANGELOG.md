@@ -12,6 +12,9 @@ All notable changes to this project. Format based on
 
 - A customer rate slab can now be a **fixed** price for the whole slab (`customer_zone_rate_slabs.fixed_rate`): slab 0-10 kg at 100 fixed costs 100 for 1 kg and 100 for 10 kg; the next slab can be per kg again. Per-kg stays the default for every existing slab. The quote carries `fixedRate`, and its `ratePerKg` is then the flat price spread over the chargeable weight.
 - Excel rate import: each slab has a `Slab n Pricing (PER_KG/FIXED)` column (blank = per kg); the template and instructions explain it and show the minimum chargeable weight (e.g. 20 kg for Cargo).
+## 2026-10-31 — Branch manager: suggested partner and partner list no longer admin-only
+
+- Found on dev: a branch manager got "You do not have permission" when assigning a pickup. `GET /pickups/{id}/suggested-partner` was admin-only (now: admin or the manager of the owning branch), and the partner list came from the branch listing, which hides other branches from a branch manager. New `GET /pickups/partners` returns the active pickup partners for the admin and for branch managers; the staff assign dialog uses it.
 
 ## 2026-10-30 — OCCPL's PUNE, EXPUNE, METRO, WEST and NORTH_EAST zones as in the previous software (V152)
 
