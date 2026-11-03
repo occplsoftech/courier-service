@@ -46,6 +46,11 @@ public class ZoneRateSlab extends CompanyOwnedEntity {
     @Column(name = "rate_per_kg", nullable = false, precision = 12, scale = 2)
     private BigDecimal ratePerKg;
 
+    /** True: {@code ratePerKg} is a flat price for the whole slab (any weight in it costs exactly that), not a price per kg. */
+    @Column(name = "fixed_rate", nullable = false)
+    @Builder.Default
+    private boolean fixedRate = false;
+
     /**
      * A slab covers the weights above its minimum up to and including its maximum, so with slabs 0-5 and 5-10 a 5 kg parcel is in the
      * first and 5.3 kg is in the second. A slab that starts at 0 also covers 0 itself. No maximum means no upper limit.

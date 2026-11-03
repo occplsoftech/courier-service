@@ -66,6 +66,12 @@ public class CustomerRateImportService {
     static final String FUEL = "Fuel Surcharge %";
     static final String FOV = "FOV %";
 
+    private static String upTo(int i) { return "Slab " + i + " Up To (kg)"; }
+
+    private static String rateOf(int i) { return "Slab " + i + " Rate/kg"; }
+
+    private static String pricingOf(int i) { return "Slab " + i + " Pricing (PER_KG/FIXED)"; }
+
     private static final List<String> FIXED = List.of(ZONE, DISTRICTS, SERVICE, MIN_WEIGHT, DOCKET, MATHADI, PACK, ODA, FUEL, FOV);
 
     private final PricingZoneService zoneService;
@@ -103,8 +109,9 @@ public class CustomerRateImportService {
             Sheet sheet = wb.createSheet("Rates");
             List<String> headers = new ArrayList<>(FIXED);
             for (int i = 1; i <= MAX_SLABS; i++) {
-                headers.add("Slab " + i + " Up To (kg)");
-                headers.add("Slab " + i + " Rate/kg");
+                headers.add(upTo(i));
+                headers.add(rateOf(i));
+                headers.add(pricingOf(i));
             }
             Row h = sheet.createRow(0);
             for (int i = 0; i < headers.size(); i++) {
@@ -113,16 +120,17 @@ public class CustomerRateImportService {
                 c.setCellStyle(head);
                 sheet.setColumnWidth(i, (i == 1 ? 30 : 18) * 256);
             }
-            String[][] sample = {
-                    {"Pune", "Pune", "AIR", "1", "20", "0", "0", "0", "10", "0.5", "5", "90", "10", "80", "", "70"},
-                    {"Pune", "Pune", "SURFACE", "1", "20", "0", "0", "0", "10", "0.5", "5", "50", "10", "40", "", "35"},
-                    {"Pune", "Pune", "CARGO", "5", "20", "0", "0", "0", "8", "0.5", "10", "30", "", "25"},
-                    {"Mumbai Region", "Mumbai, Thane", "SURFACE", "1", "20", "0", "0", "100", "10", "0.5", "5", "60", "", "45"}};
-            for (int r = 0; r < sample.length; r++) {
+            List<Map<String, String>> samples = List.of(
+                    sample("Pune", "Pune", "AIR", "1", "20", "10", "0.5", new String[][]{{"5", "90", ""}, {"10", "80", ""}, {"", "70", ""}}),
+                    sample("Pune", "Pune", "SURFACE", "1", "20", "10", "0.5", new String[][]{{"10", "100", "FIXED"}, {"", "9", ""}}),
+                    sample("Pune", "Pune", "CARGO", "20", "20", "8", "0.5", new String[][]{{"50", "25", ""}, {"", "20", ""}}),
+                    sample("Mumbai Region", "Mumbai, Thane", "SURFACE", "1", "20", "10", "0.5", new String[][]{{"5", "60", ""}, {"", "45", ""}}));
+            for (int r = 0; r < samples.size(); r++) {
                 Row row = sheet.createRow(r + 1);
-                for (int c = 0; c < sample[r].length; c++) {
-                    if (!sample[r][c].isEmpty()) {
-                        row.createCell(c).setCellValue(sample[r][c]);
+                for (int c = 0; c < headers.size(); c++) {
+                    String v = samples.get(r).get(headers.get(c));
+                    if (v != null && !v.isEmpty()) {
+                        row.createCell(c).setCellValue(v);
                     }
                 }
             }
@@ -147,6 +155,8 @@ public class CustomerRateImportService {
                     "Destination Districts: the districts the zone covers, separated by commas. Needed on at least one row of a new zone; a district can belong to one zone of the customer only.",
                     "Service Type: a code from the Service Types sheet (AIR, SURFACE, CARGO, PREMIUM...). Leave it blank for a rate that applies to every service without a rate of its own.",
                     "Slabs: 'Up To' is the heaviest weight the slab covers, 'Rate/kg' its price. Slab 1 starts above 0, the next above the previous Up To. Leave the last Up To blank for no limit.",
+                    "Pricing: PER_KG (or blank) charges weight x the slab's rate. FIXED makes the rate a flat price for the whole slab: slab 0-10 kg at 100 FIXED costs 100 for 1 kg and 100 for 10 kg.",
+                    "Min Chargeable Weight: the lightest weight a parcel is charged for (e.g. 20 for Cargo): a 5 kg parcel is then priced as 20 kg.",
                     "With slabs 5 and 10: a 5 kg parcel is charged on slab 1, 5.3 kg on slab 2. The whole weight is charged at its slab's rate.",
                     "A rate that already exists for the zone and service type is replaced. Nothing is saved until every row is correct and you confirm."};
             for (int i = 0; i < lines.length; i++) {
@@ -158,6 +168,28 @@ public class CustomerRateImportService {
         } catch (IOException e) {
             throw new BusinessRuleException("Could not build the template.");
         }
+    }
+
+    /** A sample sheet row (heading -> value); each slab is {up to, rate, pricing}. */
+    private static Map<String, String> sample(String zone, String districts, String service, String minWeight, String docket,
+                                               String fuel, String fov, String[][] slabs) {
+        Map<String, String> m = new HashMap<>();
+        m.put(ZONE, zone);
+        m.put(DISTRICTS, districts);
+        m.put(SERVICE, service);
+        m.put(MIN_WEIGHT, minWeight);
+        m.put(DOCKET, docket);
+        m.put(MATHADI, "0");
+        m.put(PACK, "0");
+        m.put(ODA, "0");
+        m.put(FUEL, fuel);
+        m.put(FOV, fov);
+        for (int i = 0; i < slabs.length; i++) {
+            m.put(upTo(i + 1), slabs[i][0]);
+            m.put(rateOf(i + 1), slabs[i][1]);
+            m.put(pricingOf(i + 1), slabs[i][2]);
+        }
+        return m;
     }
 
     // ------------------------------------------------------------------ preview / apply
@@ -271,8 +303,9 @@ public class CustomerRateImportService {
                 StringBuilder summary = new StringBuilder();
                 BigDecimal prev = BigDecimal.ZERO;
                 for (int i = 1; i <= MAX_SLABS; i++) {
-                    String upTo = v.get("Slab " + i + " Up To (kg)");
-                    String rate = v.get("Slab " + i + " Rate/kg");
+                    String upTo = v.get(upTo(i));
+                    String rate = v.get(rateOf(i));
+                    String pricing = v.get(pricingOf(i));
                     if (blank(upTo) && blank(rate)) {
                         continue;
                     }
@@ -287,13 +320,18 @@ public class CustomerRateImportService {
                     if (price.signum() < 0) {
                         throw new BusinessRuleException("Slab " + i + " rate cannot be negative.");
                     }
-                    slabs.add(new SlabInput(prev, max, price));
+                    boolean fixed = !blank(pricing) && "FIXED".equalsIgnoreCase(pricing.trim());
+                    if (!blank(pricing) && !fixed && !"PER_KG".equalsIgnoreCase(pricing.trim())) {
+                        throw new BusinessRuleException("Slab " + i + " pricing must be PER_KG or FIXED.");
+                    }
+                    slabs.add(new SlabInput(prev, max, price, fixed));
                     summary.append(summary.length() == 0 ? "" : ", ")
-                            .append(max == null ? plain(prev) + "+" : plain(prev) + "-" + plain(max)).append(" kg @ ").append(plain(price));
+                            .append(max == null ? plain(prev) + "+" : plain(prev) + "-" + plain(max)).append(" kg @ ").append(plain(price))
+                            .append(fixed ? " fixed" : "");
                     if (max == null) {
                         // an open-ended slab must be the last one used
                         for (int j = i + 1; j <= MAX_SLABS; j++) {
-                            if (!blank(v.get("Slab " + j + " Up To (kg)")) || !blank(v.get("Slab " + j + " Rate/kg"))) {
+                            if (!blank(v.get(upTo(j))) || !blank(v.get(rateOf(j)))) {
                                 throw new BusinessRuleException("Slab " + i + " has no upper limit, so no slab can follow it.");
                             }
                         }
@@ -392,8 +430,9 @@ public class CustomerRateImportService {
             Map<Integer, String> cols = new HashMap<>();
             Set<String> known = new LinkedHashSet<>(FIXED);
             for (int i = 1; i <= MAX_SLABS; i++) {
-                known.add("Slab " + i + " Up To (kg)");
-                known.add("Slab " + i + " Rate/kg");
+                known.add(upTo(i));
+                known.add(rateOf(i));
+                known.add(pricingOf(i));
             }
             for (Cell c : head) {
                 String t = fmt.formatCellValue(c).trim();

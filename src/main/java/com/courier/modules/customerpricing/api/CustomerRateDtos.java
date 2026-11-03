@@ -22,7 +22,8 @@ public final class CustomerRateDtos {
     public record SlabRequest(
             @NotNull @DecimalMin("0") BigDecimal minWeight,
             @DecimalMin(value = "0", inclusive = false) BigDecimal maxWeight,
-            @NotNull @DecimalMin("0") BigDecimal ratePerKg) {
+            @NotNull @DecimalMin("0") BigDecimal ratePerKg,
+            Boolean fixedRate) {
     }
 
     /** Full replacement of a zone's rate card. {@code version} is required only when one exists. */
@@ -40,7 +41,7 @@ public final class CustomerRateDtos {
             @PositiveOrZero Long version) {
     }
 
-    public record SlabResponse(UUID id, BigDecimal minWeight, BigDecimal maxWeight, BigDecimal ratePerKg) {
+    public record SlabResponse(UUID id, BigDecimal minWeight, BigDecimal maxWeight, BigDecimal ratePerKg, boolean fixedRate) {
     }
 
     public record RateResponse(
@@ -67,6 +68,6 @@ public final class CustomerRateDtos {
             UUID zoneId, String zoneName, BigDecimal actualWeight, BigDecimal chargeableWeight,
             BigDecimal ratePerKg, BigDecimal freight, BigDecimal docketCharge, BigDecimal mathadiCharge,
             BigDecimal packCharge, BigDecimal odaCharge, BigDecimal fuelSurcharge, BigDecimal fovCharge,
-            BigDecimal total) {
+            BigDecimal total, boolean fixedRate) {
     }
 }

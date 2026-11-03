@@ -165,6 +165,19 @@ class CustomerRateImportServiceTest {
     }
 
     @Test
+    @DisplayName("a slab priced FIXED is flat for the whole slab; an unknown pricing word is refused")
+    void fixedPricing() throws Exception {
+        Map<String, String> fixed = row("A", "Pune", "AIR", "10", "100", "", "9");
+        fixed.put("Slab 1 Pricing (PER_KG/FIXED)", "fixed");
+        Map<String, String> bad = row("B", "Mumbai", "AIR", "10", "100");
+        bad.put("Slab 1 Pricing (PER_KG/FIXED)", "FLAT");
+        ImportPreview p = service.preview(CUSTOMER, new ByteArrayInputStream(sheet(List.of(fixed, bad))));
+        assertThat(p.rows().get(0).ok()).isTrue();
+        assertThat(p.rows().get(0).slabsSummary()).isEqualTo("0-10 kg @ 100 fixed, 10+ kg @ 9");
+        assertThat(p.rows().get(1).error()).contains("PER_KG or FIXED");
+    }
+
+    @Test
     @DisplayName("a district in two zones of the same customer is refused")
     void districtInTwoZones() throws Exception {
         ImportPreview p = service.preview(CUSTOMER, new ByteArrayInputStream(sheet(List.of(

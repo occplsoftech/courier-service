@@ -84,7 +84,7 @@ public class CustomerRateController {
             + "is required only when a rate card already exists.")
     public ApiResponse<RateResponse> save(@PathVariable UUID zoneId, @RequestParam(required = false) UUID serviceTypeId, @Valid @RequestBody SaveRequest r) {
         List<SlabInput> slabs = r.slabs().stream()
-                .map(s -> new SlabInput(s.minWeight(), s.maxWeight(), s.ratePerKg())).toList();
+                .map(s -> new SlabInput(s.minWeight(), s.maxWeight(), s.ratePerKg(), Boolean.TRUE.equals(s.fixedRate()))).toList();
         SaveCommand command = new SaveCommand(r.minChargeableWeight(), r.docketCharge(), r.mathadiCharge(),
                 r.packCharge(), r.odaCharge(), r.fuelSurchargePercent(), r.fovPercent(),
                 r.effectiveFrom(), r.effectiveTo(), slabs, r.version());
@@ -118,7 +118,7 @@ public class CustomerRateController {
                 r.actualWeight(), r.declaredValue(), r.odaApplicable(), r.bookingDate(), r.serviceTypeId()));
         return ApiResponse.success(new CalculateResponse(q.zoneId(), q.zoneName(), q.actualWeight(),
                 q.chargeableWeight(), q.ratePerKg(), q.freight(), q.docketCharge(), q.mathadiCharge(),
-                q.packCharge(), q.odaCharge(), q.fuelSurcharge(), q.fovCharge(), q.total()), "Rate calculated");
+                q.packCharge(), q.odaCharge(), q.fuelSurcharge(), q.fovCharge(), q.total(), q.fixedRate()), "Rate calculated");
     }
 
     private RateResponse toResponse(ZoneRateView v) {
@@ -129,7 +129,7 @@ public class CustomerRateController {
                 r.getEffectiveFrom(), r.getEffectiveTo(), r.getStatus(),
                 r.getServiceTypeId(), v.serviceTypeCode(), v.serviceTypeName(),
                 v.slabs().stream().map(s -> new SlabResponse(s.getId(), s.getMinWeight(), s.getMaxWeight(),
-                        s.getRatePerKg())).toList(),
+                        s.getRatePerKg(), s.isFixedRate())).toList(),
                 r.getCreatedAt(), r.getUpdatedAt(), r.getVersion());
     }
 }
