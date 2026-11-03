@@ -100,6 +100,44 @@ class ZoneRateServiceImplTest {
     }
 
     @Test
+    @DisplayName("a fixed slab is one flat price: 1 kg and 10 kg both cost 100; the next slab is per kg again")
+    void fixedSlabIsAFlatPrice() {
+        ZoneRate cargo = ZoneRate.builder().zoneId(zone.getId()).customerId(CUSTOMER).serviceTypeId(CARGO).build();
+        cargo.setId(UUID.randomUUID());
+        List<ZoneRateSlab> two = List.of(
+                ZoneRateSlab.builder().minWeight(BigDecimal.ZERO).maxWeight(BigDecimal.TEN).ratePerKg(new BigDecimal("100")).fixedRate(true).build(),
+                ZoneRateSlab.builder().minWeight(BigDecimal.TEN).maxWeight(null).ratePerKg(new BigDecimal("9")).build());
+        when(slabs.findByRate(COMPANY, cargo.getId())).thenReturn(two);
+        when(rates.findByZoneAndServiceType(COMPANY, zone.getId(), CARGO)).thenReturn(Optional.of(cargo));
+
+        ZoneRateService.Quote one = service.calculate(new QuoteCommand(CUSTOMER, DISTRICT, null, BigDecimal.ONE, BigDecimal.ZERO, false, LocalDate.now(), CARGO));
+        ZoneRateService.Quote ten = service.calculate(new QuoteCommand(CUSTOMER, DISTRICT, null, BigDecimal.TEN, BigDecimal.ZERO, false, LocalDate.now(), CARGO));
+        ZoneRateService.Quote twelve = service.calculate(new QuoteCommand(CUSTOMER, DISTRICT, null, new BigDecimal("12"), BigDecimal.ZERO, false, LocalDate.now(), CARGO));
+
+        assertThat(one.freight()).isEqualByComparingTo("100");
+        assertThat(one.fixedRate()).isTrue();
+        assertThat(ten.freight()).isEqualByComparingTo("100");
+        assertThat(ten.ratePerKg()).isEqualByComparingTo("10.00");
+        assertThat(twelve.freight()).isEqualByComparingTo("108");
+        assertThat(twelve.fixedRate()).isFalse();
+    }
+
+    @Test
+    @DisplayName("a minimum chargeable weight of 20 kg prices a 5 kg parcel as 20 kg")
+    void minimumChargeableWeight() {
+        ZoneRate cargo = ZoneRate.builder().zoneId(zone.getId()).customerId(CUSTOMER).serviceTypeId(CARGO).minChargeableWeight(new BigDecimal("20")).build();
+        cargo.setId(UUID.randomUUID());
+        when(slabs.findByRate(COMPANY, cargo.getId())).thenReturn(List.of(
+                ZoneRateSlab.builder().minWeight(BigDecimal.ZERO).maxWeight(null).ratePerKg(new BigDecimal("25")).build()));
+        when(rates.findByZoneAndServiceType(COMPANY, zone.getId(), CARGO)).thenReturn(Optional.of(cargo));
+
+        ZoneRateService.Quote q = service.calculate(new QuoteCommand(CUSTOMER, DISTRICT, null, new BigDecimal("5"), BigDecimal.ZERO, false, LocalDate.now(), CARGO));
+
+        assertThat(q.chargeableWeight()).isEqualByComparingTo("20");
+        assertThat(q.freight()).isEqualByComparingTo("500");
+    }
+
+    @Test
     @DisplayName("each service type is priced from its own card")
     void ownCardPerServiceType() {
         assertThat(service.calculate(cmd(AIR)).ratePerKg()).isEqualByComparingTo("100");

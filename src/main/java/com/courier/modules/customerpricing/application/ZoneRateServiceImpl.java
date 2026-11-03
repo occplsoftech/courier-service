@@ -87,7 +87,7 @@ public class ZoneRateServiceImpl implements ZoneRateService {
 
         List<ZoneRateSlab> newSlabs = inputs.stream()
                 .map(i -> ZoneRateSlab.builder().minWeight(i.minWeight()).maxWeight(i.maxWeight())
-                        .ratePerKg(i.ratePerKg()).build())
+                        .ratePerKg(i.ratePerKg()).fixedRate(i.fixedRate()).build())
                 .sorted(Comparator.comparing(s -> s.getMinWeight() == null ? BigDecimal.ZERO : s.getMinWeight()))
                 .toList();
         newSlabs.forEach(ZoneRateSlab::applyInvariants);
@@ -260,16 +260,18 @@ public class ZoneRateServiceImpl implements ZoneRateService {
             }
             return null;
         }
-        BigDecimal freight = money(chargeable.multiply(slab.getRatePerKg()));
+        // A fixed slab is one flat price however much the parcel weighs inside it; otherwise weight x rate per kg.
+        BigDecimal freight = slab.isFixedRate() ? money(slab.getRatePerKg()) : money(chargeable.multiply(slab.getRatePerKg()));
+        BigDecimal effectivePerKg = slab.isFixedRate() ? freight.divide(chargeable, 2, RoundingMode.HALF_UP) : slab.getRatePerKg();
         BigDecimal oda = q.odaApplicable() ? rate.getOdaCharge() : BigDecimal.ZERO;
         BigDecimal fuel = money(freight.multiply(rate.getFuelSurchargePercent()).divide(HUNDRED, 6, RoundingMode.HALF_UP));
         BigDecimal declared = q.declaredValue() == null ? BigDecimal.ZERO : q.declaredValue();
         BigDecimal fov = money(declared.multiply(rate.getFovPercent()).divide(HUNDRED, 6, RoundingMode.HALF_UP));
         BigDecimal total = freight.add(rate.getDocketCharge()).add(rate.getMathadiCharge())
                 .add(rate.getPackCharge()).add(oda).add(fuel).add(fov);
-        return new Quote(zone.getId(), zone.getZoneName(), q.actualWeight(), chargeable, slab.getRatePerKg(),
+        return new Quote(zone.getId(), zone.getZoneName(), q.actualWeight(), chargeable, effectivePerKg,
                 freight, rate.getDocketCharge(), rate.getMathadiCharge(), rate.getPackCharge(), oda, fuel, fov,
-                money(total));
+                money(total), slab.isFixedRate());
     }
 
     // ------------------------------------------------------------------ helpers
