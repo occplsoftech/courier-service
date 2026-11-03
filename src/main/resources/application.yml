@@ -162,6 +162,15 @@ app:
       base-url: ${SKART_BASE_URL:https://devapiv2.skart-express.com/api/v1/booking}
       user-name: ${SKART_USER_NAME:}
       password: ${SKART_PASSWORD:}
+    # Porter (same-city two-wheeler). Companies normally connect their own account in Courier Integrations; these are the
+    # server-wide fallback. PORTER_TEST_MODE=true uses Porter's UAT system.
+    porter:
+      enabled: ${PORTER_ENABLED:false}
+      base-url: ${PORTER_BASE_URL:https://pfe-apigw.porter.in}
+      test-base-url: ${PORTER_TEST_BASE_URL:https://pfe-apigw-uat.porter.in}
+      test-mode: ${PORTER_TEST_MODE:false}
+      api-key: ${PORTER_API_KEY:}
+      mobile: ${PORTER_MOBILE:}
     # Booked shipments' delivery status: a background job asks each courier, and couriers may push updates to the
     # webhook address shown in Courier Integrations. See MEMORY/modules/customer-portal.md.
     tracking-sync:

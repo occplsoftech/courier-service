@@ -131,6 +131,32 @@ class PortalBookingServiceTest {
     }
 
     @Test
+    @DisplayName("map pins placed at booking reach the courier on the pickup and delivery; a pin outside India is refused")
+    void pins() {
+        PortalBooking b = booking(PortalBooking.Status.SUBMITTING, PortalBookingService.hash(quoteId + ":" + optionId));
+        startsNew(b);
+        when(store.finish(eq(ACTING), eq(b.getId()), any(), any())).thenReturn(b);
+        var pins = new PortalBookingService.Pins(new PortalBookingService.Pin(new BigDecimal("18.5204"), new BigDecimal("73.8567")), null);
+
+        service(adapter(true, r -> {
+            calls.incrementAndGet();
+            assertThat(r.pickup().lat()).isEqualByComparingTo("18.5204");
+            assertThat(r.pickup().lng()).isEqualByComparingTo("73.8567");
+            assertThat(r.pickup().address()).isEqualTo("Office 4, Thorat Chowk");
+            assertThat(r.delivery().pinned()).isFalse();
+            return BookingOutcome.booked("CRN1", "CRN1", null, "ok");
+        })).book(quoteId, optionId, KEY, pins);
+        assertThat(calls.get()).isEqualTo(1);
+
+        var swapped = new PortalBookingService.Pins(new PortalBookingService.Pin(new BigDecimal("73.8567"), new BigDecimal("18.5204")), null);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service(adapter(true, r -> {
+                    throw new AssertionError("courier must not be asked");
+                })).book(quoteId, optionId, KEY, swapped))
+                .isInstanceOf(com.courier.shared.exception.BusinessRuleException.class)
+                .hasMessageContaining("not in India");
+    }
+
+    @Test
     @DisplayName("a repeat with the same key returns the first booking and never calls the provider again")
     void repeatSameKey() {
         PortalBooking existing = booking(PortalBooking.Status.BOOKED, PortalBookingService.hash(quoteId + ":" + optionId));

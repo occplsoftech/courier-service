@@ -8,6 +8,15 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-03 — Porter: same-city two-wheeler courier (quote, booking, tracking, webhook)
+
+- `PorterAdapter` from the Porter API Contract 1.0: quotes (2-wheeler only, same city, parcel within its limits), booking with
+  map pins, tracking (kept a minute), Porter's `order_*` webhook statuses. Courier Integrations card "Porter" (API key, account
+  mobile, TEST for the UAT system). Booking request takes optional `pickupPin`/`deliveryPin`. No migration.
+- Tests: `PorterAdapterTest` (11), webhook, catalog and booking-pin cases.
+
+---
+
 ## 2026-10-30 — Roadmap for the customer portal and courier forwarding
 
 - New `MEMORY/modules/customer-portal-roadmap.md`: phases 6-13 as tables (done work, stabilise, hub forwarding to couriers, customer quick wins, notifications, money, returns and reports, integrations), with repos, sizes, dependencies and owner decisions. Linked from `BACKLOG.md`, `customer-portal.md` and `AI_CONTEXT.md`.

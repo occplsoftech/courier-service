@@ -286,6 +286,7 @@ public class CourierIntegrationService {
             case CourierCatalog.DELHIVERY -> properties.getDelhivery().configured();
             case CourierCatalog.SHIPYAARI -> properties.getShipyaari().configured();
             case CourierCatalog.SKART -> properties.getSkart().configured();
+            case CourierCatalog.PORTER -> properties.getPorter().configured();
             default -> false;
         };
     }

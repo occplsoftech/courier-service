@@ -52,6 +52,21 @@ class CourierTrackingWebhookServiceTest {
     }
 
     @Test
+    @DisplayName("reads Porter's order push: the CRN, its status in words and the event time")
+    void porter() throws Exception {
+        var updates = CourierTrackingWebhookService.read(json.readTree("""
+                {"status":"order_accepted","order_id":"CRN123456789","order_details":{"event_ts":1664457558,
+                 "partner_location":{"lat":12.93468735,"long":77.6095961},
+                 "driver_details":{"driver_name":"Test Partnerr","vehicle_number":"HY-45-YU-5677","mobile":"6100001111"}}}"""));
+
+        assertThat(updates).containsExactly(new CourierTrackingWebhookService.Update("CRN123456789",
+                "Rider assigned · pickup scheduled", null, Instant.ofEpochSecond(1664457558)));
+        assertThat(CourierTrackingWebhookService.read(json.readTree(
+                "{\"status\":\"order_end_job\",\"order_id\":\"CRN1\",\"order_details\":{\"event_ts\":1664458152,\"actual_trip_fare\":77}}")))
+                .extracting(CourierTrackingWebhookService.Update::status).containsExactly("Delivered");
+    }
+
+    @Test
     @DisplayName("only a well-formed, known secret names an integration; its updates go to that company and courier")
     void secretDecides() throws Exception {
         assertThat(service.integration("nope")).isEmpty();

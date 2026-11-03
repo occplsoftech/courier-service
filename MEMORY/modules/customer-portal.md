@@ -255,6 +255,30 @@ development system; live URL from sKart -> `SKART_BASE_URL`). User name and pass
   product-name -> `courier_id` mapping (rates return names only) and how labels are fetched.
 - Verified live against the development system with the documentation's sample account (read-only calls only, 2026-10-29).
 
+## Porter (same-city two-wheeler, 2026-11-03)
+
+`PorterAdapter` (code `PORTER`), from the user's "Porter API Contract" 1.0 PDF. Hosts: live `pfe-apigw.porter.in`, test (UAT)
+`pfe-apigw-uat.porter.in` (Courier Integrations field "Porter system" = TEST, or `PORTER_TEST_MODE`); header `x-api-key`.
+Integration fields: `apiKey` (secret), `mobile` (Porter's quote API needs a customer mobile; quotes are asked in the account's name),
+`system`. Env fallback `PORTER_*`.
+- Quote `POST /v1/get_quote` takes **latitude/longitude**, not pincodes. Until the portal sends pins at compare time, each pincode
+  is geocoded (Nominatim via `GeocodingPort`, cached 7 days, misses 1 h). Farther than 60 km apart = not one city: Porter not asked.
+  Only the "2 Wheeler" is offered (API books 2W only); refused when heavier/larger than its `capacity`/`size` (20 kg, 40 cm cube).
+  `minor_amount` is paise. One FREIGHT line; markup/GST as for other external couriers.
+- Book `POST /v1/orders/create`: `request_id` = booking id without dashes (32 chars); addresses with lat/lng (6 decimals, floored)
+  and `+91` phones. Pins: `POST /customer-portal/bookings` takes optional `pickupPin`/`deliveryPin` {lat,lng} (checked to be in
+  India), passed on `BookingRequest.Party.lat/lng`; without a pin the pincode's position is used. The CRN (`order_id`) is stored as
+  both provider reference and AWB. 5xx, timeout and `duplicate_request` = UNKNOWN; other 4xx = REJECTED (`vehicle_not_found`,
+  `restricted_location`, `different_city_error`, wallet short).
+- Track `GET /v1.1/orders/{crn}` (the PDF's sample says /v1; the spec line says /v1.1 - check on UAT): kept 60 s (Porter allows one
+  call a minute per order). Statuses become words `DeliveryStage.of` reads (`PorterAdapter.describe`): open/accepted/reopen =
+  awaiting pickup, live = out for delivery, ended = delivered, cancelled (the sync then refunds the wallet).
+- Webhook: Porter posts `{status: order_accepted|order_start_trip|order_end_job|order_reopen|order_cancel, order_id, order_details.event_ts}`
+  to the address on the Courier Integrations card; registered through Porter's form (URL only; the secret is in the path).
+- No label (riders need none). No cancel yet: `POST /v1/orders/{crn}/cancel` exists but the portal has no cancel flow for any courier.
+- UAT simulator `POST /v1/simulation/initiate_order_flow` {order_id, flow_type 0-7} moves a test order through the statuses.
+- Next (portal, PO-2): pincode -> pick the area -> map pin at booking, sent as `pickupPin`/`deliveryPin`.
+
 ## Security review and deployment (phase 6)
 
 Full review table, tests and residual risks: `docs/SECURITY.md` in the portal repository. Backend facts worth keeping:

@@ -55,7 +55,8 @@ public class CustomerPortalBookingController {
                     + "Status BOOKED, FAILED (nothing booked) or OUTCOME_UNKNOWN (our team confirms with the courier).")
     public ResponseEntity<ApiResponse<BookingView>> book(@RequestHeader("Idempotency-Key") String idempotencyKey,
                                                          @Valid @RequestBody BookRequest request) {
-        BookingView view = service.book(request.quoteId(), request.optionId(), idempotencyKey);
+        BookingView view = service.book(request.quoteId(), request.optionId(), idempotencyKey,
+                new PortalBookingService.Pins(pin(request.pickupPin()), pin(request.deliveryPin())));
         HttpStatus status = "BOOKED".equals(view.status()) ? HttpStatus.CREATED : HttpStatus.OK;
         return ResponseEntity.status(status).body(ApiResponse.success(view));
     }
@@ -109,6 +110,17 @@ public class CustomerPortalBookingController {
                 .body(label.pdf());
     }
 
-    public record BookRequest(@NotNull UUID quoteId, @NotNull UUID optionId) {
+    /**
+     * {@code pickupPin}/{@code deliveryPin}: the exact door the customer placed on the map, for couriers whose rider goes to a map
+     * point (Porter). Optional; ignored by the others.
+     */
+    public record BookRequest(@NotNull UUID quoteId, @NotNull UUID optionId, MapPin pickupPin, MapPin deliveryPin) {
+    }
+
+    public record MapPin(java.math.BigDecimal lat, java.math.BigDecimal lng) {
+    }
+
+    private static PortalBookingService.Pin pin(MapPin p) {
+        return p == null ? null : new PortalBookingService.Pin(p.lat(), p.lng());
     }
 }
