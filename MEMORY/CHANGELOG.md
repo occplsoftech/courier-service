@@ -8,6 +8,9 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-30 — Roadmap for the customer portal and courier forwarding
+
+- New `MEMORY/modules/customer-portal-roadmap.md`: phases 6-13 as tables (done work, stabilise, hub forwarding to couriers, customer quick wins, notifications, money, returns and reports, integrations), with repos, sizes, dependencies and owner decisions. Linked from `BACKLOG.md`, `customer-portal.md` and `AI_CONTEXT.md`.
 ## 2026-11-03 — Quote option note and clean service labels (V154)
 
 - `rate_quote_options.note` (V154): a short note shown next to an option's price. A customer rate card with a minimum chargeable weight above 1 kg adds "Minimum chargeable weight N kg" (e.g. Cargo 20 kg), whatever the parcel weighs. `OptionView` and `ProviderRate` carry it.
