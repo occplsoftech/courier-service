@@ -179,6 +179,7 @@ public class RateComparisonService {
                         .currency("INR")
                         .breakdown(p.lines().stream().map(RateComparisonService::line).toList())
                         .providerQuoteRef(truncate(rate.providerQuoteRef(), 120))
+                        .note(truncate(rate.note(), 255))
                         .validUntil(rate.validUntil() == null || rate.validUntil().isAfter(expires) ? expires : rate.validUntil())
                         .build());
             }
@@ -425,7 +426,7 @@ public class RateComparisonService {
                 .map(o -> new OptionView(o.getId(), o.getProviderCode(), providerName(o.getProviderCode()), o.getServiceName(),
                         o.getTransportMode(), o.getEtaMinDays(), o.getEtaMaxDays(), o.getChargeableWeightKg(),
                         o.getBaseFreight(), o.getOtherCharges(), o.getMarkupPercent(), o.getMarkupAmount(),
-                        o.getTaxAmount(), o.getTotalAmount(), o.getCurrency(), lines(o), o.getValidUntil()))
+                        o.getTaxAmount(), o.getTotalAmount(), o.getCurrency(), lines(o), o.getValidUntil(), o.getNote()))
                 .sorted(Comparator.comparing(OptionView::totalAmount))
                 .toList();
         List<UnavailableView> unavailable = options.stream().filter(o -> !o.isAvailable())
@@ -496,7 +497,16 @@ public class RateComparisonService {
                              String transportMode, Integer etaMinDays, Integer etaMaxDays, BigDecimal chargeableWeightKg,
                              BigDecimal baseFreight, BigDecimal otherCharges, BigDecimal markupPercent,
                              BigDecimal markupAmount, BigDecimal taxAmount, BigDecimal totalAmount, String currency,
-                             List<BreakdownLine> breakdown, Instant validUntil) {
+                             List<BreakdownLine> breakdown, Instant validUntil, String note) {
+
+        /** Without a note. */
+        public OptionView(UUID optionId, String providerCode, String providerName, String serviceName, String transportMode,
+                          Integer etaMinDays, Integer etaMaxDays, BigDecimal chargeableWeightKg, BigDecimal baseFreight,
+                          BigDecimal otherCharges, BigDecimal markupPercent, BigDecimal markupAmount, BigDecimal taxAmount,
+                          BigDecimal totalAmount, String currency, List<BreakdownLine> breakdown, Instant validUntil) {
+            this(optionId, providerCode, providerName, serviceName, transportMode, etaMinDays, etaMaxDays, chargeableWeightKg,
+                    baseFreight, otherCharges, markupPercent, markupAmount, taxAmount, totalAmount, currency, breakdown, validUntil, null);
+        }
     }
 
     public record UnavailableView(String providerCode, String providerName, String reason) {

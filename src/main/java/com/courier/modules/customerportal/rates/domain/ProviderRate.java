@@ -17,7 +17,14 @@ public record ProviderRate(String serviceCode,
                            BigDecimal chargeableWeightKg,
                            List<ChargeLine> charges,
                            String providerQuoteRef,
-                           Instant validUntil) {
+                           Instant validUntil,
+                           String note) {
+
+    /** Without a note. */
+    public ProviderRate(String serviceCode, String serviceName, String transportMode, Integer etaMinDays, Integer etaMaxDays,
+                        BigDecimal chargeableWeightKg, List<ChargeLine> charges, String providerQuoteRef, Instant validUntil) {
+        this(serviceCode, serviceName, transportMode, etaMinDays, etaMaxDays, chargeableWeightKg, charges, providerQuoteRef, validUntil, null);
+    }
 
     public BigDecimal providerTotal() {
         return charges.stream().map(ChargeLine::amount).reduce(BigDecimal.ZERO, BigDecimal::add);

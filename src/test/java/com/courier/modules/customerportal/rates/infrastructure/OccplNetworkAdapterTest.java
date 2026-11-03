@@ -87,14 +87,37 @@ class OccplNetworkAdapterTest {
         served();
         when(zoneRates.calculateEach(any())).thenReturn(List.of(
                 new ZoneRateService.ServiceQuote(UUID.randomUUID(), "AIR", "Air", quote("900.00")),
-                new ZoneRateService.ServiceQuote(UUID.randomUUID(), "SURFACE", "Surface", quote("588.00"))));
+                new ZoneRateService.ServiceQuote(UUID.randomUUID(), "SRF", "Surface", quote("588.00"))));
         when(tariff.quoteOptions(any(), org.mockito.ArgumentMatchers.eq(false))).thenReturn(List.of());
 
         ProviderResult result = adapter.getRates(request());
 
-        assertThat(result.rates()).extracting(r -> r.serviceCode()).containsExactly("OCCPL_AIR", "OCCPL_SURFACE");
+        assertThat(result.rates()).extracting(r -> r.serviceCode()).containsExactly("OCCPL_AIR", "OCCPL_SRF");
         assertThat(result.rates()).extracting(r -> r.serviceName()).containsExactly("OCCPL Air", "OCCPL Surface");
+        // the mode label is the type's name, not its code: the portal shows and filters by it
+        assertThat(result.rates()).extracting(r -> r.transportMode()).containsExactly("AIR", "SURFACE");
         assertThat(result.rates()).extracting(r -> r.providerQuoteRef()).containsOnly(OccplNetworkAdapter.BUSINESS_REFERENCE);
+    }
+
+    @Test
+    @DisplayName("a card with a minimum chargeable weight above 1 kg carries a note saying so, whatever the parcel weighs")
+    void minimumChargeableWeightNote() {
+        served();
+        ZoneRateService.Quote cargo = new ZoneRateService.Quote(UUID.randomUUID(), "North", new BigDecimal("25"), new BigDecimal("25"),
+                new BigDecimal("35"), new BigDecimal("875"), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("875"), false, new BigDecimal("20"));
+        ZoneRateService.Quote surface = new ZoneRateService.Quote(UUID.randomUUID(), "North", new BigDecimal("25"), new BigDecimal("25"),
+                new BigDecimal("40"), new BigDecimal("1000"), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("1000"), false, BigDecimal.ONE);
+        when(zoneRates.calculateEach(any())).thenReturn(List.of(
+                new ZoneRateService.ServiceQuote(UUID.randomUUID(), "CRG", "Cargo", cargo),
+                new ZoneRateService.ServiceQuote(UUID.randomUUID(), "SRF", "Surface", surface)));
+        when(tariff.quoteOptions(any(), org.mockito.ArgumentMatchers.eq(false))).thenReturn(List.of());
+
+        ProviderResult result = adapter.getRates(request());
+
+        assertThat(result.rates().get(0).note()).isEqualTo("Minimum chargeable weight 20 kg");
+        assertThat(result.rates().get(1).note()).isNull();
     }
 
     @Test

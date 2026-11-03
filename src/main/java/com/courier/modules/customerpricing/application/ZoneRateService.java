@@ -71,7 +71,15 @@ public interface ZoneRateService {
     record Quote(UUID zoneId, String zoneName, BigDecimal actualWeight, BigDecimal chargeableWeight,
                  BigDecimal ratePerKg, BigDecimal freight, BigDecimal docketCharge, BigDecimal mathadiCharge,
                  BigDecimal packCharge, BigDecimal odaCharge, BigDecimal fuelSurcharge, BigDecimal fovCharge,
-                 BigDecimal total, boolean fixedRate) {
+                 BigDecimal total, boolean fixedRate, BigDecimal minChargeableWeight) {
+
+        /** Without the card's minimum chargeable weight. */
+        public Quote(UUID zoneId, String zoneName, BigDecimal actualWeight, BigDecimal chargeableWeight, BigDecimal ratePerKg,
+                     BigDecimal freight, BigDecimal docketCharge, BigDecimal mathadiCharge, BigDecimal packCharge, BigDecimal odaCharge,
+                     BigDecimal fuelSurcharge, BigDecimal fovCharge, BigDecimal total, boolean fixedRate) {
+            this(zoneId, zoneName, actualWeight, chargeableWeight, ratePerKg, freight, docketCharge, mathadiCharge, packCharge,
+                    odaCharge, fuelSurcharge, fovCharge, total, fixedRate, null);
+        }
 
         /** {@code ratePerKg} is the slab's rate, or (fixed slab) the flat price spread over the chargeable weight. */
         public Quote(UUID zoneId, String zoneName, BigDecimal actualWeight, BigDecimal chargeableWeight, BigDecimal ratePerKg,
