@@ -8,6 +8,12 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-04 — Phase 7 clean-up: badge follows OCCPL's own steps, slab checks, import by service type name
+
+- **Customer list badge:** a booking on OCCPL's own network is re-checked every 2 minutes (`app.customer-portal.tracking-sync.internal-interval`), not hourly like an external courier, so "Awaiting pickup" follows assigned / picked up / in scan within minutes.
+- **Slab checks on save:** a customer rate card's slabs must start at 0 kg, run on without gaps, and reach the card's minimum chargeable weight (else weights in the gap, or every parcel, would silently get the company's rates). The Excel import checks the same in its preview.
+- **Rate import:** the Service Type column accepts the type's code or its name (CRG or Cargo).
+
 ## 2026-11-03 — Porter: same-city two-wheeler courier (quote, booking, tracking, webhook)
 
 - `PorterAdapter` from the Porter API Contract 1.0: quotes (2-wheeler only, same city, parcel within its limits), booking with
