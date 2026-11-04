@@ -46,4 +46,15 @@ public class ForwardingController {
     public ApiResponse<ForwardResult> forward(@PathVariable UUID shipmentId, @RequestBody ForwardRequest r) {
         return ApiResponse.success(service.forward(shipmentId, r.providerCode(), r.serviceCode()));
     }
+
+    public record ResolveRequest(boolean courierTookIt, String awb) {
+    }
+
+    @PostMapping("/resolve")
+    @Operation(summary = "Settle a forward the courier never confirmed",
+            description = "courierTookIt=false cancels the order at the courier (when it can) and clears the flag so the shipment can be forwarded "
+                    + "again; courierTookIt=true records the AWB the courier gave (awb required) and marks the shipment forwarded.")
+    public ApiResponse<ForwardingService.ResolveResult> resolve(@PathVariable UUID shipmentId, @RequestBody ResolveRequest r) {
+        return ApiResponse.success(service.resolve(shipmentId, r.courierTookIt(), r.awb()));
+    }
 }

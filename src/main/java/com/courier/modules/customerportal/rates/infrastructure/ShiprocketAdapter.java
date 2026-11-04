@@ -3,6 +3,7 @@ package com.courier.modules.customerportal.rates.infrastructure;
 import com.courier.modules.customerportal.rates.application.CustomerPortalProperties;
 import com.courier.modules.customerportal.rates.domain.BookingOutcome;
 import com.courier.modules.customerportal.rates.domain.BookingRequest;
+import com.courier.modules.customerportal.rates.domain.CancelOutcome;
 import com.courier.modules.customerportal.rates.domain.ChargeComponent;
 import com.courier.modules.customerportal.rates.domain.ChargeLine;
 import com.courier.modules.customerportal.rates.domain.ConnectionTest;
@@ -171,6 +172,72 @@ public class ShiprocketAdapter implements CourierProviderAdapter {
     }
 
     /** {@code GET /v1/external/courier/track/awb/{awb}}: Shiprocket's activities for the AWB, newest first. */
+    /**
+     * Cancels the Shiprocket order. The order is looked up by the reference we sent ({@code channel_order_id}) because its id is
+     * not the shipment id we may have kept; an exact match is required, so another order is never touched.
+     */
+    @Override
+    public CancelOutcome cancelOrder(java.util.UUID companyId, String orderRef, String reference) {
+        if (!configured(companyId)) {
+            return CancelOutcome.failed("Shiprocket is not connected, so the order cannot be cancelled from here.");
+        }
+        if (reference == null || reference.isBlank()) {
+            return CancelOutcome.failed("There is no order reference to look up at Shiprocket.");
+        }
+        try {
+            JsonNode found = http.get().uri(u -> u.path("/v1/external/orders").queryParam("search", reference).queryParam("per_page", 25).build())
+                    .header("Authorization", "Bearer " + token(companyId))
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(JsonNode.class);
+            JsonNode match = null;
+            for (JsonNode o : found == null ? List.<JsonNode>of() : found.path("data")) {
+                if (reference.equals(o.path("channel_order_id").asText(null))) {
+                    match = o;
+                    break;
+                }
+            }
+            if (match == null) {
+                return CancelOutcome.notFound("Shiprocket has no order " + reference + ".");
+            }
+            String status = match.path("status").asText("");
+            if (status.toUpperCase(java.util.Locale.ROOT).startsWith("CANCEL")) {
+                return CancelOutcome.cancelled("The order was already cancelled at Shiprocket.");
+            }
+            String awb = null;
+            for (JsonNode sh : match.path("shipments")) {
+                String a = sh.path("awb").asText(null);
+                if (a != null && !a.isBlank()) {
+                    awb = a;
+                    break;
+                }
+            }
+            if (awb != null) {
+                http.post().uri("/v1/external/orders/cancel/shipment/awbs")
+                        .header("Authorization", "Bearer " + token(companyId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(Map.of("awbs", List.of(awb)))
+                        .retrieve().toBodilessEntity();
+            } else {
+                http.post().uri("/v1/external/orders/cancel")
+                        .header("Authorization", "Bearer " + token(companyId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(Map.of("ids", List.of(match.path("id").asLong())))
+                        .retrieve().toBodilessEntity();
+            }
+            return CancelOutcome.cancelled("The order was cancelled at Shiprocket.");
+        } catch (RestClientResponseException e) {
+            if (e.getStatusCode().value() == 401) {
+                sessions.remove(fingerprint(companyId));
+            }
+            log.warn("Shiprocket cancel failed: HTTP {}", e.getStatusCode().value());
+            return CancelOutcome.failed("Shiprocket would not cancel the order (HTTP " + e.getStatusCode().value() + "). Cancel it in the Shiprocket panel.");
+        } catch (RestClientException | IllegalStateException e) {
+            log.warn("Shiprocket cancel failed: {}", e.getClass().getSimpleName());
+            return CancelOutcome.failed("Shiprocket could not be reached, so the order was not cancelled.");
+        }
+    }
+
     @Override
     public TrackingResult track(ShipmentRef ref) {
         if (!configured(ref.companyId())) {

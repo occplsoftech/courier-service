@@ -15,7 +15,7 @@ A shipment OCCPL collected and brought to a hub or branch can be handed to a con
 - **Prices are the courier's own** (no markup, no tax added) and are asked afresh at forward time; nothing a browser sends is a price. `RateComparisonService.askExternalForForwarding` asks every connected external courier and ignores the customer's courier-access list (a staff decision).
 - **Booked once:** `ShipmentService.beginForward` marks `forward_state = SUBMITTING` (blocks a second attempt, optimistic lock), the courier is called with the shipment number as the order reference (a courier that refuses duplicate order ids protects us again), then `completeForward` (state `BOOKED`, status `FORWARDED`, history + audit) or `abandonForward`.
 - **Refused** by the courier: the attempt is cleared, the shipment stays where it was, the reason comes back as a 422.
-- **Unknown** (courier error or an answer we cannot read): `forward_state = UNKNOWN` with a note, outcome `UNCONFIRMED`; a person checks with the courier. Never retried by itself, and it blocks another forward.
+- **Unknown** (courier error or an answer we cannot read): `forward_state = UNKNOWN` with a note, outcome `UNCONFIRMED`; a person checks with the courier. Never retried by itself, and it blocks another forward. The courier's order id is kept. Staff settle it with `POST .../forwarding/resolve`: *courier did not take it* (cancel at the courier via `cancelOrder`, Shiprocket only for now; the flag is cleared only after the courier confirms) or *courier did take it* (AWB entered by hand → FORWARDED).
 - A forwarded shipment cannot be cancelled here (cancel at the courier first).
 
 ## API (`/api/v1/shipments/{id}/forwarding`)

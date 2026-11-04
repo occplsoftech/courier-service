@@ -75,7 +75,15 @@ public interface ShipmentService {
     Shipment completeForward(UUID id, com.courier.modules.shipment.application.command.ForwardRecord record);
 
     /** Step 2 (courier did not accept, or we cannot tell): clears the attempt, or when {@code unknown} keeps it flagged for checking. */
-    Shipment abandonForward(UUID id, boolean unknown, String note);
+    default Shipment abandonForward(UUID id, boolean unknown, String note) {
+        return abandonForward(id, unknown, note, null);
+    }
+
+    /** As above; when {@code unknown}, the courier's order id (if it gave one) is kept so the order can be found and cancelled later. */
+    Shipment abandonForward(UUID id, boolean unknown, String note, String orderRef);
+
+    /** A person has confirmed the courier holds nothing for an unconfirmed forward (or it was cancelled there): clears it so the shipment can be forwarded again. */
+    Shipment clearUnconfirmedForward(UUID id, String reason);
 
     Shipment create(CreateShipmentCommand command);
 
