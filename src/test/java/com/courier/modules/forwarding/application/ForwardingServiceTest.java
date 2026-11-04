@@ -202,10 +202,23 @@ class ForwardingServiceTest {
         when(delhivery.cancelOrder(COMPANY, "SR-9", "TEST_BR-000009")).thenReturn(CancelOutcome.cancelled("cancelled"));
         shipment.setForwardOrderRef("SR-9");
 
-        var r = service.resolve(shipment.getId(), false, null);
+        var r = service.resolve(shipment.getId(), false, null, false);
 
         assertThat(r.outcome()).isEqualTo("CLEARED");
         verify(shipmentService).clearUnconfirmedForward(shipment.getId(), "cancelled");
+    }
+
+    @Test
+    @DisplayName("resolve: 'I cancelled it myself' clears the flag without asking the courier")
+    void resolveCancelledByHand() {
+        shipment.setForwardState("UNKNOWN");
+        shipment.setForwardProvider("DELHIVERY");
+
+        var r = service.resolve(shipment.getId(), false, null, true);
+
+        assertThat(r.outcome()).isEqualTo("CLEARED");
+        verify(shipmentService).clearUnconfirmedForward(eq(shipment.getId()), anyString());
+        verify(delhivery, never()).cancelOrder(any(), any(), any());
     }
 
     @Test
@@ -215,7 +228,7 @@ class ForwardingServiceTest {
         shipment.setForwardProvider("DELHIVERY");
         when(delhivery.cancelOrder(any(), any(), any())).thenReturn(CancelOutcome.failed("Courier said no"));
 
-        assertThatThrownBy(() -> service.resolve(shipment.getId(), false, null))
+        assertThatThrownBy(() -> service.resolve(shipment.getId(), false, null, false))
                 .isInstanceOf(BusinessRuleException.class).hasMessageContaining("Courier said no");
         verify(shipmentService, never()).clearUnconfirmedForward(any(), any());
     }
@@ -228,8 +241,8 @@ class ForwardingServiceTest {
         shipment.setForwardService("Delhivery Surface");
         when(shipmentService.completeForward(eq(shipment.getId()), any())).thenReturn(shipment);
 
-        assertThatThrownBy(() -> service.resolve(shipment.getId(), true, " ")).isInstanceOf(BusinessRuleException.class);
-        var r = service.resolve(shipment.getId(), true, " DL555 ");
+        assertThatThrownBy(() -> service.resolve(shipment.getId(), true, " ", false)).isInstanceOf(BusinessRuleException.class);
+        var r = service.resolve(shipment.getId(), true, " DL555 ", false);
 
         assertThat(r.outcome()).isEqualTo("FORWARDED");
         ArgumentCaptor<ForwardRecord> rec = ArgumentCaptor.forClass(ForwardRecord.class);
@@ -237,7 +250,7 @@ class ForwardingServiceTest {
         assertThat(rec.getValue().awb()).isEqualTo("DL555");
 
         shipment.setForwardState("BOOKED");
-        assertThatThrownBy(() -> service.resolve(shipment.getId(), false, null)).isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> service.resolve(shipment.getId(), false, null, false)).isInstanceOf(BusinessRuleException.class);
     }
 
     @Test
