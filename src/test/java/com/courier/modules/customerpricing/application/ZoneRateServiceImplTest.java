@@ -137,6 +137,28 @@ class ZoneRateServiceImplTest {
         assertThat(q.freight()).isEqualByComparingTo("500");
     }
 
+    private ZoneRateService.SaveCommand save(BigDecimal minChargeable, ZoneRateService.SlabInput... slabs) {
+        return new ZoneRateService.SaveCommand(minChargeable, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, null, null, List.of(slabs), null);
+    }
+
+    private static ZoneRateService.SlabInput slab(String min, String max, String rate) {
+        return new ZoneRateService.SlabInput(new BigDecimal(min), max == null ? null : new BigDecimal(max), new BigDecimal(rate));
+    }
+
+    @Test
+    @DisplayName("slabs that leave a gap, start above 0 or stop short of the minimum chargeable weight are refused on save")
+    void unpriceableSlabsAreRefused() {
+        when(zones.findByIdWithinCompany(zone.getId(), COMPANY)).thenReturn(Optional.of(zone));
+
+        assertThatThrownBy(() -> service.save(zone.getId(), null, save(BigDecimal.ONE, slab("0", "5", "50"), slab("6", null, "40"))))
+                .hasMessageContaining("gap").hasMessageContaining("5 kg").hasMessageContaining("6 kg");
+        assertThatThrownBy(() -> service.save(zone.getId(), null, save(BigDecimal.ONE, slab("1", "5", "50"))))
+                .hasMessageContaining("must start at 0 kg");
+        assertThatThrownBy(() -> service.save(zone.getId(), null, save(new BigDecimal("20"), slab("0", "10", "50"))))
+                .hasMessageContaining("above the heaviest slab (10 kg)");
+    }
+
     @Test
     @DisplayName("each service type is priced from its own card")
     void ownCardPerServiceType() {

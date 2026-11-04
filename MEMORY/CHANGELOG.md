@@ -11,6 +11,11 @@ All notable changes to this project. Format based on
 ## 2026-11-04 — Phase 7 closed (roadmap)
 
 - Roadmap phase 7 marked done on the code and dev side. Open owner items: 7.4 (keep or remove the old all-services "OCCPL Standard" test rate), 7.7 (rotate the passwords pasted in chat, change or delete the two reset test users), 7.8 (server `.env.bak` / `docker-compose.yml.bak`, infra PR for `claude/courier-s3-env`). Next phase: 8, forwarding to a courier partner from the hub.
+## 2026-11-04 — Phase 7 clean-up: badge follows OCCPL's own steps, slab checks, import by service type name
+
+- **Customer list badge:** a booking on OCCPL's own network is re-checked every 2 minutes (`app.customer-portal.tracking-sync.internal-interval`), not hourly like an external courier, so "Awaiting pickup" follows assigned / picked up / in scan within minutes.
+- **Slab checks on save:** a customer rate card's slabs must start at 0 kg, run on without gaps, and reach the card's minimum chargeable weight (else weights in the gap, or every parcel, would silently get the company's rates). The Excel import checks the same in its preview.
+- **Rate import:** the Service Type column accepts the type's code or its name (CRG or Cargo).
 
 ## 2026-11-03 — Porter: same-city two-wheeler courier (quote, booking, tracking, webhook)
 

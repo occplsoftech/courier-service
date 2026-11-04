@@ -87,12 +87,17 @@ public class TrackingSyncService {
         ShipmentRef ref = new ShipmentRef(b.getCompanyId(), b.getCustomerId(), b.getId().toString(), b.getProviderOrderRef(),
                 b.getAwbNumber(), b.getLabelUrl());
         TrackingResult result = CompanyContext.runAs(b.getCompanyId(), () -> adapter.get().track(ref));
-        record(b.getId(), b.getCompanyId(), result, now);
+        record(b.getId(), b.getCompanyId(), result, now, adapter.get().external() ? cfg.getInterval() : cfg.getInternalInterval());
     }
 
     /** Saves a courier's tracking answer for one booking. An answer that says nothing readable only reschedules. */
     public void record(UUID bookingId, UUID companyId, TrackingResult result, Instant now) {
-        Instant next = now.plus(properties.getTrackingSync().getInterval());
+        record(bookingId, companyId, result, now, properties.getTrackingSync().getInterval());
+    }
+
+    /** As above, asking again after {@code every} (OCCPL's own network is asked far more often than an external courier). */
+    void record(UUID bookingId, UUID companyId, TrackingResult result, Instant now, java.time.Duration every) {
+        Instant next = now.plus(every);
         if (result == null || !result.available()) {
             attempt(bookingId, companyId, now, next);
             return;

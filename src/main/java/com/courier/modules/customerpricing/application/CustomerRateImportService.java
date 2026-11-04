@@ -153,7 +153,7 @@ public class CustomerRateImportService {
                     "One row per zone and service type. Up to " + MAX_ROWS + " rows. Replace the sample rows.",
                     "Zone Name: any name (e.g. Pune, Mumbai Region). Rows with the same zone name share the zone; a zone that already exists for the customer is reused.",
                     "Destination Districts: the districts the zone covers, separated by commas. Needed on at least one row of a new zone; a district can belong to one zone of the customer only.",
-                    "Service Type: a code from the Service Types sheet (AIR, SURFACE, CARGO, PREMIUM...). Leave it blank for a rate that applies to every service without a rate of its own.",
+                    "Service Type: the code or the name from the Service Types sheet (AIR, Surface, Cargo, Premium...). Leave it blank for a rate that applies to every service without a rate of its own.",
                     "Slabs: 'Up To' is the heaviest weight the slab covers, 'Rate/kg' its price. Slab 1 starts above 0, the next above the previous Up To. Leave the last Up To blank for no limit.",
                     "Pricing: PER_KG (or blank) charges weight x the slab's rate. FIXED makes the rate a flat price for the whole slab: slab 0-10 kg at 100 FIXED costs 100 for 1 kg and 100 for 10 kg.",
                     "Min Chargeable Weight: the lightest weight a parcel is charged for (e.g. 20 for Cargo): a 5 kg parcel is then priced as 20 kg.",
@@ -250,8 +250,15 @@ public class CustomerRateImportService {
         if (sheet.isEmpty()) {
             throw new BusinessRuleException("The sheet has no rates. Fill one row per zone and service type.");
         }
+        // A service type is found by its code (CRG) or its name (Cargo), whichever the sheet uses.
         Map<String, ServiceType> typesByCode = new HashMap<>();
-        activeTypes(companyId).forEach(t -> typesByCode.put(t.getCode().toUpperCase(Locale.ROOT), t));
+        Map<String, ServiceType> typesByName = new HashMap<>();
+        activeTypes(companyId).forEach(t -> {
+            typesByCode.put(t.getCode().toUpperCase(Locale.ROOT), t);
+            if (t.getName() != null) {
+                typesByName.putIfAbsent(t.getName().trim().toUpperCase(Locale.ROOT), t);
+            }
+        });
         List<String> existingZones = zoneService.search(customerId, null, null).stream()
                 .map(z -> z.zone().getZoneName().toLowerCase(Locale.ROOT)).toList();
 
@@ -272,10 +279,11 @@ public class CustomerRateImportService {
                 String zoneKey = zone.toLowerCase(Locale.ROOT);
                 ServiceType type = null;
                 if (!blank(service)) {
-                    type = typesByCode.get(service.trim().toUpperCase(Locale.ROOT));
+                    String wanted = service.trim().toUpperCase(Locale.ROOT);
+                    type = typesByCode.getOrDefault(wanted, typesByName.get(wanted));
                     if (type == null) {
                         throw new BusinessRuleException("Service type '" + service.trim() + "' is not one of your service types ("
-                                + String.join(", ", typesByCode.keySet()) + ").");
+                                + String.join(", ", typesByName.keySet()) + ").");
                     }
                 }
                 List<LocationInput> locations = new ArrayList<>();
@@ -341,6 +349,12 @@ public class CustomerRateImportService {
                 }
                 if (slabs.isEmpty()) {
                     throw new BusinessRuleException("At least one weight slab is required.");
+                }
+                SlabInput lastSlab = slabs.get(slabs.size() - 1);
+                BigDecimal minWeight = orZero(v.get(MIN_WEIGHT), "Min chargeable weight");
+                if (lastSlab.maxWeight() != null && minWeight.compareTo(lastSlab.maxWeight()) > 0) {
+                    throw new BusinessRuleException("The minimum chargeable weight (" + plain(minWeight) + " kg) is above the heaviest slab ("
+                            + plain(lastSlab.maxWeight()) + " kg), so no parcel could be priced.");
                 }
                 SaveCommand cmd = new SaveCommand(orZero(v.get(MIN_WEIGHT), "Min chargeable weight"), orZero(v.get(DOCKET), "Docket"),
                         orZero(v.get(MATHADI), "Mathadi"), orZero(v.get(PACK), "Pack"), orZero(v.get(ODA), "ODA"),

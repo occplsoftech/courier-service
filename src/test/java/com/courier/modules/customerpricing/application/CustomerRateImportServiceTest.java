@@ -165,6 +165,23 @@ class CustomerRateImportServiceTest {
     }
 
     @Test
+    @DisplayName("the service type may be written as its code or its name; a minimum above the heaviest slab is refused")
+    void serviceTypeByNameAndMinimumCheck() throws Exception {
+        when(serviceTypes.findAll()).thenReturn(List.of(type(AIR, "AIR", "Air"), type(SURFACE, "SRF", "Surface")));
+        Map<String, String> byName = row("A", "Pune", "surface", "10", "50");
+        Map<String, String> byCode = row("B", "Mumbai", "SRF", "10", "50");
+        Map<String, String> tooHeavyMin = row("A", "", "Air", "10", "50");
+        tooHeavyMin.put("Min Chargeable Weight (kg)", "20");
+
+        ImportPreview p = service.preview(CUSTOMER, new ByteArrayInputStream(sheet(List.of(byName, byCode, tooHeavyMin))));
+
+        assertThat(p.rows().get(0).ok()).isTrue();
+        assertThat(p.rows().get(0).serviceType()).isEqualTo("Surface");
+        assertThat(p.rows().get(1).ok()).isTrue();
+        assertThat(p.rows().get(2).error()).contains("above the heaviest slab (10 kg)");
+    }
+
+    @Test
     @DisplayName("a slab priced FIXED is flat for the whole slab; an unknown pricing word is refused")
     void fixedPricing() throws Exception {
         Map<String, String> fixed = row("A", "Pune", "AIR", "10", "100", "", "9");
