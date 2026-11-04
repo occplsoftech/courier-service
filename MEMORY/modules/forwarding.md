@@ -27,6 +27,14 @@ A shipment OCCPL collected and brought to a hub or branch can be handed to a con
 
 The shipment response carries `forward { provider, service, state, awb, labelUrl, cost, forwardedAt, note }`.
 
-## Still to do (see `customer-portal-roadmap.md` phase 8)
+## Customer tracking
 
-Staff screen (button, compare and confirm, label, badge) and customer tracking that merges the courier's events.
+`OccplNetworkAdapter.track` follows a forwarded shipment through its courier: it adds "Handed to <courier>" (with the courier's tracking number), asks the courier adapter for its status and events (via `ShipmentPortalQueries.Forwarded`), and merges them with OCCPL's own steps. The customer keeps the OCCPL tracking number. If the courier cannot be reached the answer is still "Handed to <courier>"; the background sync (every 2 minutes for OCCPL bookings) stores the stage, so "Delivered" from the courier finishes the booking.
+
+## Staff screen
+
+courier-web `shipment-view` (Forward to courier button, `ShipmentForwardDialog`, Courier partner card).
+
+## Not built (later)
+
+Bulk forwarding from a list; syncing a forwarded shipment's `DELIVERED` back onto the shipment itself (today the customer's booking shows it, the shipment stays FORWARDED); cancelling a forward at the courier.

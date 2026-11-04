@@ -83,7 +83,13 @@ public class ShipmentPortalQueries {
                         : names.computeIfAbsent(h.getBranchId(), id -> branches.findBranch(id, companyId)
                                 .map(BranchLookupPort.BranchRef::branchName).orElse(null))))
                 .toList();
-        return new PortalTimeline(view(s), steps);
+        return new PortalTimeline(view(s), steps, forwarded(s));
+    }
+
+    /** The courier a hub handed the shipment to, when it has (state BOOKED); the customer's tracking then follows that courier too. */
+    private static Forwarded forwarded(Shipment s) {
+        return s.isForwarded() ? new Forwarded(s.getForwardProvider(), s.getForwardOrderRef(), s.getForwardAwb(), s.getForwardLabelUrl(),
+                s.getForwardedAt()) : null;
     }
 
     private static PortalShipment view(Shipment s) {
@@ -92,7 +98,15 @@ public class ShipmentPortalQueries {
                 s.getExpectedDeliveryDate(), s.getCreatedAt());
     }
 
-    public record PortalTimeline(PortalShipment shipment, List<PortalStep> steps) {
+    public record PortalTimeline(PortalShipment shipment, List<PortalStep> steps, Forwarded forwarded) {
+
+        public PortalTimeline(PortalShipment shipment, List<PortalStep> steps) {
+            this(shipment, steps, null);
+        }
+    }
+
+    /** The courier partner a hub handed the shipment to (provider code, its order reference and AWB, label, and when). */
+    public record Forwarded(String providerCode, String orderRef, String awb, String labelUrl, Instant at) {
     }
 
     public record PortalStep(ShipmentStatus status, Instant at, String branchName) {

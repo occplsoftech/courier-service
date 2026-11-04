@@ -11,6 +11,7 @@ All notable changes to this project. Format based on
 ## 2026-11-04 — Forward a shipment to a courier partner from the hub: backend (V155)
 
 - New `modules/forwarding` and `shipments.forward_*` columns (V155), status `FORWARDED`. `GET /shipments/{id}/forwarding/options` (the connected couriers' own prices for the shipment, cheapest first) and `POST /shipments/{id}/forwarding` (books the chosen service once, stores the courier's AWB, label and cost). Admin or the manager of the holding hub only; not for To Pay; a refusal clears the attempt, an unclear answer is kept as UNKNOWN and never retried. The shipment response carries `forward`. The customer dashboard counts FORWARDED as in transit. See `MEMORY/modules/forwarding.md`.
+- Customer tracking of a forwarded shipment follows its courier: "Handed to <courier>" plus the courier's own status and events, under the OCCPL tracking number (`PortalTimeline.forwarded`, `OccplNetworkAdapter.track`).
 
 ## 2026-11-04 — Phase 7 closed (roadmap)
 

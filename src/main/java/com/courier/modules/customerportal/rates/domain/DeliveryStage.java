@@ -16,7 +16,7 @@ public enum DeliveryStage {
     private static final Pattern DELIVERED_P = Pattern.compile("\\bdelivered\\b");
     private static final Pattern NOT_PICKED = Pattern.compile("not picked|pickup (failed|pending|scheduled|rescheduled)|awaiting pickup");
     private static final Pattern OFD = Pattern.compile("out for delivery|\\bofd\\b|dispatched for delivery");
-    private static final Pattern TRANSIT = Pattern.compile("in[- ]?transit|transit|reached|arrived|dispatched|shipped|departed|forwarded|connected|bagged|hub");
+    private static final Pattern TRANSIT = Pattern.compile("in[- ]?transit|transit|reached|arrived|dispatched|shipped|departed|forwarded|handed (over )?to|connected|bagged|hub");
     private static final Pattern PICKED = Pattern.compile("picked|pickup (done|complete)|collected|received at origin|origin scan");
     private static final Pattern BOOKED = Pattern.compile("manifest|pickup|booked|created|scheduled|pending|ready|\\bnew\\b");
 

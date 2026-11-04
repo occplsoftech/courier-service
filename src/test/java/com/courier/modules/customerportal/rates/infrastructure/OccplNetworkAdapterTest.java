@@ -56,6 +56,7 @@ class OccplNetworkAdapterTest {
     @Mock private com.courier.modules.shipment.application.ShipmentService shipmentService;
     @Mock private com.courier.modules.company.application.BranchPincodeMappingService branchMappings;
     @Mock private com.courier.modules.customer.application.CustomerPortalLookup customers;
+    @Mock private org.springframework.beans.factory.ObjectProvider<List<com.courier.modules.customerportal.rates.domain.CourierProviderAdapter>> allAdapters;
     @InjectMocks private OccplNetworkAdapter adapter;
 
     private static final UUID DISTRICT = UUID.randomUUID();
@@ -261,6 +262,76 @@ class OccplNetworkAdapterTest {
         assertThat(t.currentLocation()).isEqualTo("Pune Branch");
         assertThat(t.events()).extracting(TrackingEvent::status)
                 .containsExactly("Dispatched", "Booked", "Picked up", "Pickup requested");
+    }
+
+    @Test
+    @DisplayName("tracking a shipment the hub handed to a courier follows that courier too, and the customer keeps the OCCPL number")
+    void tracksAForwardedShipmentThroughItsCourier() {
+        UUID company = UUID.randomUUID();
+        UUID customer = UUID.randomUUID();
+        UUID shipmentId = UUID.randomUUID();
+        Instant t0 = Instant.parse("2026-11-04T04:00:00Z");
+        PickupRequest p = mock(PickupRequest.class);
+        when(p.getPickupNo()).thenReturn("PU-8");
+        when(p.getStatus()).thenReturn(PickupStatus.BOOKED);
+        when(p.getCreatedAt()).thenReturn(t0);
+        when(p.getShipmentId()).thenReturn(shipmentId);
+        when(pickups.findByNumberForCustomer("PU-8", customer)).thenReturn(Optional.of(p));
+        when(shipments.timelineOfPickupShipment(company, shipmentId)).thenReturn(Optional.of(new ShipmentPortalQueries.PortalTimeline(
+                new ShipmentPortalQueries.PortalShipment(shipmentId, "SH-2", "TRK-2", LocalDate.now(), ShipmentStatus.FORWARDED,
+                        "Ravi", 1, BigDecimal.ONE, null, t0),
+                List.of(new ShipmentPortalQueries.PortalStep(ShipmentStatus.BOOKED, t0.plusSeconds(60), null),
+                        new ShipmentPortalQueries.PortalStep(ShipmentStatus.FORWARDED, t0.plusSeconds(7200), "Pune Hub")),
+                new ShipmentPortalQueries.Forwarded("DELHIVERY", "ORD-1", "DL123", null, t0.plusSeconds(7200)))));
+        var delhivery = mock(com.courier.modules.customerportal.rates.domain.CourierProviderAdapter.class);
+        when(delhivery.code()).thenReturn("DELHIVERY");
+        when(delhivery.displayName()).thenReturn("Delhivery");
+        when(delhivery.track(any(ShipmentRef.class))).thenReturn(TrackingResult.of("In Transit", "DL123", "Nagpur Hub",
+                List.of(new TrackingEvent(t0.plusSeconds(20000), "In Transit", "Nagpur Hub", "Reached hub"))));
+        when(allAdapters.getObject()).thenReturn(List.of(delhivery));
+
+        TrackingResult t = adapter.track(new ShipmentRef(company, customer, "b-2", "PU-8", null, null));
+
+        assertThat(t.available()).isTrue();
+        assertThat(t.trackingNumber()).isEqualTo("TRK-2");
+        assertThat(t.status()).isEqualTo("In Transit");
+        assertThat(t.currentLocation()).isEqualTo("Nagpur Hub");
+        assertThat(t.events()).extracting(TrackingEvent::status).contains("In Transit", "Handed to Delhivery", "Forwarded");
+        org.mockito.ArgumentCaptor<ShipmentRef> asked = org.mockito.ArgumentCaptor.forClass(ShipmentRef.class);
+        org.mockito.Mockito.verify(delhivery).track(asked.capture());
+        assertThat(asked.getValue().awbNumber()).isEqualTo("DL123");
+        assertThat(asked.getValue().providerOrderRef()).isEqualTo("ORD-1");
+    }
+
+    @Test
+    @DisplayName("tracking a forwarded shipment still answers when the courier cannot be reached: it says it was handed over")
+    void forwardedShipmentWhenTheCourierIsSilent() {
+        UUID company = UUID.randomUUID();
+        UUID customer = UUID.randomUUID();
+        UUID shipmentId = UUID.randomUUID();
+        Instant t0 = Instant.parse("2026-11-04T04:00:00Z");
+        PickupRequest p = mock(PickupRequest.class);
+        when(p.getPickupNo()).thenReturn("PU-9");
+        when(p.getStatus()).thenReturn(PickupStatus.BOOKED);
+        when(p.getCreatedAt()).thenReturn(t0);
+        when(p.getShipmentId()).thenReturn(shipmentId);
+        when(pickups.findByNumberForCustomer("PU-9", customer)).thenReturn(Optional.of(p));
+        when(shipments.timelineOfPickupShipment(company, shipmentId)).thenReturn(Optional.of(new ShipmentPortalQueries.PortalTimeline(
+                new ShipmentPortalQueries.PortalShipment(shipmentId, "SH-3", "TRK-3", LocalDate.now(), ShipmentStatus.FORWARDED,
+                        "Ravi", 1, BigDecimal.ONE, null, t0),
+                List.of(new ShipmentPortalQueries.PortalStep(ShipmentStatus.FORWARDED, t0.plusSeconds(7200), "Pune Hub")),
+                new ShipmentPortalQueries.Forwarded("DELHIVERY", "ORD-2", "DL9", null, t0.plusSeconds(7200)))));
+        var delhivery = mock(com.courier.modules.customerportal.rates.domain.CourierProviderAdapter.class);
+        when(delhivery.code()).thenReturn("DELHIVERY");
+        when(delhivery.displayName()).thenReturn("Delhivery");
+        when(delhivery.track(any(ShipmentRef.class))).thenReturn(TrackingResult.unavailable("down"));
+        when(allAdapters.getObject()).thenReturn(List.of(delhivery));
+
+        TrackingResult t = adapter.track(new ShipmentRef(company, customer, "b-3", "PU-9", null, null));
+
+        assertThat(t.available()).isTrue();
+        assertThat(t.status()).isEqualTo("Handed to Delhivery");
+        assertThat(t.trackingNumber()).isEqualTo("TRK-3");
     }
 
     @Test
