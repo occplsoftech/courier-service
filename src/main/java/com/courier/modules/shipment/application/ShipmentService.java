@@ -64,6 +64,19 @@ public interface ShipmentService {
      */
     Shipment createFromPortalBooking(com.courier.modules.shipment.application.command.PortalShipmentCommand command);
 
+    /**
+     * Step 1 of handing a shipment to a courier: marks it as being forwarded, so a second attempt is refused. Refused unless
+     * {@link com.courier.modules.shipment.domain.Shipment#forwardBlocker()} is null. No {@code @PreAuthorize}: only the forwarding
+     * module (which checks who may forward) calls it.
+     */
+    Shipment beginForward(UUID id, String providerCode, String serviceName);
+
+    /** Step 2 (courier accepted): records its AWB, label and cost and moves the shipment to FORWARDED. */
+    Shipment completeForward(UUID id, com.courier.modules.shipment.application.command.ForwardRecord record);
+
+    /** Step 2 (courier did not accept, or we cannot tell): clears the attempt, or when {@code unknown} keeps it flagged for checking. */
+    Shipment abandonForward(UUID id, boolean unknown, String note);
+
     Shipment create(CreateShipmentCommand command);
 
     /**

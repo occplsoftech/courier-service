@@ -1112,6 +1112,55 @@ class ShipmentServiceImplTest {
         verify(eventPublisher, never()).publishEvent(any(ShipmentEvent.PrepaidBookingConfirmed.class));
     }
 
+    @Test
+    void forwardingStepsMarkTheShipmentAndMoveItToForwarded() {
+        UUID id = UUID.randomUUID();
+        Shipment s = Shipment.builder().shipmentNumber("PUN-000001").trackingNumber("2611000001").status(ShipmentStatus.BOOKED).build();
+        s.setId(id);
+        s.setCompanyId(COMPANY);
+        when(shipmentRepository.findByIdWithinCompany(id, COMPANY)).thenReturn(java.util.Optional.of(s));
+
+        service.beginForward(id, "DELHIVERY", "Delhivery Surface");
+        assertThat(s.getForwardState()).isEqualTo("SUBMITTING");
+        // a second attempt while one is in progress is refused
+        assertThatThrownBy(() -> service.beginForward(id, "SHIPROCKET", "X")).hasMessageContaining("being forwarded");
+
+        service.completeForward(id, new com.courier.modules.shipment.application.command.ForwardRecord(
+                "DELHIVERY", "Delhivery Surface", "DL1", "ORD1", "https://lbl", new BigDecimal("180")));
+
+        assertThat(s.getStatus()).isEqualTo(ShipmentStatus.FORWARDED);
+        assertThat(s.isForwarded()).isTrue();
+        assertThat(s.getForwardAwb()).isEqualTo("DL1");
+        assertThat(s.getForwardCost()).isEqualByComparingTo("180");
+        assertThat(s.getForwardedAt()).isNotNull();
+        verify(historyRepository).save(any());
+        // a forwarded shipment cannot be cancelled or forwarded again
+        assertThat(ShipmentStatus.FORWARDED.isCancellable()).isFalse();
+        assertThat(s.forwardBlocker()).contains("already forwarded");
+    }
+
+    @Test
+    void aRefusedForwardClearsTheAttemptAndAnUnknownOneKeepsItFlagged() {
+        UUID id = UUID.randomUUID();
+        Shipment s = Shipment.builder().shipmentNumber("PUN-000002").trackingNumber("2611000002").status(ShipmentStatus.IN_SCAN).build();
+        s.setId(id);
+        s.setCompanyId(COMPANY);
+        when(shipmentRepository.findByIdWithinCompany(id, COMPANY)).thenReturn(java.util.Optional.of(s));
+
+        service.beginForward(id, "DELHIVERY", "Delhivery Surface");
+        service.abandonForward(id, false, "Pincode not serviceable");
+        assertThat(s.getForwardState()).isNull();
+        assertThat(s.getForwardProvider()).isNull();
+        assertThat(s.getStatus()).isEqualTo(ShipmentStatus.IN_SCAN);
+
+        service.beginForward(id, "DELHIVERY", "Delhivery Surface");
+        service.abandonForward(id, true, "timeout");
+        assertThat(s.getForwardState()).isEqualTo("UNKNOWN");
+        assertThat(s.getForwardNote()).isEqualTo("timeout");
+        assertThat(s.forwardBlocker()).contains("could not be confirmed");
+        assertThatThrownBy(() -> service.beginForward(id, "SHIPROCKET", "X")).hasMessageContaining("could not be confirmed");
+    }
+
     private static ServiceType serviceType(int deliveryDays) {
         ServiceType serviceType = new ServiceType();
         serviceType.setCode("STD");

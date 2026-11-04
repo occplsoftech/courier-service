@@ -44,8 +44,16 @@ public record ShipmentResponse(
         BigDecimal invoiceValue, boolean ewayBillRequired, EwayBillInfo ewayBill,
         UUID createdBy, String createdByName, Instant createdDate, UUID updatedBy, Instant updatedDate, Long version,
         @Schema(description = "STANDARD or MSRTC") String flowType,
-        List<ShipmentItemResponse> items
+        List<ShipmentItemResponse> items,
+        @Schema(description = "Set when the shipment was handed to a courier partner from the hub") ForwardInfo forward
 ) {
+    /** The courier a hub handed the shipment to: its own AWB and label, what it charges us, and where the forward stands
+     *  (SUBMITTING, UNKNOWN = needs checking with the courier, BOOKED). */
+    @Schema(name = "ShipmentForwardInfo")
+    public record ForwardInfo(String provider, String service, String state, String awb, String labelUrl, BigDecimal cost,
+                              Instant forwardedAt, String note) {
+    }
+
     /** The shipment's current E-Way Bill, read-only — plain fields only (no enum type),
      *  so this module never depends on {@code com.courier.modules.ewaybill}'s domain
      *  package, only its application interface (see {@code ShipmentMapper}). */
