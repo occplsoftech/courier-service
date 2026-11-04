@@ -229,6 +229,8 @@ class ShipyaariAdapterTest {
                 .andExpect(jsonPath("$.boxInfo[0].codInfo.isCod").value(false))
                 .andExpect(jsonPath("$.boxInfo[0].codInfo.invoiceValue").value(1000))
                 .andExpect(jsonPath("$.boxInfo[0].products[0].name").value("Garments"))
+                // Shipyaari refuses a product without a unit tax ("Unit Tax is Required for all Products")
+                .andExpect(jsonPath("$.boxInfo[0].products[0].unitTax").value(0))
                 .andRespond(withSuccess(BOOKED, MediaType.APPLICATION_JSON));
 
         BookingOutcome outcome = adapter.book(booking("DTDC|ECONOMY|SURFACE", rate(RateRequest.PaymentMode.PREPAID, 1), "9876543210"));
@@ -238,6 +240,23 @@ class ShipyaariAdapterTest {
         assertThat(outcome.awbNumber()).isEqualTo("77090047322");
         assertThat(outcome.message()).contains("DTDC");
         server.verify();
+    }
+
+    @Test
+    @DisplayName("a 4xx refusal keeps the generic text for customers and carries Shipyaari's own words as a staff-only detail")
+    void refusalCarriesDetailForStaff() {
+        login();
+        server.expect(requestTo("https://sy.test/api/v1/order/placeOrderApiV3"))
+                .andRespond(withStatus(HttpStatus.UNPROCESSABLE_ENTITY).contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"success\":false,\"message\":\"Unit Tax is Required for all Products.\"}"));
+
+        BookingOutcome outcome = adapter.book(booking("DTDC|ECONOMY|SURFACE", rate(RateRequest.PaymentMode.PREPAID, 1), "9876543210"));
+
+        assertThat(outcome.result()).isEqualTo(BookingOutcome.Result.REJECTED);
+        assertThat(outcome.message()).isEqualTo("Shipyaari could not accept the order. Please check the details or try again later.");
+        assertThat(outcome.detail()).isEqualTo("Unit Tax is Required for all Products.");
+        assertThat(ShipyaariAdapter.reasonOf("\"message\":\"X is missing\"}")).isEqualTo("X is missing");
+        assertThat(ShipyaariAdapter.reasonOf("")).isNull();
     }
 
     @Test

@@ -165,8 +165,10 @@ public class ForwardingService {
             }
             case REJECTED -> {
                 shipmentService.abandonForward(s.getId(), false, outcome.message());
+                // Staff get the courier's own words when it gave any (a customer would only ever see the generic message).
                 throw new BusinessRuleException(adapter.displayName() + " did not accept it: "
-                        + (outcome.message() == null ? "no reason given" : outcome.message()));
+                        + (outcome.message() == null ? "no reason given" : outcome.message())
+                        + (outcome.detail() == null || outcome.detail().isBlank() ? "" : " " + adapter.displayName() + " says: " + outcome.detail()));
             }
             default -> {
                 shipmentService.abandonForward(s.getId(), true, outcome.message());
