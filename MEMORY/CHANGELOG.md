@@ -8,6 +8,11 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-04 — Shipyaari bookings: unit tax, and the courier's own refusal reason for staff
+
+- Found by a live forward on dev: Shipyaari refused every order with "Unit Tax is Required for all Products." (HTTP 422, only visible in the server log). The order's product now carries `unitTax` (0: the declared value is the goods' price as entered). This also fixes ordinary portal bookings with Shipyaari.
+- `BookingOutcome.detail` carries a courier's own refusal words for staff only (a customer still sees the generic message). Shipyaari fills it; forwarding shows "Shipyaari says: ..." in the refusal, so a missing field no longer needs the server log.
+
 ## 2026-11-04 — Forward a shipment to a courier partner from the hub: backend (V155)
 
 - New `modules/forwarding` and `shipments.forward_*` columns (V155), status `FORWARDED`. `GET /shipments/{id}/forwarding/options` (the connected couriers' own prices for the shipment, cheapest first) and `POST /shipments/{id}/forwarding` (books the chosen service once, stores the courier's AWB, label and cost). Admin or the manager of the holding hub only; not for To Pay; a refusal clears the attempt, an unclear answer is kept as UNKNOWN and never retried. The shipment response carries `forward`. The customer dashboard counts FORWARDED as in transit. See `MEMORY/modules/forwarding.md`.

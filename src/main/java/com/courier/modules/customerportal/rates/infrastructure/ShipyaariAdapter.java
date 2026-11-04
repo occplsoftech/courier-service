@@ -257,7 +257,8 @@ public class ShipyaariAdapter implements CourierProviderAdapter {
             forgetLoginOnAuthFailure(e, b.companyId());
             log.warn("Shipyaari refused booking {}: HTTP {} {}", b.reference(), status, providerMessage(e));
             if (status >= 400 && status < 500) {
-                return BookingOutcome.rejected("PROVIDER_REJECTED", "Shipyaari could not accept the order. Please check the details or try again later.");
+                return BookingOutcome.rejected("PROVIDER_REJECTED", "Shipyaari could not accept the order. Please check the details or try again later.",
+                        reasonOf(providerMessage(e)));
             }
             return BookingOutcome.unknown(null, "Shipyaari answered with an error. Our team will check whether the order was created.");
         } catch (ResourceAccessException e) {
@@ -273,7 +274,8 @@ public class ShipyaariAdapter implements CourierProviderAdapter {
         }
         if (!answer.path("success").asBoolean(false)) {
             log.warn("Shipyaari declined booking {}: {}", b.reference(), text(answer, "message"));
-            return BookingOutcome.rejected("PROVIDER_REJECTED", "Shipyaari could not accept the order. Please check the details or try again later.");
+            return BookingOutcome.rejected("PROVIDER_REJECTED", "Shipyaari could not accept the order. Please check the details or try again later.",
+                    text(answer, "message"));
         }
         JsonNode created = answer.path("data").path(0);
         String orderId = text(created, "orderId");
@@ -343,6 +345,9 @@ public class ShipyaariAdapter implements CourierProviderAdapter {
         product.put("unitPrice", value);
         product.put("sellingPrice", value);
         product.put("totalPrice", value);
+        // Shipyaari refuses a product without a unit tax ("Unit Tax is Required for all Products"). The declared value is the
+        // goods' price as entered, so no tax is added on top of it here.
+        product.put("unitTax", BigDecimal.ZERO);
         product.put("weightUnit", "kg");
         product.put("deadWeight", weight);
         product.put("length", b.rate().lengthCm());
@@ -571,6 +576,15 @@ public class ShipyaariAdapter implements CourierProviderAdapter {
     }
 
     // -------------------------------------------------------------- helpers
+
+    /** {@code "message":"Unit Tax is Required"} -> {@code Unit Tax is Required}. */
+    static String reasonOf(String snippet) {
+        if (snippet == null || snippet.isBlank()) {
+            return null;
+        }
+        String t = snippet.replaceFirst("^\\s*\"message\"\\s*:\\s*\"?", "").replaceFirst("\"?\\s*\\}?\\s*$", "").trim();
+        return t.isEmpty() ? null : t;
+    }
 
     private static String providerMessage(RestClientResponseException e) {
         try {

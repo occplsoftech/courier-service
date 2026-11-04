@@ -169,10 +169,13 @@ class ForwardingServiceTest {
     @Test
     @DisplayName("a courier that refuses leaves the shipment where it was and the reason comes back")
     void refusalIsClearedAndExplained() {
-        when(delhivery.book(any(BookingRequest.class))).thenReturn(BookingOutcome.rejected("BAD_PIN", "Pincode not serviceable"));
+        when(delhivery.book(any(BookingRequest.class))).thenReturn(BookingOutcome.rejected("BAD_PIN", "Pincode not serviceable",
+                "Unit Tax is Required for all Products."));
 
         assertThatThrownBy(() -> service.forward(shipment.getId(), "DELHIVERY", "SURFACE"))
-                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("Pincode not serviceable");
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("Pincode not serviceable")
+                // staff see the courier's own words
+                .hasMessageContaining("Delhivery says: Unit Tax is Required for all Products.");
 
         verify(shipmentService).abandonForward(shipment.getId(), false, "Pincode not serviceable");
         verify(shipmentService, never()).completeForward(any(), any());
