@@ -184,6 +184,7 @@ public class ShiprocketAdapter implements CourierProviderAdapter {
         if (reference == null || reference.isBlank()) {
             return CancelOutcome.failed("There is no order reference to look up at Shiprocket.");
         }
+        String[] step = {"order lookup"};
         try {
             JsonNode found = http.get().uri(u -> u.path("/v1/external/orders").queryParam("search", reference).queryParam("per_page", 25).build())
                     .header("Authorization", "Bearer " + token(companyId))
@@ -212,6 +213,7 @@ public class ShiprocketAdapter implements CourierProviderAdapter {
                     break;
                 }
             }
+            step[0] = "cancel";
             if (awb != null) {
                 http.post().uri("/v1/external/orders/cancel/shipment/awbs")
                         .header("Authorization", "Bearer " + token(companyId))
@@ -230,8 +232,9 @@ public class ShiprocketAdapter implements CourierProviderAdapter {
             if (e.getStatusCode().value() == 401) {
                 sessions.remove(fingerprint(companyId));
             }
-            log.warn("Shiprocket cancel failed: HTTP {}", e.getStatusCode().value());
-            return CancelOutcome.failed("Shiprocket would not cancel the order (HTTP " + e.getStatusCode().value() + "). Cancel it in the Shiprocket panel.");
+            log.warn("Shiprocket cancel failed: HTTP {} on {}", e.getStatusCode().value(), step[0]);
+            return CancelOutcome.failed("Shiprocket refused the " + step[0] + " (HTTP " + e.getStatusCode().value()
+                    + "): the saved Shiprocket API user may not be allowed to do this. Cancel it in the Shiprocket panel, then choose \"I already cancelled it\".");
         } catch (RestClientException | IllegalStateException e) {
             log.warn("Shiprocket cancel failed: {}", e.getClass().getSimpleName());
             return CancelOutcome.failed("Shiprocket could not be reached, so the order was not cancelled.");

@@ -8,6 +8,12 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-04 — Resolve: "I cancelled it myself" and clearer Shiprocket refusal
+
+- `POST .../forwarding/resolve` takes `cancelledByHand`: clears an unconfirmed forward without asking the courier (for when the saved API user may not cancel; Shiprocket answered 403). Shiprocket's refusal now names the step (order lookup or cancel).
+
+---
+
 ## 2026-11-04 — Resolve a forward the courier never confirmed (cancel at Shiprocket)
 
 - An unconfirmed forward now keeps the courier's order id (`forward_order_ref`).

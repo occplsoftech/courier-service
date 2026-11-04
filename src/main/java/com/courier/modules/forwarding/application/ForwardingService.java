@@ -185,12 +185,12 @@ public class ForwardingService {
     }
 
     /**
-     * Settles a forward the courier never confirmed. {@code courierTookIt} false: the order is cancelled at the courier and, only once
+     * Settles a forward the courier never confirmed. {@code courierTookIt} false (and {@code cancelledByHand} false): the order is cancelled at the courier and, only once
      * the courier says it is cancelled (or holds no such order), the flag is cleared so the shipment can be forwarded again. True: the
      * AWB the courier gave is recorded by hand and the shipment becomes FORWARDED.
      */
     @PreAuthorize(AUTHENTICATED)
-    public ResolveResult resolve(UUID shipmentId, boolean courierTookIt, String awb) {
+    public ResolveResult resolve(UUID shipmentId, boolean courierTookIt, String awb, boolean cancelledByHand) {
         UUID companyId = requireCompany();
         Shipment s = load(shipmentId, companyId);
         requireMayForward(s);
@@ -205,6 +205,11 @@ public class ForwardingService {
             Shipment done = shipmentService.completeForward(s.getId(), new ForwardRecord(providerCode, s.getForwardService(),
                     awb.trim(), s.getForwardOrderRef(), null, null));
             return new ResolveResult(done.getId(), "FORWARDED", "Recorded as forwarded to " + providerCode + ", AWB " + awb.trim() + ".");
+        }
+        if (cancelledByHand) {
+            // The person cancelled it in the courier's own panel (our connection may not be allowed to): nothing to ask the courier.
+            shipmentService.clearUnconfirmedForward(s.getId(), "Cancelled at the courier by hand");
+            return new ResolveResult(s.getId(), "CLEARED", "Cleared. You can forward the shipment again.");
         }
         CourierProviderAdapter adapter = adapters.stream().filter(a -> a.external() && a.code().equals(providerCode)).findFirst()
                 .orElseThrow(() -> new BusinessRuleException("Unknown courier " + providerCode + "."));
