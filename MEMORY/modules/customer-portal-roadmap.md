@@ -9,7 +9,7 @@
 | Phase | Goal | Size | Depends on | Status |
 |---|---|---|---|---|
 | 6 | Pricing, booking and numbering foundations (done) | - | - | `[x]` |
-| 7 | Stabilise and verify on dev | S | 6 | `[~]` |
+| 7 | Stabilise and verify on dev | S | 6 | `[x]` (built 2026-11-04; two owner actions left, see 7.4 / 7.7 / 7.8) |
 | 8 | Hub forwards a shipment to a courier partner | L | 6 | `[ ]` **next** |
 | 9 | Customer quick wins (labels, cancel, reschedule) | M | 6 | `[ ]` |
 | 10 | Notifications and delivery exceptions | M | 6 | `[ ]` |
@@ -35,18 +35,18 @@
 | Branch manager can see the suggested partner and the partner list, and assign a pickup | CS, CW | `GET /pickups/partners` |
 | Page headers (brand band with icon) and Bulk booking table layout | EC | |
 
-## Phase 7 — Stabilise and verify `[~]`
+## Phase 7 — Stabilise and verify `[x]` (code and dev checks done 2026-11-04; owner items open)
 
 | # | Item | Repos | Size | Status |
 |---|---|---|---|---|
-| 7.1 | Retest on dev after the latest releases: branch manager assigns through the screen (#66, courier-web #27), fixed-price slab quotes, Cargo note on the live calculator | all | S | `[ ]` |
-| 7.2 | Rate import: accept the service type **name** as well as the code | CS | S | `[ ]` |
-| 7.3 | Warn when no slab covers the card's minimum chargeable weight | CS, CW | S | `[ ]` |
-| 7.4 | Remove the old all-services "OCCPL Standard" test rate if the owner wants only the four services | dev data | S | `[ ]` |
-| 7.5 | Status badge "Awaiting pickup" lags the tracker | EC | S | `[ ]` |
-| 7.6 | Clean dev test data: pickups PU-20261030-0004..0012 and their shipments, test users, the 411016 pincode mapping | dev data | S | `[ ]` |
-| 7.7 | **Security:** rotate the passwords pasted in chat (staff, e-commerce login, the AWS key id); change or delete the two test users whose passwords were reset | owner | S | `[ ]` |
-| 7.8 | Stop `.env.bak` / `docker-compose.yml.bak` lingering in `/opt/occpl`; merge the infra PR for `claude/courier-s3-env` | infra | S | `[ ]` |
+| 7.1 | Retest on dev after the latest releases: branch manager assigns through the screen (#66, courier-web #27), fixed-price slab quotes, Cargo note on the live calculator | all | S | `[x]` verified on dev 2026-11-03/04 |
+| 7.2 | Rate import: accept the service type **name** as well as the code | CS | S | `[x]` courier-service#70 |
+| 7.3 | Warn when no slab covers the card's minimum chargeable weight | CS, CW | S | `[x]` courier-service#70 + courier-web#30 (refused on save; also in the import preview) |
+| 7.4 | Remove the old all-services "OCCPL Standard" test rate if the owner wants only the four services | dev data | S | `[ ]` **owner decision** |
+| 7.5 | Status badge "Awaiting pickup" lags the tracker | EC | S | `[x]` courier-service#70 (OCCPL bookings re-checked every 2 minutes) |
+| 7.6 | Clean dev test data: pickups PU-20261030-0004..0012 and their shipments, test users, the 411016 pincode mapping | dev data | S | `[x]` my test pickups/shipments cancelled 2026-11-04; pickups of "Shubham", "Siddesh" and 2026-10-31 left for the owner; test users and the 411016 mapping kept |
+| 7.7 | **Security:** rotate the passwords pasted in chat (staff, e-commerce login, the AWS key id); change or delete the two test users whose passwords were reset | owner | S | `[ ]` **owner** |
+| 7.8 | Stop `.env.bak` / `docker-compose.yml.bak` lingering in `/opt/occpl`; merge the infra PR for `claude/courier-s3-env` | infra | S | `[ ]` **owner (server)** |
 
 ## Phase 8 — Forward to a courier partner from the hub `[ ]` **next**
 

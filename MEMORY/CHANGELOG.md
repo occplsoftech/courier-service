@@ -8,6 +8,10 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-04 — Phase 7 closed (roadmap)
+
+- Roadmap phase 7 marked done on the code and dev side. Open owner items: 7.4 (keep or remove the old all-services "OCCPL Standard" test rate), 7.7 (rotate the passwords pasted in chat, change or delete the two reset test users), 7.8 (server `.env.bak` / `docker-compose.yml.bak`, infra PR for `claude/courier-s3-env`). Next phase: 8, forwarding to a courier partner from the hub.
+
 ## 2026-11-03 — Porter: same-city two-wheeler courier (quote, booking, tracking, webhook)
 
 - `PorterAdapter` from the Porter API Contract 1.0: quotes (2-wheeler only, same city, parcel within its limits), booking with
