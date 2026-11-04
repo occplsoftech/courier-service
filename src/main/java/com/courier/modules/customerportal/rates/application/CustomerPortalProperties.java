@@ -70,6 +70,11 @@ public class CustomerPortalProperties {
         private boolean enabled = true;
         /** Between checks of a shipment still on its way. */
         private Duration interval = Duration.ofHours(1);
+        /**
+         * Between checks of a shipment on OCCPL's own network. Reading our own pickup and shipment is cheap and its steps (assigned,
+         * picked up, in scan...) happen at the branch, so the badge on the customer's list should follow them within minutes.
+         */
+        private Duration internalInterval = Duration.ofMinutes(2);
         /** After a webhook: how soon the job confirms with the courier. */
         private Duration afterWebhook = Duration.ofSeconds(30);
         /** Bookings older than this are no longer checked, finished or not. */

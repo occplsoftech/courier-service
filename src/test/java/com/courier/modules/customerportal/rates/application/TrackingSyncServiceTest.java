@@ -46,6 +46,7 @@ class TrackingSyncServiceTest {
     @BeforeEach
     void setUp() {
         when(delhivery.code()).thenReturn("DELHIVERY");
+        when(delhivery.external()).thenReturn(true);
         service = new TrackingSyncService(bookings, List.of(delhivery), properties,
                 new TransactionTemplate(mock(PlatformTransactionManager.class)), walletService);
     }
@@ -79,6 +80,27 @@ class TrackingSyncServiceTest {
         assertThat(CompanyContext.isSet()).isFalse();
         verify(bookings).recordDelivery(b.getId(), COMPANY, DeliveryStage.IN_TRANSIT, "In Transit", "Delhi Hub",
                 NOW.minusSeconds(600), NOW, NOW.plus(Duration.ofHours(1)));
+    }
+
+    @Test
+    @DisplayName("OCCPL's own network is asked again in two minutes, so the list badge follows the branch's steps")
+    void ownNetworkIsAskedOften() {
+        CourierProviderAdapter occpl = mock(CourierProviderAdapter.class);
+        when(occpl.code()).thenReturn("OCCPL_NETWORK");
+        when(occpl.external()).thenReturn(false);
+        when(delhivery.external()).thenReturn(true);
+        TrackingSyncService both = new TrackingSyncService(bookings, List.of(delhivery, occpl), properties,
+                new TransactionTemplate(mock(PlatformTransactionManager.class)), walletService);
+        PortalBooking own = booked(NOW.minus(Duration.ofHours(3)));
+        own.setProviderCode("OCCPL_NETWORK");
+        when(bookings.findDueForTrackingSyncAcrossCompanies(eq(NOW), any())).thenReturn(List.of(own));
+        when(occpl.track(any(ShipmentRef.class))).thenReturn(TrackingResult.of("Picked up", "AWB1", "Pune",
+                List.of(new TrackingEvent(NOW.minusSeconds(60), "Picked up", "Pune", null))));
+
+        both.syncDue(NOW);
+
+        verify(bookings).recordDelivery(own.getId(), COMPANY, DeliveryStage.PICKED_UP, "Picked up", "Pune",
+                NOW.minusSeconds(60), NOW, NOW.plus(Duration.ofMinutes(2)));
     }
 
     @Test

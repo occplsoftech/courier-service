@@ -92,6 +92,7 @@ public class ZoneRateServiceImpl implements ZoneRateService {
                 .toList();
         newSlabs.forEach(ZoneRateSlab::applyInvariants);
         requireValidSlabs(newSlabs);
+        requireNoGaps(newSlabs, rate.getMinChargeableWeight());
 
         ZoneRate saved = rates.save(rate);
         UUID actor = SecurityUtils.getCurrentUserId().orElse(null);
@@ -275,6 +276,31 @@ public class ZoneRateServiceImpl implements ZoneRateService {
     }
 
     // ------------------------------------------------------------------ helpers
+
+    /**
+     * A weight that falls in no slab cannot be priced from this card (the customer would silently get the company's rates), so the
+     * slabs must start at 0, run on without gaps, and reach the card's minimum chargeable weight.
+     */
+    private void requireNoGaps(List<ZoneRateSlab> sorted, BigDecimal minChargeable) {
+        ZoneRateSlab first = sorted.get(0);
+        if (first.getMinWeight().signum() != 0) {
+            throw new BusinessRuleException("The first weight slab must start at 0 kg (it starts at %s kg, so lighter parcels have no rate)."
+                    .formatted(first.getMinWeight().stripTrailingZeros().toPlainString()));
+        }
+        for (int i = 1; i < sorted.size(); i++) {
+            BigDecimal prevMax = sorted.get(i - 1).getMaxWeight();
+            BigDecimal min = sorted.get(i).getMinWeight();
+            if (prevMax != null && min.compareTo(prevMax) > 0) {
+                throw new BusinessRuleException("Weight slabs have a gap: slab %d ends at %s kg but slab %d starts at %s kg, so weights between them have no rate."
+                        .formatted(i, prevMax.stripTrailingZeros().toPlainString(), i + 1, min.stripTrailingZeros().toPlainString()));
+            }
+        }
+        BigDecimal lastMax = sorted.get(sorted.size() - 1).getMaxWeight();
+        if (lastMax != null && minChargeable != null && minChargeable.compareTo(lastMax) > 0) {
+            throw new BusinessRuleException("The minimum chargeable weight (%s kg) is above the heaviest slab (%s kg), so no parcel could be priced."
+                    .formatted(minChargeable.stripTrailingZeros().toPlainString(), lastMax.stripTrailingZeros().toPlainString()));
+        }
+    }
 
     private void requireValidSlabs(List<ZoneRateSlab> sorted) {
         for (int i = 0; i < sorted.size(); i++) {
