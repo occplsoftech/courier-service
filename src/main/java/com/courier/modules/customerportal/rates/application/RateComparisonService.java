@@ -116,7 +116,7 @@ public class RateComparisonService {
                 .multiply(BigDecimal.valueOf(request.packageCount()))
                 .divide(BigDecimal.valueOf(properties.getVolumetricDivisor()), 3, RoundingMode.HALF_UP);
 
-        List<ProviderResult> results = askProviders(request);
+        List<ProviderResult> results = askProviders(request, access.allowedCodes(request.companyId(), request.customerId()), true);
         Instant now = Instant.now();
         Instant expires = now.plus(properties.getQuoteValidity());
 
@@ -203,7 +203,7 @@ public class RateComparisonService {
         BigDecimal volumetric = request.lengthCm().multiply(request.breadthCm()).multiply(request.heightCm())
                 .multiply(BigDecimal.valueOf(request.packageCount()))
                 .divide(BigDecimal.valueOf(properties.getVolumetricDivisor()), 3, RoundingMode.HALF_UP);
-        List<ProviderResult> results = askProviders(request);
+        List<ProviderResult> results = askProviders(request, access.allowedCodes(request.companyId(), request.customerId()), true);
         Instant now = Instant.now();
         Instant expires = now.plus(properties.getQuoteValidity());
         List<RateQuoteOption> options = priceOptions(acting, results, now, expires);
@@ -272,10 +272,20 @@ public class RateComparisonService {
 
     // ------------------------------------------------------------------ internals
 
-    private List<ProviderResult> askProviders(RateRequest request) {
+    /**
+     * Every connected external courier's price for a shipment a hub holds (a staff action, so no customer courier-access list and
+     * not OCCPL's own network). Each answer is the courier's own price: no markup, no tax added. A courier that is not connected is
+     * left out; one that cannot serve it comes back unavailable with its reason.
+     */
+    public List<ProviderResult> askExternalForForwarding(RateRequest request) {
+        Set<String> external = new java.util.HashSet<>();
+        adapters.stream().filter(a -> a.external() && a.domestic()).forEach(a -> external.add(a.code()));
+        return askProviders(request, external, false).stream().filter(r -> external.contains(r.providerCode())).toList();
+    }
+
+    private List<ProviderResult> askProviders(RateRequest request, Set<String> allowed, boolean includeOwnNetwork) {
         List<ProviderResult> results = new ArrayList<>();
         Map<CourierProviderAdapter, CompletableFuture<ProviderResult>> pending = new LinkedHashMap<>();
-        Set<String> allowed = access.allowedCodes(request.companyId(), request.customerId());
         for (CourierProviderAdapter a : adapters) {
             // a courier this customer was not given is not shown at all, not even as "not available"
             if (!a.domestic() || !allowed.contains(a.code())) {
@@ -291,7 +301,9 @@ public class RateComparisonService {
             }
         }
         // OCCPL's own network needs the bound company and principal, so it runs here while the others work.
-        adapters.stream().filter(a -> !a.external() && allowed.contains(a.code()) && a.configured(request.companyId())).forEach(a -> results.add(0, safe(a, request)));
+        if (includeOwnNetwork) {
+            adapters.stream().filter(a -> !a.external() && allowed.contains(a.code()) && a.configured(request.companyId())).forEach(a -> results.add(0, safe(a, request)));
+        }
         long timeoutMs = properties.getProviderTimeout().toMillis() + 2000;
         for (Map.Entry<CourierProviderAdapter, CompletableFuture<ProviderResult>> e : pending.entrySet()) {
             CourierProviderAdapter a = e.getKey();

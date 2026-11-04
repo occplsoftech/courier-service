@@ -63,18 +63,22 @@ public enum ShipmentStatus {
     OUT_FOR_DELIVERY,
     DELIVERED,
     RETURNED,
-    CANCELLED;
+    CANCELLED,
+    /** Handed to a courier partner from the hub; the courier delivers it and its own tracking decides what follows. */
+    FORWARDED;
 
     private static final Map<ShipmentStatus, Set<ShipmentStatus>> TRANSITIONS = Map.ofEntries(
-            Map.entry(BOOKED, EnumSet.of(READY_FOR_MANIFEST, MANIFEST_CREATED, CANCELLED)),
-            Map.entry(READY_FOR_MANIFEST, EnumSet.of(MANIFEST_CREATED, OUT_FOR_DELIVERY, CANCELLED)),
+            Map.entry(BOOKED, EnumSet.of(READY_FOR_MANIFEST, MANIFEST_CREATED, CANCELLED, FORWARDED)),
+            Map.entry(READY_FOR_MANIFEST, EnumSet.of(MANIFEST_CREATED, OUT_FOR_DELIVERY, CANCELLED, FORWARDED)),
             Map.entry(MANIFEST_CREATED, EnumSet.of(DISPATCHED, CANCELLED, BOOKED, READY_FOR_MANIFEST)),
             Map.entry(DISPATCHED, EnumSet.of(IN_SCAN, READY_FOR_MANIFEST)),
-            Map.entry(IN_SCAN, EnumSet.of(OUT_FOR_DELIVERY, RETURNED)),
+            Map.entry(IN_SCAN, EnumSet.of(OUT_FOR_DELIVERY, RETURNED, FORWARDED)),
             Map.entry(OUT_FOR_DELIVERY, EnumSet.of(DELIVERED, RETURNED)),
             Map.entry(DELIVERED, EnumSet.noneOf(ShipmentStatus.class)),
             Map.entry(RETURNED, EnumSet.noneOf(ShipmentStatus.class)),
-            Map.entry(CANCELLED, EnumSet.noneOf(ShipmentStatus.class)));
+            Map.entry(CANCELLED, EnumSet.noneOf(ShipmentStatus.class)),
+            // The courier delivers it (or returns it); our own manifest, scan and delivery steps no longer apply.
+            Map.entry(FORWARDED, EnumSet.of(DELIVERED, RETURNED)));
 
     /**
      * The states a booking may still be cancelled from — before it has left the branch.

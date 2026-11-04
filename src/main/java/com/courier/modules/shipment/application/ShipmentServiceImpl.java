@@ -400,6 +400,83 @@ public class ShipmentServiceImpl implements ShipmentService {
     }
 
 
+
+    // ------------------------------------------------------------------- forwarding to a courier partner
+
+    @Override
+    @Transactional
+    public Shipment beginForward(UUID id, String providerCode, String serviceName) {
+        UUID companyId = requireCompany();
+        Shipment s = shipmentRepository.findByIdWithinCompany(id, companyId)
+                .orElseThrow(() -> new ResourceNotFoundException(ENTITY, id));
+        String blocker = s.forwardBlocker();
+        if (blocker != null) {
+            throw new BusinessRuleException(blocker);
+        }
+        s.setForwardProvider(providerCode);
+        s.setForwardService(serviceName);
+        s.setForwardState("SUBMITTING");
+        s.setForwardNote(null);
+        return shipmentRepository.save(s);
+    }
+
+    @Override
+    @Transactional
+    public Shipment completeForward(UUID id, com.courier.modules.shipment.application.command.ForwardRecord r) {
+        UUID companyId = requireCompany();
+        Shipment s = shipmentRepository.findByIdWithinCompany(id, companyId)
+                .orElseThrow(() -> new ResourceNotFoundException(ENTITY, id));
+        if (!"SUBMITTING".equals(s.getForwardState()) && !"UNKNOWN".equals(s.getForwardState())) {
+            throw new BusinessRuleException("This shipment is not being forwarded.");
+        }
+        ShipmentStatus previous = s.getStatus();
+        if (!previous.canTransitionTo(ShipmentStatus.FORWARDED)) {
+            throw new BusinessRuleException("A shipment that is " + previous.name().toLowerCase(java.util.Locale.ROOT) + " cannot be forwarded.");
+        }
+        s.setForwardProvider(r.providerCode());
+        s.setForwardService(r.serviceName());
+        s.setForwardState("BOOKED");
+        s.setForwardAwb(r.awb());
+        s.setForwardOrderRef(r.orderRef());
+        s.setForwardLabelUrl(r.labelUrl());
+        s.setForwardCost(r.cost());
+        s.setForwardNote(null);
+        s.setForwardedAt(Instant.now());
+        s.setForwardedBy(SecurityUtils.getCurrentUserId().orElse(null));
+        s.setStatus(ShipmentStatus.FORWARDED);
+        Shipment saved = shipmentRepository.save(s);
+        appendHistory(saved, companyId, previous, ShipmentStatus.FORWARDED,
+                "Forwarded to " + r.providerCode() + (r.awb() == null ? "" : ", AWB " + r.awb()));
+        auditService.record(AuditAction.SHIPMENT_FORWARDED, ENTITY, saved.getId(),
+                Map.of("shipmentNumber", saved.getShipmentNumber(), "provider", r.providerCode(),
+                        "awb", String.valueOf(r.awb()), "cost", String.valueOf(r.cost())));
+        log.info("Shipment {} forwarded to {} (AWB {}) by {}", saved.getShipmentNumber(), r.providerCode(), r.awb(), currentActor());
+        return saved;
+    }
+
+    @Override
+    @Transactional
+    public Shipment abandonForward(UUID id, boolean unknown, String note) {
+        UUID companyId = requireCompany();
+        Shipment s = shipmentRepository.findByIdWithinCompany(id, companyId)
+                .orElseThrow(() -> new ResourceNotFoundException(ENTITY, id));
+        String provider = s.getForwardProvider();
+        if (unknown) {
+            s.setForwardState("UNKNOWN");
+            s.setForwardNote(note == null ? null : note.substring(0, Math.min(note.length(), 255)));
+        } else {
+            s.setForwardProvider(null);
+            s.setForwardService(null);
+            s.setForwardState(null);
+            s.setForwardNote(null);
+        }
+        Shipment saved = shipmentRepository.save(s);
+        auditService.record(AuditAction.SHIPMENT_FORWARD_FAILED, ENTITY, saved.getId(),
+                Map.of("shipmentNumber", saved.getShipmentNumber(), "provider", String.valueOf(provider),
+                        "outcome", unknown ? "UNKNOWN" : "REFUSED", "reason", String.valueOf(note)));
+        return saved;
+    }
+
     // ------------------------------------------------------------------- portal booking
 
     @Override

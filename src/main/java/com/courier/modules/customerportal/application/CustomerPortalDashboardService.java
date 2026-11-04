@@ -21,7 +21,7 @@ public class CustomerPortalDashboardService {
 
     static final Set<ShipmentStatus> BOOKED = EnumSet.of(ShipmentStatus.BOOKED, ShipmentStatus.READY_FOR_MANIFEST);
     static final Set<ShipmentStatus> IN_TRANSIT = EnumSet.of(ShipmentStatus.MANIFEST_CREATED,
-            ShipmentStatus.DISPATCHED, ShipmentStatus.IN_SCAN, ShipmentStatus.OUT_FOR_DELIVERY);
+            ShipmentStatus.DISPATCHED, ShipmentStatus.IN_SCAN, ShipmentStatus.OUT_FOR_DELIVERY, ShipmentStatus.FORWARDED);
     private static final int RECENT = 5;
 
     private final CurrentCustomerResolver resolver;

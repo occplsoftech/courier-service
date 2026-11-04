@@ -71,6 +71,8 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
     private final com.courier.modules.shipment.application.ShipmentService shipmentService;
     private final com.courier.modules.company.application.BranchPincodeMappingService branchMappings;
     private final com.courier.modules.customer.application.CustomerPortalLookup customers;
+    /** Looked up lazily: this adapter is one of them, and tracking a forwarded shipment asks the courier it went to. */
+    private final org.springframework.beans.factory.ObjectProvider<List<CourierProviderAdapter>> allAdapters;
 
     @Override public String code() { return CODE; }
     @Override public String displayName() { return "OCCPL Network"; }
@@ -282,6 +284,30 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
                     event(events, step.at(), ProviderTimes.label(step.status().name()), step.branchName(), null);
                     if (step.branchName() != null) {
                         location = step.branchName();
+                    }
+                }
+                if (t.forwarded() != null) {
+                    // Handed to a courier from the hub: follow it too. The customer keeps the OCCPL tracking number.
+                    String partnerName = t.forwarded().providerCode();
+                    var partner = allAdapters.getObject().stream().filter(a -> a.code().equals(t.forwarded().providerCode())).findFirst();
+                    if (partner.isPresent()) {
+                        partnerName = partner.get().displayName();
+                        event(events, t.forwarded().at(), "Handed to " + partnerName, location, t.forwarded().awb() == null ? null
+                                : partnerName + " tracking number " + t.forwarded().awb());
+                        status = "Handed to " + partnerName;
+                        TrackingResult theirs = partner.get().track(new ShipmentRef(ref.companyId(), ref.customerId(), ref.reference(),
+                                t.forwarded().orderRef(), t.forwarded().awb(), t.forwarded().labelUrl()));
+                        if (theirs != null && theirs.available()) {
+                            if (theirs.status() != null && !theirs.status().isBlank()) {
+                                status = theirs.status();
+                            }
+                            if (theirs.currentLocation() != null) {
+                                location = theirs.currentLocation();
+                            }
+                            if (theirs.events() != null) {
+                                events.addAll(theirs.events());
+                            }
+                        }
                     }
                 }
             }

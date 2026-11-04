@@ -148,7 +148,9 @@ public class ShipmentMapper {
                 s.getInvoiceValue(), s.isEwayBillRequired(), toEwayBillInfo(ewayBill),
                 s.getCreatedBy(), createdByName(s), s.getCreatedAt(), s.getUpdatedBy(), s.getUpdatedAt(), s.getVersion(),
                 s.getFlowType() == null ? null : s.getFlowType().name(),
-                items.stream().map(this::toResponse).toList());
+                items.stream().map(this::toResponse).toList(),
+                s.getForwardState() == null ? null : new ShipmentResponse.ForwardInfo(s.getForwardProvider(), s.getForwardService(),
+                        s.getForwardState(), s.getForwardAwb(), s.getForwardLabelUrl(), s.getForwardCost(), s.getForwardedAt(), s.getForwardNote()));
     }
 
     private String createdByName(Shipment s) {

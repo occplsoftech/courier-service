@@ -257,6 +257,68 @@ public class Shipment extends CompanyOwnedEntity {
     @Column(name = "remarks", length = 500)
     private String remarks;
 
+    // ---- forwarded to a courier partner from the hub (V155) ----------------------------------------------------------------
+
+    /** The courier partner (DELHIVERY, SHIPROCKET...) the shipment was handed to; null when it was never forwarded. */
+    @Column(name = "forward_provider", length = 40)
+    private String forwardProvider;
+
+    @Column(name = "forward_service", length = 150)
+    private String forwardService;
+
+    /** SUBMITTING while the courier is being asked, UNKNOWN when we cannot tell, BOOKED once it has the parcel. */
+    @Column(name = "forward_state", length = 12)
+    private String forwardState;
+
+    /** The courier's own tracking number (the customer keeps the OCCPL one). */
+    @Column(name = "forward_awb", length = 80)
+    private String forwardAwb;
+
+    @Column(name = "forward_order_ref", length = 120)
+    private String forwardOrderRef;
+
+    @Column(name = "forward_label_url", length = 500)
+    private String forwardLabelUrl;
+
+    /** What the courier charges us (our cost; the customer's price is unchanged). */
+    @Column(name = "forward_cost", precision = 12, scale = 2)
+    private BigDecimal forwardCost;
+
+    @Column(name = "forward_note", length = 255)
+    private String forwardNote;
+
+    @Column(name = "forwarded_at")
+    private java.time.Instant forwardedAt;
+
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.BINARY)
+    @Column(name = "forwarded_by", columnDefinition = "BINARY(16)")
+    private UUID forwardedBy;
+
+    /** True once the courier has the parcel. */
+    public boolean isForwarded() {
+        return "BOOKED".equals(forwardState);
+    }
+
+    /**
+     * Why this shipment cannot be forwarded to a courier right now, or null when it can: only while it is at the hub or branch, and
+     * only once (a forward that is in progress, unconfirmed or done blocks another).
+     */
+    public String forwardBlocker() {
+        if (forwardState != null) {
+            return switch (forwardState) {
+                case "BOOKED" -> "This shipment is already forwarded to " + forwardProvider
+                        + (forwardAwb == null ? "" : " (AWB " + forwardAwb + ")") + ".";
+                case "SUBMITTING" -> "This shipment is being forwarded to " + forwardProvider + " right now.";
+                default -> "A forward to " + forwardProvider + " could not be confirmed. Check with the courier before forwarding again.";
+            };
+        }
+        if (status != ShipmentStatus.BOOKED && status != ShipmentStatus.READY_FOR_MANIFEST && status != ShipmentStatus.IN_SCAN) {
+            return "A shipment can be forwarded only while it is at your hub or branch (booked, ready for manifest or in scan); this one is "
+                    + status.name().toLowerCase(java.util.Locale.ROOT).replace('_', ' ') + ".";
+        }
+        return null;
+    }
+
     /** Optional at booking time — when true, {@link #appointmentDate}/{@link
      *  #appointmentTimeSlot} must be set and the operator may charge an Appointment
      *  Delivery Charge ({@code ShipmentCharge.appointmentDeliveryCharge}, deliberately

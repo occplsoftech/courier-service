@@ -10,7 +10,7 @@
 |---|---|---|---|---|
 | 6 | Pricing, booking and numbering foundations (done) | - | - | `[x]` |
 | 7 | Stabilise and verify on dev | S | 6 | `[x]` (built 2026-11-04; two owner actions left, see 7.4 / 7.7 / 7.8) |
-| 8 | Hub forwards a shipment to a courier partner | L | 6 | `[ ]` **next** |
+| 8 | Hub forwards a shipment to a courier partner | L | 6 | `[x]` built 2026-11-04 (backend, staff screen, customer tracking); verify on dev after deploy |
 | 9 | Customer quick wins (labels, cancel, reschedule) | M | 6 | `[ ]` |
 | 10 | Notifications and delivery exceptions | M | 6 | `[ ]` |
 | 11 | Money: POD, invoices, COD remittance, commission | L | 8 | `[ ]` |
