@@ -170,6 +170,37 @@ class ShiprocketAdapterTest {
     }
 
     @Test
+    @DisplayName("cancel: finds the order by our exact reference and cancels it by its order id")
+    void cancelsByReference() {
+        login();
+        server.expect(requestTo(startsWith("https://sr.test/v1/external/orders?")))
+                .andExpect(queryParam("search", "TEST_BR-7"))
+                .andRespond(withSuccess("{\"data\":[{\"id\":555,\"channel_order_id\":\"TEST_BR-70\",\"status\":\"NEW\"},"
+                        + "{\"id\":777,\"channel_order_id\":\"TEST_BR-7\",\"status\":\"NEW\",\"shipments\":[{}]}]}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://sr.test/v1/external/orders/cancel")).andExpect(method(HttpMethod.POST))
+                .andExpect(content().json("{\"ids\":[777]}"))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+
+        assertThat(adapter.cancelOrder(UUID.randomUUID(), null, "TEST_BR-7").result())
+                .isEqualTo(com.courier.modules.customerportal.rates.domain.CancelOutcome.Result.CANCELLED);
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("cancel: no exact match is 'not found'; a cancel error is a failure, never a clear")
+    void cancelNotFoundAndFailure() {
+        login();
+        server.expect(requestTo(startsWith("https://sr.test/v1/external/orders?")))
+                .andRespond(withSuccess("{\"data\":[{\"id\":1,\"channel_order_id\":\"OTHER\"}]}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(startsWith("https://sr.test/v1/external/orders?")))
+                .andRespond(withStatus(HttpStatus.BAD_GATEWAY));
+        assertThat(adapter.cancelOrder(UUID.randomUUID(), null, "TEST_BR-7").result())
+                .isEqualTo(com.courier.modules.customerportal.rates.domain.CancelOutcome.Result.NOT_FOUND);
+        assertThat(adapter.cancelOrder(UUID.randomUUID(), null, "TEST_BR-7").result())
+                .isEqualTo(com.courier.modules.customerportal.rates.domain.CancelOutcome.Result.FAILED);
+    }
+
+    @Test
     @DisplayName("tracking: maps activities newest first with the current status")
     void tracksAwb() {
         server.expect(requestTo("https://sr.test/v1/external/auth/login"))

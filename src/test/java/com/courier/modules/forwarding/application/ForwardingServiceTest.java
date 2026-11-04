@@ -7,6 +7,7 @@ import com.courier.modules.company.domain.User;
 import com.courier.modules.customerportal.rates.application.RateComparisonService;
 import com.courier.modules.customerportal.rates.domain.BookingOutcome;
 import com.courier.modules.customerportal.rates.domain.BookingRequest;
+import com.courier.modules.customerportal.rates.domain.CancelOutcome;
 import com.courier.modules.customerportal.rates.domain.ChargeComponent;
 import com.courier.modules.customerportal.rates.domain.ChargeLine;
 import com.courier.modules.customerportal.rates.domain.CourierProviderAdapter;
@@ -189,8 +190,54 @@ class ForwardingServiceTest {
         ForwardResult r = service.forward(shipment.getId(), "DELHIVERY", "SURFACE");
 
         assertThat(r.outcome()).isEqualTo("UNCONFIRMED");
-        verify(shipmentService).abandonForward(eq(shipment.getId()), eq(true), anyString());
+        verify(shipmentService).abandonForward(eq(shipment.getId()), eq(true), anyString(), any());
         verify(shipmentService, never()).completeForward(any(), any());
+    }
+
+    @Test
+    @DisplayName("resolve: 'courier did not take it' cancels at the courier and only then clears the flag")
+    void resolveCancelsThenClears() {
+        shipment.setForwardState("UNKNOWN");
+        shipment.setForwardProvider("DELHIVERY");
+        when(delhivery.cancelOrder(COMPANY, "SR-9", "TEST_BR-000009")).thenReturn(CancelOutcome.cancelled("cancelled"));
+        shipment.setForwardOrderRef("SR-9");
+
+        var r = service.resolve(shipment.getId(), false, null);
+
+        assertThat(r.outcome()).isEqualTo("CLEARED");
+        verify(shipmentService).clearUnconfirmedForward(shipment.getId(), "cancelled");
+    }
+
+    @Test
+    @DisplayName("resolve: when the courier will not cancel, nothing is cleared")
+    void resolveKeepsFlagWhenCancelFails() {
+        shipment.setForwardState("UNKNOWN");
+        shipment.setForwardProvider("DELHIVERY");
+        when(delhivery.cancelOrder(any(), any(), any())).thenReturn(CancelOutcome.failed("Courier said no"));
+
+        assertThatThrownBy(() -> service.resolve(shipment.getId(), false, null))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("Courier said no");
+        verify(shipmentService, never()).clearUnconfirmedForward(any(), any());
+    }
+
+    @Test
+    @DisplayName("resolve: 'courier took it' records the AWB by hand; an AWB is required; only an unconfirmed forward can be resolved")
+    void resolveRecordsAwb() {
+        shipment.setForwardState("UNKNOWN");
+        shipment.setForwardProvider("DELHIVERY");
+        shipment.setForwardService("Delhivery Surface");
+        when(shipmentService.completeForward(eq(shipment.getId()), any())).thenReturn(shipment);
+
+        assertThatThrownBy(() -> service.resolve(shipment.getId(), true, " ")).isInstanceOf(BusinessRuleException.class);
+        var r = service.resolve(shipment.getId(), true, " DL555 ");
+
+        assertThat(r.outcome()).isEqualTo("FORWARDED");
+        ArgumentCaptor<ForwardRecord> rec = ArgumentCaptor.forClass(ForwardRecord.class);
+        verify(shipmentService).completeForward(eq(shipment.getId()), rec.capture());
+        assertThat(rec.getValue().awb()).isEqualTo("DL555");
+
+        shipment.setForwardState("BOOKED");
+        assertThatThrownBy(() -> service.resolve(shipment.getId(), false, null)).isInstanceOf(BusinessRuleException.class);
     }
 
     @Test

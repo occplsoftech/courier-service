@@ -6,6 +6,7 @@ import com.courier.modules.company.domain.BranchRepository;
 import com.courier.modules.customerportal.rates.application.RateComparisonService;
 import com.courier.modules.customerportal.rates.domain.BookingOutcome;
 import com.courier.modules.customerportal.rates.domain.BookingRequest;
+import com.courier.modules.customerportal.rates.domain.CancelOutcome;
 import com.courier.modules.customerportal.rates.domain.ChargeLine;
 import com.courier.modules.customerportal.rates.domain.CourierProviderAdapter;
 import com.courier.modules.customerportal.rates.domain.ProviderRate;
@@ -171,11 +172,54 @@ public class ForwardingService {
                         + (outcome.detail() == null || outcome.detail().isBlank() ? "" : " " + adapter.displayName() + " says: " + outcome.detail()));
             }
             default -> {
-                shipmentService.abandonForward(s.getId(), true, outcome.message());
+                shipmentService.abandonForward(s.getId(), true, outcome.message(), outcome.providerOrderRef());
                 yield new ForwardResult(s.getId(), "UNCONFIRMED", "We could not confirm whether " + adapter.displayName()
                         + " accepted it. Check with the courier before trying again.", providerCode, rate.serviceName(), null, null, cost);
             }
         };
+    }
+
+    // ------------------------------------------------------------------ resolving an unconfirmed forward
+
+    public record ResolveResult(UUID shipmentId, String outcome, String message) {
+    }
+
+    /**
+     * Settles a forward the courier never confirmed. {@code courierTookIt} false: the order is cancelled at the courier and, only once
+     * the courier says it is cancelled (or holds no such order), the flag is cleared so the shipment can be forwarded again. True: the
+     * AWB the courier gave is recorded by hand and the shipment becomes FORWARDED.
+     */
+    @PreAuthorize(AUTHENTICATED)
+    public ResolveResult resolve(UUID shipmentId, boolean courierTookIt, String awb) {
+        UUID companyId = requireCompany();
+        Shipment s = load(shipmentId, companyId);
+        requireMayForward(s);
+        if (!"UNKNOWN".equals(s.getForwardState())) {
+            throw new BusinessRuleException("Only a forward that could not be confirmed can be resolved.");
+        }
+        String providerCode = s.getForwardProvider();
+        if (courierTookIt) {
+            if (awb == null || awb.isBlank() || awb.trim().length() > 80) {
+                throw new BusinessRuleException("Enter the tracking number (AWB) the courier gave.");
+            }
+            Shipment done = shipmentService.completeForward(s.getId(), new ForwardRecord(providerCode, s.getForwardService(),
+                    awb.trim(), s.getForwardOrderRef(), null, null));
+            return new ResolveResult(done.getId(), "FORWARDED", "Recorded as forwarded to " + providerCode + ", AWB " + awb.trim() + ".");
+        }
+        CourierProviderAdapter adapter = adapters.stream().filter(a -> a.external() && a.code().equals(providerCode)).findFirst()
+                .orElseThrow(() -> new BusinessRuleException("Unknown courier " + providerCode + "."));
+        CancelOutcome cancel;
+        try {
+            cancel = adapter.cancelOrder(companyId, s.getForwardOrderRef(), s.getShipmentNumber());
+        } catch (RuntimeException e) {
+            log.error("Cancelling the {} order of shipment {} failed unexpectedly", providerCode, s.getShipmentNumber(), e);
+            cancel = CancelOutcome.failed("Could not reach " + adapter.displayName() + ".");
+        }
+        if (cancel.result() == CancelOutcome.Result.FAILED) {
+            throw new BusinessRuleException(cancel.message());
+        }
+        shipmentService.clearUnconfirmedForward(s.getId(), cancel.message());
+        return new ResolveResult(s.getId(), "CLEARED", cancel.message() + " You can forward the shipment again.");
     }
 
     // ------------------------------------------------------------------ building the request

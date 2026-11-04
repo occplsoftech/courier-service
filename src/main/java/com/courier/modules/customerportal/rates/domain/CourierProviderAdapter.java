@@ -50,6 +50,15 @@ public interface CourierProviderAdapter {
         return BookingOutcome.rejected("NOT_SUPPORTED", displayName() + " bookings are not available yet.");
     }
 
+    /**
+     * Cancels an order we placed that never got an AWB (an unconfirmed forward). {@code orderRef} is the courier's own id when we
+     * kept one (may be null); {@code reference} is the order reference we sent, so the order can be looked up when there is no id.
+     * Must not throw for a provider failure.
+     */
+    default CancelOutcome cancelOrder(java.util.UUID companyId, String orderRef, String reference) {
+        return CancelOutcome.failed(displayName() + " orders cannot be cancelled from here yet. Cancel it in the " + displayName() + " panel.");
+    }
+
     /** The shipment's progress now. Must not throw for a provider failure: answer {@link TrackingResult#unavailable}. */
     default TrackingResult track(ShipmentRef shipment) {
         return TrackingResult.unavailable("Tracking is not available for " + displayName() + " yet.");

@@ -8,6 +8,14 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-04 — Resolve a forward the courier never confirmed (cancel at Shiprocket)
+
+- An unconfirmed forward now keeps the courier's order id (`forward_order_ref`).
+- `CourierProviderAdapter.cancelOrder` (default: not supported); Shiprocket looks the order up by our exact reference and cancels it (order cancel, or AWB cancel when one was assigned). Delhivery to follow.
+- `POST /api/v1/shipments/{id}/forwarding/resolve`: `courierTookIt=false` cancels at the courier and, only once it confirms (or holds no such order), clears the flag so the shipment can be forwarded again; `courierTookIt=true` records the courier's AWB by hand and the shipment becomes FORWARDED. Same permission as forwarding.
+
+---
+
 ## 2026-11-04 — Shipyaari bookings: unit tax, and the courier's own refusal reason for staff
 
 - Found by a live forward on dev: Shipyaari refused every order with "Unit Tax is Required for all Products." (HTTP 422, only visible in the server log). The order's product now carries `unitTax` (0: the declared value is the goods' price as entered). This also fixes ordinary portal bookings with Shipyaari.

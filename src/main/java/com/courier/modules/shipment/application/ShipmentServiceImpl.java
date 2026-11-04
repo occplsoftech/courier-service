@@ -456,13 +456,16 @@ public class ShipmentServiceImpl implements ShipmentService {
 
     @Override
     @Transactional
-    public Shipment abandonForward(UUID id, boolean unknown, String note) {
+    public Shipment abandonForward(UUID id, boolean unknown, String note, String orderRef) {
         UUID companyId = requireCompany();
         Shipment s = shipmentRepository.findByIdWithinCompany(id, companyId)
                 .orElseThrow(() -> new ResourceNotFoundException(ENTITY, id));
         String provider = s.getForwardProvider();
         if (unknown) {
             s.setForwardState("UNKNOWN");
+            if (orderRef != null && !orderRef.isBlank()) {
+                s.setForwardOrderRef(orderRef.trim());
+            }
             s.setForwardNote(note == null ? null : note.substring(0, Math.min(note.length(), 255)));
         } else {
             s.setForwardProvider(null);
@@ -474,6 +477,28 @@ public class ShipmentServiceImpl implements ShipmentService {
         auditService.record(AuditAction.SHIPMENT_FORWARD_FAILED, ENTITY, saved.getId(),
                 Map.of("shipmentNumber", saved.getShipmentNumber(), "provider", String.valueOf(provider),
                         "outcome", unknown ? "UNKNOWN" : "REFUSED", "reason", String.valueOf(note)));
+        return saved;
+    }
+
+    @Override
+    @Transactional
+    public Shipment clearUnconfirmedForward(UUID id, String reason) {
+        UUID companyId = requireCompany();
+        Shipment s = shipmentRepository.findByIdWithinCompany(id, companyId)
+                .orElseThrow(() -> new ResourceNotFoundException(ENTITY, id));
+        if (!"UNKNOWN".equals(s.getForwardState())) {
+            throw new BusinessRuleException("This shipment has no unconfirmed forward to clear.");
+        }
+        String provider = s.getForwardProvider();
+        s.setForwardProvider(null);
+        s.setForwardService(null);
+        s.setForwardState(null);
+        s.setForwardOrderRef(null);
+        s.setForwardNote(null);
+        Shipment saved = shipmentRepository.save(s);
+        auditService.record(AuditAction.SHIPMENT_FORWARD_FAILED, ENTITY, saved.getId(),
+                Map.of("shipmentNumber", saved.getShipmentNumber(), "provider", String.valueOf(provider),
+                        "outcome", "CLEARED", "reason", String.valueOf(reason)));
         return saved;
     }
 
