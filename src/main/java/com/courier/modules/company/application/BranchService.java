@@ -96,6 +96,9 @@ public interface BranchService {
     /** Sets (or, with null, clears) the hub this branch sends its Loading Sheets to. */
     Branch assignHub(UUID id, UUID hubId);
 
+    /** Sets (or, when blank, clears) the name this branch's pickup address has at Delhivery / Shiprocket. */
+    Branch setCourierPickupLocation(UUID id, String name);
+
     /**
      * Places the given users at this branch (sets their {@code branchId}). Only users of
      * the same company are affected; unknown or foreign ids are reported back, not

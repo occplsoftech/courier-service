@@ -82,6 +82,7 @@ class ForwardingServiceTest {
 
     private ForwardingService service;
     private Shipment shipment;
+    private Branch hub;
 
     @BeforeEach
     void setUp() {
@@ -99,8 +100,9 @@ class ForwardingServiceTest {
         shipment.setCompanyId(COMPANY);
         when(shipments.findByIdWithinCompany(shipment.getId(), COMPANY)).thenReturn(Optional.of(shipment));
         Branch hub = Branch.builder().branchCode("TEST_BR").branchName("Pune Hub").postalCode("411016").mobile("9999900001")
-                .addressLine1("Model Colony").city("Pune").state("Maharashtra (MAHARASHTRA)").build();
+                .addressLine1("Model Colony").city("Pune").state("Maharashtra (MAHARASHTRA)").courierPickupLocation("PUNE-HUB").build();
         hub.setId(HUB);
+        this.hub = hub;
         when(branches.findByIdWithinCompany(HUB, COMPANY)).thenReturn(Optional.of(hub));
         when(pincodes.geography(anyString())).thenReturn(Optional.empty());
         as(ADMIN, Roles.COMPANY_ADMIN);
@@ -159,6 +161,7 @@ class ForwardingServiceTest {
         verify(delhivery).book(book.capture());
         assertThat(book.getValue().reference()).isEqualTo("TEST_BR-000009");
         assertThat(book.getValue().pickup().pincode()).isEqualTo("411016");
+        assertThat(book.getValue().pickupLocation()).isEqualTo("PUNE-HUB");
         assertThat(book.getValue().pickup().state()).isEqualTo("Maharashtra");
         assertThat(book.getValue().delivery().pincode()).isEqualTo("560001");
         ArgumentCaptor<ForwardRecord> rec = ArgumentCaptor.forClass(ForwardRecord.class);
@@ -192,6 +195,21 @@ class ForwardingServiceTest {
         assertThat(r.outcome()).isEqualTo("UNCONFIRMED");
         verify(shipmentService).abandonForward(eq(shipment.getId()), eq(true), anyString(), any());
         verify(shipmentService, never()).completeForward(any(), any());
+    }
+
+    @Test
+    @DisplayName("a hub with no courier pickup location cannot forward to Delhivery, and options says why")
+    void hubWithoutPickupLocation() {
+        hub.setCourierPickupLocation(null);
+
+        ForwardOptions o = service.options(shipment.getId());
+
+        assertThat(o.options()).isEmpty();
+        assertThat(o.unavailable()).extracting(u -> u.providerCode()).contains("DELHIVERY");
+        assertThat(o.unavailable().get(0).reason()).contains("no pickup location");
+        assertThatThrownBy(() -> service.forward(shipment.getId(), "DELHIVERY", "SURFACE"))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("no pickup location");
+        verify(shipmentService, never()).beginForward(any(), any(), any());
     }
 
     @Test

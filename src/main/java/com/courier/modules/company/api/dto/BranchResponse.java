@@ -33,6 +33,9 @@ public record BranchResponse(
         UUID createdBy, Instant createdDate, UUID updatedBy, Instant updatedDate, Long version,
 
         @Schema(description = "Only on the create response: the account made with the branch")
-        BranchUserResponse branchUser
+        BranchUserResponse branchUser,
+
+        @Schema(description = "The name this branch's pickup address has at Delhivery / Shiprocket (needed to forward shipments to them)")
+        String courierPickupLocation
 ) {
 }

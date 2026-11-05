@@ -191,6 +191,10 @@ public class Branch extends CompanyOwnedEntity {
     @Column(name = "assigned_hub_id", columnDefinition = "BINARY(16)")
     private UUID assignedHubId;
 
+    /** The pickup location name registered at Delhivery / Shiprocket for this branch; null until set (V156). */
+    @Column(name = "courier_pickup_location", length = 120)
+    private String courierPickupLocation;
+
     @Column(name = "remarks", length = 500)
     private String remarks;
 

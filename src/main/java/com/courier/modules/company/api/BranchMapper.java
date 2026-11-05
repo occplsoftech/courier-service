@@ -92,7 +92,8 @@ public class BranchMapper {
                 branch.updatedDate(), branch.version(),
                 new BranchUserResponse(created.userId(), created.userEmail(),
                         created.temporaryPassword(), created.assignedAsManager(),
-                        created.branchManagerRoleId(), created.branchManagerRoleCode()));
+                        created.branchManagerRoleId(), created.branchManagerRoleCode()),
+                branch.courierPickupLocation());
     }
 
     public BranchResponse toResponse(Branch b) {
@@ -112,7 +113,7 @@ public class BranchMapper {
                 b.getDrsChargePerQty(),
                 b.getDeliveryCommissionRatePerKg(), b.getDeliveryCommissionMinWeightKg(),
                 b.getCreatedBy(), b.getCreatedAt(), b.getUpdatedBy(), b.getUpdatedAt(), b.getVersion(),
-                null);
+                null, b.getCourierPickupLocation());
     }
 
     public BranchSummaryResponse toSummary(Branch b) {

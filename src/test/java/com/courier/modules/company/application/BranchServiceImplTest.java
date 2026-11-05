@@ -512,6 +512,17 @@ class BranchServiceImplTest {
     }
 
     @Test
+    @DisplayName("courier pickup location is trimmed and saved, and blank clears it")
+    void courierPickupLocation() {
+        Branch b = existing("PUNE_MAIN");
+        when(repository.findByIdWithinCompany(b.getId(), TENANT)).thenReturn(Optional.of(b));
+
+        assertThat(service.setCourierPickupLocation(b.getId(), "  PUNE-HUB ").getCourierPickupLocation()).isEqualTo("PUNE-HUB");
+        assertThat(service.setCourierPickupLocation(b.getId(), "  ").getCourierPickupLocation()).isNull();
+        verify(auditService, org.mockito.Mockito.times(2)).record(eq(AuditAction.BRANCH_UPDATED), any(), any(), any());
+    }
+
+    @Test
     @DisplayName("assign hub rejects a target that is not a HUB branch")
     void assignHubRejectsNonHub() {
         Branch b = existing("PUNE_MAIN");

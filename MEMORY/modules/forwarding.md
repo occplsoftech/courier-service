@@ -38,3 +38,7 @@ courier-web `shipment-view` (Forward to courier button, `ShipmentForwardDialog`,
 ## Not built (later)
 
 Bulk forwarding from a list; syncing a forwarded shipment's `DELIVERED` back onto the shipment itself (today the customer's booking shows it, the shipment stays FORWARDED); cancelling a forward at the courier.
+
+## Pickup location (V156)
+
+Delhivery and Shiprocket collect from an address registered in their panel under a name. Each branch/hub stores that name in `courier_pickup_location` (company admin sets it); forwarding uses it and refuses Delhivery/Shiprocket for a hub without one, instead of silently collecting from the company default. Shipyaari takes the hub address we send.
