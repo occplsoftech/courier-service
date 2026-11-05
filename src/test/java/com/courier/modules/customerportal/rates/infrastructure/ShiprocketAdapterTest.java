@@ -161,6 +161,12 @@ class ShiprocketAdapterTest {
         assertThat(adapter.book(booking()).result()).isEqualTo(BookingOutcome.Result.REJECTED);
 
         server.reset();
+        server.expect(requestTo("https://sr.test/v1/external/orders/create/adhoc")).andRespond(withStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body("{\"message\":\"Wrong Pickup location entered\",\"errors\":{\"billing_pincode\":[\"Invalid pincode\"]}}")
+                .contentType(MediaType.APPLICATION_JSON));
+        assertThat(adapter.book(booking()).detail()).isEqualTo("Wrong Pickup location entered; billing_pincode: Invalid pincode");
+
+        server.reset();
         server.expect(requestTo("https://sr.test/v1/external/orders/create/adhoc")).andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
         assertThat(adapter.book(booking()).result()).isEqualTo(BookingOutcome.Result.UNKNOWN);
     }

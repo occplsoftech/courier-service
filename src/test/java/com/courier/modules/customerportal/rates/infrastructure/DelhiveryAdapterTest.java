@@ -101,7 +101,17 @@ class DelhiveryAdapterTest {
         server.reset();
         server.expect(requestTo("https://dl.test/api/cmu/create.json"))
                 .andRespond(withSuccess("{\"success\":false,\"packages\":[{\"remarks\":[\"Pin not serviceable\"]}]}", MediaType.APPLICATION_JSON));
-        assertThat(adapter.book(ShiprocketAdapterTest.booking()).result()).isEqualTo(BookingOutcome.Result.REJECTED);
+        BookingOutcome refused = adapter.book(ShiprocketAdapterTest.booking());
+        assertThat(refused.result()).isEqualTo(BookingOutcome.Result.REJECTED);
+        // staff see Delhivery's own words; the customer-facing message stays generic
+        assertThat(refused.detail()).isEqualTo("Pin not serviceable");
+        assertThat(refused.message()).doesNotContain("Pin not serviceable");
+
+        server.reset();
+        server.expect(requestTo("https://dl.test/api/cmu/create.json"))
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withStatus(org.springframework.http.HttpStatus.BAD_REQUEST).body("{\"rmk\":\"ClientWarehouse matching query does not exist.\"}")
+                        .contentType(MediaType.APPLICATION_JSON));
+        assertThat(adapter.book(ShiprocketAdapterTest.booking()).detail()).isEqualTo("ClientWarehouse matching query does not exist.");
     }
 
     private static ShipmentRef ref(String awb) {
