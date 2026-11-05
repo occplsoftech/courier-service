@@ -132,7 +132,7 @@ public class DelhiveryAdapter implements CourierProviderAdapter {
         try {
             MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
             form.add("format", "json");
-            form.add("data", new ObjectMapper().writeValueAsString(manifest(b, config.getPickupLocation(), chargeableGrams(b.rate()))));
+            form.add("data", new ObjectMapper().writeValueAsString(manifest(b, b.pickupLocationOr(config.getPickupLocation()), chargeableGrams(b.rate()))));
             JsonNode body = http.post().uri("/api/cmu/create.json")
                     .header("Authorization", "Token " + config.getToken())
                     .contentType(MediaType.APPLICATION_FORM_URLENCODED)

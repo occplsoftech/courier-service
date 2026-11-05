@@ -20,7 +20,20 @@ public record BookingRequest(UUID companyId,
                              String contents,
                              BigDecimal customerTotal,
                              List<ChargeLine> charges,
-                             BigDecimal chargeableWeightKg) {
+                             BigDecimal chargeableWeightKg,
+                             String pickupLocation) {
+
+    /** Without a courier pickup location name (the company's own is used). */
+    public BookingRequest(UUID companyId, UUID customerId, String reference, String serviceCode, RateRequest rate, Party pickup,
+                          Party delivery, String contents, BigDecimal customerTotal, List<ChargeLine> charges,
+                          BigDecimal chargeableWeightKg) {
+        this(companyId, customerId, reference, serviceCode, rate, pickup, delivery, contents, customerTotal, charges, chargeableWeightKg, null);
+    }
+
+    /** The pickup location name to book from: the one given for this booking, else the company's saved one. */
+    public String pickupLocationOr(String companyDefault) {
+        return pickupLocation == null || pickupLocation.isBlank() ? companyDefault : pickupLocation;
+    }
 
     /** Without the quoted chargeable weight. */
     public BookingRequest(UUID companyId, UUID customerId, String reference, String serviceCode, RateRequest rate, Party pickup,

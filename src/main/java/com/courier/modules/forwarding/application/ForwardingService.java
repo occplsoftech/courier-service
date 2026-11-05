@@ -104,6 +104,10 @@ public class ForwardingService {
         List<ForwardOption> options = new ArrayList<>();
         List<Unavailable> unavailable = new ArrayList<>();
         for (ProviderResult r : comparison.askExternalForForwarding(rateRequest(s, hub, companyId))) {
+            if (needsRegisteredPickup(r.providerCode()) && blank(hub.getCourierPickupLocation())) {
+                unavailable.add(new Unavailable(r.providerCode(), r.providerName(), noPickupLocation(hub, r.providerName())));
+                continue;
+            }
             if (!r.available()) {
                 unavailable.add(new Unavailable(r.providerCode(), r.providerName(), r.reason()));
                 continue;
@@ -136,6 +140,9 @@ public class ForwardingService {
         CourierProviderAdapter adapter = adapters.stream().filter(a -> a.external() && a.code().equals(providerCode)).findFirst()
                 .orElseThrow(() -> new BusinessRuleException("Unknown courier " + providerCode + "."));
         Branch hub = hub(s, companyId);
+        if (needsRegisteredPickup(providerCode) && blank(hub.getCourierPickupLocation())) {
+            throw new BusinessRuleException(noPickupLocation(hub, adapter.displayName()));
+        }
         RateRequest rateRequest = rateRequest(s, hub, companyId);
         ProviderResult priced = comparison.askExternalForForwarding(rateRequest).stream()
                 .filter(r -> r.providerCode().equals(providerCode)).findFirst()
@@ -246,7 +253,8 @@ public class ForwardingService {
                 geo.map(g -> g.stateName()).orElse(null));
         List<ChargeLine> lines = quoted.charges();
         return new BookingRequest(companyId, s.getBusinessCustomerId(), s.getShipmentNumber(), quoted.serviceCode(), rate, from, to,
-                blank(s.getRemarks()) ? "Shipment " + s.getShipmentNumber() : s.getRemarks(), cost, lines, quoted.chargeableWeightKg());
+                blank(s.getRemarks()) ? "Shipment " + s.getShipmentNumber() : s.getRemarks(), cost, lines, quoted.chargeableWeightKg(),
+                blank(hub.getCourierPickupLocation()) ? null : hub.getCourierPickupLocation().trim());
     }
 
     private BigDecimal[] dimensions(Shipment s, UUID companyId) {
@@ -330,6 +338,16 @@ public class ForwardingService {
     /** "Maharashtra (MAHARASHTRA)" as the branch form stores geography becomes "Maharashtra". */
     private static String clean(String name) {
         return name == null ? null : name.replaceAll("\\s*\\(.*\\)\\s*$", "").trim();
+    }
+
+    /** Delhivery and Shiprocket collect from an address registered in their panel under a name; the others take the address we send. */
+    private static boolean needsRegisteredPickup(String providerCode) {
+        return "DELHIVERY".equals(providerCode) || "SHIPROCKET".equals(providerCode);
+    }
+
+    private static String noPickupLocation(Branch hub, String courier) {
+        return hub.getBranchName() + " has no pickup location set for couriers, so " + courier + " would collect from the company's "
+                + "default address instead. The company admin sets it on the branch (the name exactly as registered in " + courier + ").";
     }
 
     private static boolean blank(String s) {

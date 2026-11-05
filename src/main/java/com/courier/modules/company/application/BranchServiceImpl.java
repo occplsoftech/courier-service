@@ -538,6 +538,25 @@ public class BranchServiceImpl implements BranchService {
         return saved;
     }
 
+    @Override
+    @Transactional
+    @PreAuthorize(COMPANY_ADMIN_ONLY)
+    public Branch setCourierPickupLocation(UUID id, String name) {
+        UUID companyId = requireCompany();
+        Branch branch = loadOrThrow(id, companyId);
+        String clean = name == null || name.isBlank() ? null : name.trim();
+        if (clean != null && clean.length() > 120) {
+            throw new BusinessRuleException("The pickup location name can be at most 120 characters.");
+        }
+        String previous = branch.getCourierPickupLocation();
+        branch.setCourierPickupLocation(clean);
+        Branch saved = repository.save(branch);
+        auditService.record(AuditAction.BRANCH_UPDATED, ENTITY, saved.getId(),
+                Map.of("branchCode", saved.getBranchCode(), "courierPickupLocation", String.valueOf(clean),
+                        "previous", String.valueOf(previous)));
+        return saved;
+    }
+
     // --------------------------------------------------------------- assign users
 
     @Override

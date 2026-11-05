@@ -8,6 +8,14 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-05 — Per-branch courier pickup location for forwarding
+
+- `branches.courier_pickup_location` (V156), `PATCH /branches/{id}/courier-pickup-location` (company admin), shown on `BranchResponse`.
+- `BookingRequest.pickupLocation`: Delhivery and Shiprocket book from it when set, else the company's saved one (portal bookings unchanged).
+- Forwarding: a hub with no pickup location cannot forward to Delhivery or Shiprocket (options list them as unavailable with the reason); Shipyaari still takes the hub's address.
+
+---
+
 ## 2026-11-04 — Resolve: "I cancelled it myself" and clearer Shiprocket refusal
 
 - `POST .../forwarding/resolve` takes `cancelledByHand`: clears an unconfirmed forward without asking the courier (for when the saved API user may not cancel; Shiprocket answered 403). Shiprocket's refusal now names the step (order lookup or cancel).

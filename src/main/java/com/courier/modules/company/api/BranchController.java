@@ -205,6 +205,16 @@ public class BranchController {
                 mapper.toSummary(service.assignHub(id, request.hubId())), "Hub assigned");
     }
 
+    @PatchMapping("/{id}/courier-pickup-location")
+    @Operation(summary = "Set the branch's pickup location name at the couriers",
+            description = "`COMPANY_ADMIN`. The name exactly as registered in the Delhivery / Shiprocket panel; the courier collects "
+                    + "forwarded shipments from there. Blank clears it.")
+    public ApiResponse<BranchResponse> setCourierPickupLocation(@PathVariable UUID id,
+                                                                @RequestBody @jakarta.validation.Valid
+                                                                com.courier.modules.company.api.dto.SetCourierPickupLocationRequest request) {
+        return ApiResponse.success(mapper.toResponse(service.setCourierPickupLocation(id, request.name())), "Saved");
+    }
+
     @PatchMapping("/{id}/assign-users")
     @Operation(summary = "Assign users to the branch",
             description = "`COMPANY_ADMIN` (any branch) or `BRANCH_MANAGER` (their own). "

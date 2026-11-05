@@ -133,7 +133,7 @@ public class ShiprocketAdapter implements CourierProviderAdapter {
             JsonNode order = http.post().uri("/v1/external/orders/create/adhoc")
                     .header("Authorization", "Bearer " + token(b.companyId()))
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(orderBody(b, config.getPickupLocation()))
+                    .body(orderBody(b, b.pickupLocationOr(config.getPickupLocation())))
                     .retrieve()
                     .body(JsonNode.class);
             shipmentId = order == null ? null : order.path("shipment_id").asText(null);
