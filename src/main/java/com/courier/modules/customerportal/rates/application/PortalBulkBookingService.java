@@ -97,7 +97,12 @@ public class PortalBulkBookingService {
     public record BookItem(Integer row, UUID quoteId, UUID optionId) {
     }
 
-    public record BookResult(Integer row, boolean booked, String status, String awb, String reference, String message) {
+    /** {@code bookingId} is the portal booking (null when not booked): the portal opens it to print the label. */
+    public record BookResult(Integer row, boolean booked, String status, String awb, String reference, String message, UUID bookingId) {
+    }
+
+    /** One line of the results sheet, as the portal shows it. */
+    public record ResultLine(Integer row, String deliveryName, boolean booked, String awb, String reference, String message) {
     }
 
     public byte[] template() {
@@ -140,6 +145,56 @@ public class PortalBulkBookingService {
         }
     }
 
+    /** The outcome of a bulk booking as an Excel sheet (what the customer saw on screen), for their own records. */
+    public byte[] resultsSheet(List<ResultLine> lines) {
+        if (lines == null || lines.isEmpty()) {
+            throw new BusinessRuleException("There are no results to download.");
+        }
+        if (lines.size() > MAX_ROWS) {
+            throw new BusinessRuleException("At most " + MAX_ROWS + " rows.");
+        }
+        try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = wb.createSheet("Bulk booking results");
+            CellStyle head = wb.createCellStyle();
+            Font bold = wb.createFont();
+            bold.setBold(true);
+            head.setFont(bold);
+            String[] cols = {"Row", "Delivery Name", "Result", "Tracking Number", "Reference", "Message"};
+            Row h = sheet.createRow(0);
+            for (int i = 0; i < cols.length; i++) {
+                Cell c = h.createCell(i);
+                c.setCellValue(cols[i]);
+                c.setCellStyle(head);
+                sheet.setColumnWidth(i, (i == 5 ? 50 : 22) * 256);
+            }
+            int r = 1;
+            for (ResultLine l : lines) {
+                Row row = sheet.createRow(r++);
+                if (l.row() != null) {
+                    row.createCell(0).setCellValue(l.row());
+                }
+                row.createCell(1).setCellValue(safeText(l.deliveryName()));
+                row.createCell(2).setCellValue(l.booked() ? "Booked" : "Not booked");
+                row.createCell(3).setCellValue(safeText(l.awb()));
+                row.createCell(4).setCellValue(safeText(l.reference()));
+                row.createCell(5).setCellValue(safeText(l.message()));
+            }
+            wb.write(out);
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new BusinessRuleException("Could not build the results sheet.");
+        }
+    }
+
+    /** Text that Excel would read as a formula (=, +, -, @) is stored with a leading apostrophe-free guard: a space. */
+    private static String safeText(String s) {
+        if (s == null) {
+            return "";
+        }
+        String t = s.length() > 500 ? s.substring(0, 500) : s;
+        return !t.isEmpty() && "=+-@".indexOf(t.charAt(0)) >= 0 ? " " + t : t;
+    }
+
     public Preview preview(InputStream file) {
         List<Map<String, String>> sheetRows = read(file);
         if (sheetRows.isEmpty()) {
@@ -168,12 +223,12 @@ public class PortalBulkBookingService {
                 // The key is derived from the quote, so confirming the same sheet twice cannot book a row twice.
                 BookingView v = booking.book(item.quoteId(), item.optionId(), "bulk-" + item.quoteId());
                 boolean booked = "BOOKED".equals(v.status());
-                results.add(new BookResult(item.row(), booked, v.status(), v.trackingNumber(), v.bookingReference(), booked ? "Booked" : message(v)));
+                results.add(new BookResult(item.row(), booked, v.status(), v.trackingNumber(), v.bookingReference(), booked ? "Booked" : message(v), v.bookingId()));
             } catch (ApiException e) {
-                results.add(new BookResult(item.row(), false, "FAILED", null, null, e.getMessage()));
+                results.add(new BookResult(item.row(), false, "FAILED", null, null, e.getMessage(), null));
             } catch (RuntimeException e) {
                 log.error("Bulk booking row {} failed", item.row(), e);
-                results.add(new BookResult(item.row(), false, "FAILED", null, null, "Could not book this shipment."));
+                results.add(new BookResult(item.row(), false, "FAILED", null, null, "Could not book this shipment.", null));
             }
         }
         return results;

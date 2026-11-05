@@ -116,4 +116,24 @@ class PortalBulkBookingServiceTest {
         assertThat(bad.error()).contains("Delivery phone");
         assertThat(bad.fields()).containsEntry("Delivery Phone", "12345");
     }
+
+    @Test
+    void resultsSheetListsEveryRowAndNeutralisesFormulas() throws Exception {
+        PortalBulkBookingService service = svc(mock(RateComparisonService.class), mock(PortalBookingService.class));
+
+        byte[] xlsx = service.resultsSheet(List.of(
+                new PortalBulkBookingService.ResultLine(2, "Ravi", true, "26110000001", "OC-1", "Booked"),
+                new PortalBulkBookingService.ResultLine(3, "=HYPERLINK(\"x\")", false, null, null, "Pincode not serviceable")));
+
+        try (var wb = new org.apache.poi.xssf.usermodel.XSSFWorkbook(new ByteArrayInputStream(xlsx))) {
+            var sheet = wb.getSheetAt(0);
+            assertThat(sheet.getLastRowNum()).isEqualTo(2);
+            assertThat(sheet.getRow(1).getCell(2).getStringCellValue()).isEqualTo("Booked");
+            assertThat(sheet.getRow(1).getCell(3).getStringCellValue()).isEqualTo("26110000001");
+            assertThat(sheet.getRow(2).getCell(2).getStringCellValue()).isEqualTo("Not booked");
+            assertThat(sheet.getRow(2).getCell(1).getStringCellValue()).startsWith(" =");
+            assertThat(sheet.getRow(2).getCell(5).getStringCellValue()).isEqualTo("Pincode not serviceable");
+        }
+        assertThatThrownBy(() -> service.resultsSheet(List.of())).isInstanceOf(com.courier.shared.exception.BusinessRuleException.class);
+    }
 }

@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-05 — Phase 9.1 (backend): bulk results carry the booking id; results as Excel
+
+- `BookResult` now has `bookingId` (so the portal can print every label of a bulk upload).
+- `POST /customer-portal/bulk-bookings/results` returns the results as an .xlsx (row, receiver, result, tracking number, reference, message); text starting with = + - @ is guarded against Excel formulas.
+
+---
+
 ## 2026-11-05 — Staff see Delhivery's and Shiprocket's own refusal reason
 
 - `DelhiveryAdapter` (package remarks, else `rmk`/`error`/`message`; also on HTTP 4xx) and `ShiprocketAdapter` (`message` plus field `errors`) put the courier's words in `BookingOutcome.detail`. Forwarding shows them to staff as "<Courier> says: ..."; the customer-facing message is unchanged.
