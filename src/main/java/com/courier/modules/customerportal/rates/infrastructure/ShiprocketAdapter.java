@@ -143,7 +143,8 @@ public class ShiprocketAdapter implements CourierProviderAdapter {
         } catch (RestClientResponseException e) {
             int status = e.getStatusCode().value();
             if (status >= 400 && status < 500) {
-                return BookingOutcome.rejected("PROVIDER_REJECTED", "Shiprocket refused the order. Please check the details.");
+                return BookingOutcome.rejected("PROVIDER_REJECTED", "Shiprocket refused the order. Please check the details.",
+                        refusalReason(e.getResponseBodyAsString()));
             }
             return BookingOutcome.unknown(null, "Shiprocket answered with an error. Our team will check whether the order was created.");
         } catch (ResourceAccessException e) {
@@ -172,6 +173,33 @@ public class ShiprocketAdapter implements CourierProviderAdapter {
     }
 
     /** {@code GET /v1/external/courier/track/awb/{awb}}: Shiprocket's activities for the AWB, newest first. */
+    /** Shiprocket's own words for a refusal: its {@code message} plus any field errors; null when it gave none. */
+    static String refusalReason(String responseBody) {
+        if (responseBody == null || responseBody.isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode body = new com.fasterxml.jackson.databind.ObjectMapper().readTree(responseBody);
+            List<String> parts = new ArrayList<>();
+            String message = body.path("message").asText("");
+            if (!message.isBlank()) {
+                parts.add(message.trim());
+            }
+            body.path("errors").fields().forEachRemaining(f -> {
+                JsonNode v = f.getValue();
+                if (v.isArray()) {
+                    v.forEach(x -> parts.add(f.getKey() + ": " + x.asText()));
+                } else if (v.isTextual()) {
+                    parts.add(f.getKey() + ": " + v.asText());
+                }
+            });
+            String joined = String.join("; ", new java.util.LinkedHashSet<>(parts));
+            return joined.isBlank() ? null : joined.substring(0, Math.min(joined.length(), 240));
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
     /**
      * Cancels the Shiprocket order. The order is looked up by the reference we sent ({@code channel_order_id}) because its id is
      * not the shipment id we may have kept; an exact match is required, so another order is never touched.

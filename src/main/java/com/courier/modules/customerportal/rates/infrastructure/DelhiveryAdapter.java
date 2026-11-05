@@ -145,15 +145,16 @@ public class DelhiveryAdapter implements CourierProviderAdapter {
                 return BookingOutcome.booked(b.reference(), waybill, null, "Booked with Delhivery.");
             }
             if (body != null && body.has("success") && !body.path("success").asBoolean(true)) {
-                String remark = pkg == null ? null : pkg.path("remarks").toString();
-                log.info("Delhivery refused booking {}: {}", b.reference(), remark);
-                return BookingOutcome.rejected("PROVIDER_REJECTED", "Delhivery refused the shipment. Please check the details.");
+                String reason = refusalReason(body);
+                log.info("Delhivery refused booking {}: {}", b.reference(), reason);
+                return BookingOutcome.rejected("PROVIDER_REJECTED", "Delhivery refused the shipment. Please check the details.", reason);
             }
             return BookingOutcome.unknown(b.reference(), "Delhivery did not confirm the shipment. Our team will check it.");
         } catch (RestClientResponseException e) {
             int status = e.getStatusCode().value();
             return status >= 400 && status < 500
-                    ? BookingOutcome.rejected("PROVIDER_REJECTED", "Delhivery refused the shipment. Please check the details.")
+                    ? BookingOutcome.rejected("PROVIDER_REJECTED", "Delhivery refused the shipment. Please check the details.",
+                            refusalReason(parseBody(e)))
                     : BookingOutcome.unknown(b.reference(), "Delhivery answered with an error. Our team will check whether it was booked.");
         } catch (ResourceAccessException e) {
             return BookingOutcome.unknown(b.reference(), "Delhivery did not answer in time. Our team will check whether it was booked.");
@@ -161,6 +162,43 @@ public class DelhiveryAdapter implements CourierProviderAdapter {
             return BookingOutcome.rejected("BOOKING_INVALID", "The shipment could not be prepared for Delhivery. Nothing was booked.");
         } catch (RestClientException e) {
             return BookingOutcome.unknown(b.reference(), "Delhivery's answer could not be read. Our team will check whether it was booked.");
+        }
+    }
+
+    /** Delhivery's own words for a refusal: the package remarks, else {@code rmk} / {@code error} / {@code message}; null when it gave none. */
+    static String refusalReason(JsonNode body) {
+        if (body == null || body.isMissingNode()) {
+            return null;
+        }
+        List<String> parts = new java.util.ArrayList<>();
+        for (JsonNode pkg : body.path("packages")) {
+            collect(pkg.path("remarks"), parts);
+        }
+        if (parts.isEmpty()) {
+            for (String key : new String[]{"rmk", "error", "message"}) {
+                collect(body.path(key), parts);
+            }
+        }
+        String joined = String.join("; ", new java.util.LinkedHashSet<>(parts));
+        return joined.isBlank() ? null : joined.substring(0, Math.min(joined.length(), 240));
+    }
+
+    private static void collect(JsonNode n, List<String> into) {
+        if (n == null || n.isMissingNode() || n.isNull()) {
+            return;
+        }
+        if (n.isArray()) {
+            n.forEach(x -> collect(x, into));
+        } else if (n.isTextual() && !n.asText().isBlank()) {
+            into.add(n.asText().trim());
+        }
+    }
+
+    private static JsonNode parseBody(RestClientResponseException e) {
+        try {
+            return new ObjectMapper().readTree(e.getResponseBodyAsString());
+        } catch (Exception ignored) {
+            return null;
         }
     }
 

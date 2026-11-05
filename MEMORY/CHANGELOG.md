@@ -8,6 +8,12 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-05 — Staff see Delhivery's and Shiprocket's own refusal reason
+
+- `DelhiveryAdapter` (package remarks, else `rmk`/`error`/`message`; also on HTTP 4xx) and `ShiprocketAdapter` (`message` plus field `errors`) put the courier's words in `BookingOutcome.detail`. Forwarding shows them to staff as "<Courier> says: ..."; the customer-facing message is unchanged.
+
+---
+
 ## 2026-11-05 — Per-branch courier pickup location for forwarding
 
 - `branches.courier_pickup_location` (V156), `PATCH /branches/{id}/courier-pickup-location` (company admin), shown on `BranchResponse`.
