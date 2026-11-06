@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-06 — Phase 10.2 (part a): failed delivery attempts
+
+- `POST /shipment-movement/{id}/undelivered` `{reason, note}` (OUT_FOR_DELIVERY only; reasons in `UndeliveredReason`, OTHER needs a note): the shipment goes back to the delivery branch (new edge OUT_FOR_DELIVERY → IN_SCAN), `failed_attempts` is counted, the reason/note/time kept and `undelivered_open` set (V157). A history line says "Delivery attempt N failed: <reason>". Sending it out again or delivering it closes the case; after 3 attempts `returnDue` is true (staff decide).
+- `ShipmentResponse.undelivered` (attempts, reason, note, at, open, returnDue). New `DELIVERY_FAILED` communication event (sender-facing, default templates, one message per shipment and channel).
+
+---
+
 ## 2026-11-06 — Fix: message channels are off until a company switches them on
 
 - Reading the channel settings (the Channel Settings page, or `GET /communication/settings[/{channel}]`) created any missing channel **switched on**, so merely opening the page started WhatsApp/SMS/email for every booking. Missing channels are now created switched **off**; existing settings are unchanged. Found on the live dev test of Phase 10.1.

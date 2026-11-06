@@ -109,6 +109,19 @@ public final class DefaultCommunicationTemplates {
                                 + "(AWB {{trackingNumber}}) has been delivered. Amount: {{amount}}.</p>"
                                 + "<p>Proof of delivery: <a href=\"{{podUrl}}\">view</a></p>"
                                 + "<p>Thank you for choosing {{companyName}}!</p>"),
+                new Seed(CommunicationEventType.DELIVERY_FAILED, CommunicationChannel.WHATSAPP,
+                        "delivery_failed", null,
+                        "Hi {{customerName}}, we could not deliver your shipment {{trackingNumber}} to {{receiverName}} today. "
+                                + "Please tell {{companyName}} what to do next: {{trackingUrl}} - thank you!"),
+                new Seed(CommunicationEventType.DELIVERY_FAILED, CommunicationChannel.SMS,
+                        "Delivery Failed - SMS", null,
+                        "{{companyName}}: Shipment {{trackingNumber}} could not be delivered today. Track: {{trackingUrl}}"),
+                new Seed(CommunicationEventType.DELIVERY_FAILED, CommunicationChannel.EMAIL,
+                        "Delivery Failed - Email", "We could not deliver your shipment {{shipmentNumber}}",
+                        "<p>Hi {{customerName}},</p><p>We could not deliver your shipment <b>{{shipmentNumber}}</b> "
+                                + "(AWB {{trackingNumber}}) to {{receiverName}} today.</p>"
+                                + "<p>Please sign in to your account to choose a new attempt, a new address or a return, "
+                                + "or contact {{companyName}}.</p><p><a href=\"{{trackingUrl}}\">Track your shipment</a></p>"),
                 DAILY_SUMMARY
         );
     }

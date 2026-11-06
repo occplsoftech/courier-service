@@ -294,6 +294,34 @@ public class Shipment extends CompanyOwnedEntity {
     @Column(name = "forwarded_by", columnDefinition = "BINARY(16)")
     private UUID forwardedBy;
 
+    // ---- failed delivery attempts (V157) --------------------------------------------------------------------------------------
+
+    @Builder.Default
+    @Column(name = "failed_attempts", nullable = false)
+    private int failedAttempts = 0;
+
+    @Column(name = "undelivered_reason", length = 40)
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    private UndeliveredReason undeliveredReason;
+
+    @Column(name = "undelivered_note", length = 255)
+    private String undeliveredNote;
+
+    @Column(name = "undelivered_at")
+    private java.time.Instant undeliveredAt;
+
+    /** An attempt failed and nobody has acted yet (sent it out again, delivered or returned it). */
+    @Builder.Default
+    @Column(name = "undelivered_open", nullable = false)
+    private boolean undeliveredOpen = false;
+
+    /** After this many failed attempts a shipment is due for return (staff decide; nothing returns by itself). */
+    public static final int RETURN_DUE_AFTER_ATTEMPTS = 3;
+
+    public boolean isReturnDue() {
+        return failedAttempts >= RETURN_DUE_AFTER_ATTEMPTS;
+    }
+
     /** True once the courier has the parcel. */
     public boolean isForwarded() {
         return "BOOKED".equals(forwardState);

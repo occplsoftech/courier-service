@@ -78,7 +78,7 @@ Defaults agreed in the brief: courier collects from the branch/hub; customer pri
 | # | Item | Repos | Size |
 |---|---|---|---|
 | 10.1 | SMS / WhatsApp / email to the customer at booked, picked up, out for delivery, delivered (reuse Communication Center) | CS | M |
-| 10.2 | Delivery failed / undelivered: reason, the customer's choice (re-attempt, change address, return), staff queue | CS, CW, EC | L |
+| 10.2 | Delivery failed / undelivered: reason, the customer's choice (re-attempt, change address, return), staff queue — part a (failed attempt, reason, message) built; part b (choice + queue) next. Return = mark Returned; return due after 3 attempts / 7 days | CS, CW, EC | L |
 
 ## Phase 11 — Money `[ ]`
 

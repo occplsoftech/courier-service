@@ -85,6 +85,12 @@ public interface ShipmentService {
     /** A person has confirmed the courier holds nothing for an unconfirmed forward (or it was cancelled there): clears it so the shipment can be forwarded again. */
     Shipment clearUnconfirmedForward(UUID id, String reason);
 
+    /**
+     * A delivery attempt failed: the shipment (OUT_FOR_DELIVERY) goes back to its delivery branch (IN_SCAN) with the reason, the
+     * attempt is counted, and it stays an open case until it is sent out again, delivered or returned. The customer is told.
+     */
+    Shipment markUndelivered(UUID shipmentId, com.courier.modules.shipment.domain.UndeliveredReason reason, String note);
+
     Shipment create(CreateShipmentCommand command);
 
     /**

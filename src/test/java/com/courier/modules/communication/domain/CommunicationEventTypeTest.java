@@ -10,6 +10,7 @@ class CommunicationEventTypeTest {
     void senderFacingEvents() {
         assertThat(CommunicationEventType.SHIPMENT_BOOKED.notifiesSender()).isTrue();
         assertThat(CommunicationEventType.SHIPMENT_PICKED_UP.notifiesSender()).isTrue();
+        assertThat(CommunicationEventType.DELIVERY_FAILED.notifiesSender()).isTrue();
         assertThat(CommunicationEventType.SHIPMENT_DISPATCHED.notifiesSender()).isTrue();
         assertThat(CommunicationEventType.SHIPMENT_CANCELLED.notifiesSender()).isTrue();
     }
@@ -25,6 +26,7 @@ class CommunicationEventTypeTest {
     void defaultEnabledIsExactlyTheFourBriefedEvents() {
         assertThat(CommunicationEventType.DEFAULT_ENABLED).containsExactlyInAnyOrder(
                 CommunicationEventType.SHIPMENT_BOOKED, CommunicationEventType.SHIPMENT_PICKED_UP, CommunicationEventType.SHIPMENT_DISPATCHED,
-                CommunicationEventType.OUT_FOR_DELIVERY, CommunicationEventType.SHIPMENT_DELIVERED);
+                CommunicationEventType.OUT_FOR_DELIVERY, CommunicationEventType.SHIPMENT_DELIVERED,
+                CommunicationEventType.DELIVERY_FAILED);
     }
 }

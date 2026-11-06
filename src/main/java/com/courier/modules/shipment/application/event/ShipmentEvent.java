@@ -198,6 +198,10 @@ public sealed interface ShipmentEvent {
     record PickedUp(UUID shipmentId, UUID companyId, Instant occurredAt) implements ShipmentEvent {
     }
 
+    /** A delivery attempt failed; the parcel is back at the delivery branch (Phase 10.2). */
+    record DeliveryFailed(UUID shipmentId, UUID companyId, Instant occurredAt) implements ShipmentEvent {
+    }
+
     record Dispatched(UUID shipmentId, UUID companyId, Instant occurredAt) implements ShipmentEvent {
     }
 

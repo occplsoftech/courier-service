@@ -68,8 +68,8 @@ class CommunicationTemplateServiceImplTest {
 
         service.list();
 
-        // 5 default events x 3 channels + the WhatsApp-only daily summary
-        verify(repository, times(16)).save(any());
+        // 6 default events x 3 channels + the WhatsApp-only daily summary
+        verify(repository, times(19)).save(any());
     }
 
     @Test
@@ -88,15 +88,18 @@ class CommunicationTemplateServiceImplTest {
         // seeded before the daily summary and "picked up" existed
         when(repository.findAllByCompanyIdOrderByEventTypeAscChannelAsc(COMPANY)).thenReturn(
                 existingFor(all.stream().filter(s -> s.eventType() != CommunicationEventType.DAILY_BUSINESS_SUMMARY
-                        && s.eventType() != CommunicationEventType.SHIPMENT_PICKED_UP).toList()));
+                        && s.eventType() != CommunicationEventType.SHIPMENT_PICKED_UP
+                        && s.eventType() != CommunicationEventType.DELIVERY_FAILED).toList()));
 
         service.list();
 
         var saved = org.mockito.ArgumentCaptor.forClass(CommunicationTemplate.class);
-        verify(repository, times(4)).save(saved.capture());
+        verify(repository, times(7)).save(saved.capture());
         assertThat(saved.getAllValues()).extracting(CommunicationTemplate::getEventType).containsExactlyInAnyOrder(
                 CommunicationEventType.SHIPMENT_PICKED_UP, CommunicationEventType.SHIPMENT_PICKED_UP,
-                CommunicationEventType.SHIPMENT_PICKED_UP, CommunicationEventType.DAILY_BUSINESS_SUMMARY);
+                CommunicationEventType.SHIPMENT_PICKED_UP, CommunicationEventType.DELIVERY_FAILED,
+                CommunicationEventType.DELIVERY_FAILED, CommunicationEventType.DELIVERY_FAILED,
+                CommunicationEventType.DAILY_BUSINESS_SUMMARY);
     }
 
     @Test

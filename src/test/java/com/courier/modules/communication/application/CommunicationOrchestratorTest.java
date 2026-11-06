@@ -212,7 +212,7 @@ class CommunicationOrchestratorTest {
         assertThat(List.of(CommunicationEventType.values())).containsExactlyInAnyOrder(
                 CommunicationEventType.SHIPMENT_BOOKED, CommunicationEventType.SHIPMENT_PICKED_UP, CommunicationEventType.SHIPMENT_DISPATCHED,
                 CommunicationEventType.SHIPMENT_RECEIVED, CommunicationEventType.OUT_FOR_DELIVERY,
-                CommunicationEventType.SHIPMENT_DELIVERED, CommunicationEventType.SHIPMENT_CANCELLED,
+                CommunicationEventType.SHIPMENT_DELIVERED, CommunicationEventType.DELIVERY_FAILED, CommunicationEventType.SHIPMENT_CANCELLED,
                 CommunicationEventType.RTO_INITIATED, CommunicationEventType.RTO_DELIVERED,
                 CommunicationEventType.DAILY_BUSINESS_SUMMARY);
     }
