@@ -843,6 +843,85 @@ class ShipmentServiceImplTest {
         assertThat(third.isReturnDue()).isTrue();
     }
 
+    private Shipment openCase() {
+        Shipment s = existingShipment(ShipmentStatus.IN_SCAN);
+        s.setFailedAttempts(1);
+        s.setUndeliveredOpen(true);
+        s.setUndeliveredAt(java.time.Instant.now());
+        when(shipmentRepository.findByIdWithinCompany(s.getId(), COMPANY)).thenReturn(Optional.of(s));
+        return s;
+    }
+
+    @Test
+    @DisplayName("the customer's choice: a date within a week to deliver again, or a new address and phone written onto the shipment")
+    void deliveryChoices() {
+        java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
+        Shipment s = openCase();
+
+        assertThatThrownBy(() -> service.recordDeliveryChoice(s.getId(), com.courier.modules.shipment.domain.DeliveryChoice.REATTEMPT, today.plusDays(9), null, null))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("between today");
+        service.recordDeliveryChoice(s.getId(), com.courier.modules.shipment.domain.DeliveryChoice.REATTEMPT, today.plusDays(2), null, null);
+        assertThat(s.getUndeliveredChoiceDate()).isEqualTo(today.plusDays(2));
+
+        assertThatThrownBy(() -> service.recordDeliveryChoice(s.getId(), com.courier.modules.shipment.domain.DeliveryChoice.CHANGE_ADDRESS, null, "short", null))
+                .isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> service.recordDeliveryChoice(s.getId(), com.courier.modules.shipment.domain.DeliveryChoice.CHANGE_ADDRESS, null, "Flat 4, MG Road, Pune", "12345"))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("mobile");
+        service.recordDeliveryChoice(s.getId(), com.courier.modules.shipment.domain.DeliveryChoice.CHANGE_ADDRESS, null, " Flat 4, MG Road, Pune ", "98765 43210");
+        assertThat(s.getReceiverAddress()).isEqualTo("Flat 4, MG Road, Pune");
+        assertThat(s.getReceiverContact()).isEqualTo("9876543210");
+        assertThat(s.getUndeliveredChoice()).isEqualTo(com.courier.modules.shipment.domain.DeliveryChoice.CHANGE_ADDRESS);
+        assertThat(s.getUndeliveredChoiceDate()).isNull();
+    }
+
+    @Test
+    @DisplayName("no choice without an open failed attempt; asking for a return, 3 attempts or a week unanswered flags it for return")
+    void choiceRulesAndFlags() {
+        Shipment booked = existingShipment(ShipmentStatus.BOOKED);
+        when(shipmentRepository.findByIdWithinCompany(booked.getId(), COMPANY)).thenReturn(Optional.of(booked));
+        assertThatThrownBy(() -> service.recordDeliveryChoice(booked.getId(), com.courier.modules.shipment.domain.DeliveryChoice.RETURN, null, null, null))
+                .isInstanceOf(BusinessRuleException.class);
+
+        java.time.Instant now = java.time.Instant.now();
+        Shipment s = openCase();
+        assertThat(s.isReturnFlagged(now)).isFalse();
+        s.setUndeliveredAt(now.minus(java.time.Duration.ofDays(8)));
+        assertThat(s.isReturnFlagged(now)).isTrue();                 // a week with no answer
+        s.setUndeliveredAt(now);
+        service.recordDeliveryChoice(s.getId(), com.courier.modules.shipment.domain.DeliveryChoice.RETURN, null, null, null);
+        assertThat(s.isReturnFlagged(now)).isTrue();                 // the customer asked for it
+    }
+
+    @Test
+    @DisplayName("return to sender ends the shipment as Returned, closes the case and tells the customer")
+    void returnsToSender() {
+        Shipment s = openCase();
+
+        Shipment r = service.returnToSender(s.getId(), "3 attempts");
+
+        assertThat(r.getStatus()).isEqualTo(ShipmentStatus.RETURNED);
+        assertThat(r.isUndeliveredOpen()).isFalse();
+        verify(eventPublisher).publishEvent(org.mockito.ArgumentMatchers.isA(ShipmentEvent.Returned.class));
+
+        Shipment booked = existingShipment(ShipmentStatus.BOOKED);
+        when(shipmentRepository.findByIdWithinCompany(booked.getId(), COMPANY)).thenReturn(Optional.of(booked));
+        assertThatThrownBy(() -> service.returnToSender(booked.getId(), null)).isInstanceOf(BusinessRuleException.class);
+    }
+
+    @Test
+    @DisplayName("a new failed attempt clears the previous choice: the customer chooses again")
+    void newAttemptClearsChoice() {
+        Shipment s = existingShipment(ShipmentStatus.OUT_FOR_DELIVERY);
+        s.setUndeliveredChoice(com.courier.modules.shipment.domain.DeliveryChoice.REATTEMPT);
+        s.setUndeliveredChoiceDate(java.time.LocalDate.now());
+        when(shipmentRepository.findByIdWithinCompany(s.getId(), COMPANY)).thenReturn(Optional.of(s));
+
+        service.markUndelivered(s.getId(), com.courier.modules.shipment.domain.UndeliveredReason.REFUSED, null);
+
+        assertThat(s.getUndeliveredChoice()).isNull();
+        assertThat(s.getUndeliveredChoiceDate()).isNull();
+    }
+
     @Test
     @DisplayName("the portal cannot cancel a shipment the hub already handed to a courier")
     void portalCannotCancelAForwardedShipment() {

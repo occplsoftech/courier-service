@@ -248,6 +248,40 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
         }
     }
 
+    @Override
+    public com.courier.modules.customerportal.rates.domain.DeliveryIssue deliveryIssue(UUID companyId, UUID customerId, String orderRef) {
+        UUID shipmentId = orderRef == null ? null
+                : pickups.findByNumberForCustomer(orderRef, customerId).map(PickupRequest::getShipmentId).orElse(null);
+        if (shipmentId == null) {
+            return null;
+        }
+        return shipments.deliveryIssue(companyId, shipmentId).map(d -> new com.courier.modules.customerportal.rates.domain.DeliveryIssue(
+                d.attempts(), d.reason(), d.note(), d.at(), d.open(), d.returnFlagged(), d.choice(), d.choiceLabel(), d.choiceDate(),
+                d.receiverAddress(), d.receiverPhone())).orElse(null);
+    }
+
+    @Override
+    public CancelOutcome chooseDelivery(UUID companyId, UUID customerId, String orderRef, String choice, java.time.LocalDate date,
+                                        String address, String phone) {
+        UUID shipmentId = orderRef == null ? null
+                : pickups.findByNumberForCustomer(orderRef, customerId).map(PickupRequest::getShipmentId).orElse(null);
+        if (shipmentId == null) {
+            return CancelOutcome.notFound("The shipment for this booking was not found.");
+        }
+        com.courier.modules.shipment.domain.DeliveryChoice c;
+        try {
+            c = com.courier.modules.shipment.domain.DeliveryChoice.valueOf(choice == null ? "" : choice.trim().toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return CancelOutcome.failed("Choose deliver again, a new address, or return.");
+        }
+        try {
+            shipmentService.recordDeliveryChoice(shipmentId, c, date, address, phone);
+            return CancelOutcome.cancelled("Thank you. We have passed this to the branch.");
+        } catch (ApiException e) {
+            return CancelOutcome.failed(e.getMessage());
+        }
+    }
+
     /** Cancels the shipment issued at booking (freeing its number), then the pickup request, while the parcel is still with the customer. */
     @Override
     public CancelOutcome cancelBooking(UUID companyId, UUID customerId, String orderRef, String reason) {

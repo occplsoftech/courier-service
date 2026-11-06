@@ -76,6 +76,22 @@ public class ShipmentPortalQueries {
         return repository.findByIdWithinCompany(shipmentId, companyId).map(s -> timelineOf(s, companyId));
     }
 
+    /** The last failed delivery attempt of a portal shipment and what the customer chose, when an attempt has failed. */
+    @Transactional(readOnly = true)
+    public Optional<DeliveryIssue> deliveryIssue(UUID companyId, UUID shipmentId) {
+        return repository.findByIdWithinCompany(shipmentId, companyId).filter(s -> s.getFailedAttempts() > 0)
+                .map(s -> new DeliveryIssue(s.getFailedAttempts(),
+                        s.getUndeliveredReason() == null ? null : s.getUndeliveredReason().getLabel(), s.getUndeliveredNote(),
+                        s.getUndeliveredAt(), s.isUndeliveredOpen(), s.isReturnFlagged(Instant.now()),
+                        s.getUndeliveredChoice() == null ? null : s.getUndeliveredChoice().name(),
+                        s.getUndeliveredChoice() == null ? null : s.getUndeliveredChoice().getLabel(), s.getUndeliveredChoiceDate(),
+                        s.getReceiverAddress(), s.getReceiverContact()));
+    }
+
+    public record DeliveryIssue(int attempts, String reason, String note, Instant at, boolean open, boolean returnFlagged,
+                                String choice, String choiceLabel, LocalDate choiceDate, String receiverAddress, String receiverPhone) {
+    }
+
     private PortalTimeline timelineOf(Shipment s, UUID companyId) {
         Map<UUID, String> names = new HashMap<>();
         List<PortalStep> steps = history.findAllByShipmentIdWithinCompany(s.getId(), companyId).stream()

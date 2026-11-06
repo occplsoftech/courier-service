@@ -1999,6 +1999,9 @@ public class ShipmentServiceImpl implements ShipmentService {
         shipment.setUndeliveredNote(cleanNote);
         shipment.setUndeliveredAt(Instant.now());
         shipment.setUndeliveredOpen(true);
+        shipment.setUndeliveredChoice(null); // a new failed attempt is a new case: the customer chooses again
+        shipment.setUndeliveredChoiceDate(null);
+        shipment.setUndeliveredChoiceAt(null);
         shipment.transitionTo(ShipmentStatus.IN_SCAN);
         Shipment saved = shipmentRepository.save(shipment);
         String line = "Delivery attempt " + saved.getFailedAttempts() + " failed: " + reason.getLabel()
@@ -2008,6 +2011,92 @@ public class ShipmentServiceImpl implements ShipmentService {
                 Map.of("shipmentNumber", saved.getShipmentNumber(), "reason", reason.name(), "attempt", String.valueOf(saved.getFailedAttempts())));
         log.info("Shipment {} not delivered (attempt {}): {}", saved.getShipmentNumber(), saved.getFailedAttempts(), reason);
         eventPublisher.publishEvent(new ShipmentEvent.DeliveryFailed(saved.getId(), companyId, Instant.now()));
+        return saved;
+    }
+
+    @Override
+    @Transactional
+    public Shipment recordDeliveryChoice(UUID shipmentId, com.courier.modules.shipment.domain.DeliveryChoice choice,
+                                         java.time.LocalDate date, String address, String phone) {
+        UUID companyId = requireCompany();
+        Shipment shipment = loadOrThrow(shipmentId, companyId);
+        if (!shipment.isUndeliveredOpen() || shipment.getStatus() != ShipmentStatus.IN_SCAN) {
+            throw new BusinessRuleException("There is no failed delivery waiting for your answer on this shipment.");
+        }
+        if (choice == null) {
+            throw new BusinessRuleException("Choose what to do with the shipment.");
+        }
+        java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
+        String line;
+        switch (choice) {
+            case REATTEMPT -> {
+                if (date == null || date.isBefore(today) || date.isAfter(today.plusDays(7))) {
+                    throw new BusinessRuleException("Choose a delivery date between today and " + today.plusDays(7) + ".");
+                }
+                line = "Customer asked to deliver again on " + date;
+            }
+            case CHANGE_ADDRESS -> {
+                String a = address == null ? "" : address.trim();
+                if (a.length() < 10 || a.length() > 500) {
+                    throw new BusinessRuleException("Enter the full new address (10 to 500 characters).");
+                }
+                String ph = phone == null || phone.isBlank() ? null : phone.replaceAll("[\\s-]", "");
+                if (ph != null && !ph.matches("^(\\+91)?[6-9][0-9]{9}$")) {
+                    throw new BusinessRuleException("Enter a valid 10-digit mobile number.");
+                }
+                shipment.setReceiverAddress(a);
+                if (ph != null) {
+                    shipment.setReceiverContact(ph);
+                }
+                line = "Customer gave a new delivery address" + (ph == null ? "" : " and phone");
+            }
+            default -> line = "Customer asked to return the shipment";
+        }
+        shipment.setUndeliveredChoice(choice);
+        shipment.setUndeliveredChoiceDate(choice == com.courier.modules.shipment.domain.DeliveryChoice.REATTEMPT ? date : null);
+        shipment.setUndeliveredChoiceAt(Instant.now());
+        Shipment saved = shipmentRepository.save(shipment);
+        appendHistory(saved, companyId, ShipmentStatus.IN_SCAN, ShipmentStatus.IN_SCAN, line, saved.getCurrentLocationId(), saved.getManifestId(), null);
+        auditService.record(AuditAction.SHIPMENT_DELIVERY_CHOICE, ENTITY, saved.getId(),
+                Map.of("shipmentNumber", saved.getShipmentNumber(), "choice", choice.name()));
+        return saved;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize(WRITERS)
+    public List<Shipment> openUndelivered() {
+        UUID companyId = requireCompany();
+        List<Shipment> open = shipmentRepository.findOpenUndelivered(companyId);
+        com.courier.shared.security.AuthenticatedUser caller = SecurityUtils.requireCurrentUser();
+        if (caller.isPlatformTier() || caller.hasRole(Roles.COMPANY_ADMIN)) {
+            return open;
+        }
+        UUID own = userService.getById(caller.userId()).getBranchId();
+        return own == null ? List.of() : open.stream()
+                .filter(s -> own.equals(s.getCurrentLocationId()) || own.equals(s.getDeliveryBranchId())).toList();
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(WRITERS)
+    public Shipment returnToSender(UUID shipmentId, String reason) {
+        UUID companyId = requireCompany();
+        Shipment shipment = loadOrThrow(shipmentId, companyId);
+        if (shipment.getStatus() != ShipmentStatus.IN_SCAN && shipment.getStatus() != ShipmentStatus.OUT_FOR_DELIVERY) {
+            throw new BusinessRuleException("Shipment %s is %s — only a shipment at the delivery branch or out for delivery can be returned."
+                    .formatted(shipment.getShipmentNumber(), shipment.getStatus()));
+        }
+        String why = reason == null || reason.isBlank() ? null : reason.trim();
+        ShipmentStatus previous = shipment.getStatus();
+        shipment.transitionTo(ShipmentStatus.RETURNED);
+        shipment.setUndeliveredOpen(false);
+        Shipment saved = shipmentRepository.save(shipment);
+        appendHistory(saved, companyId, previous, ShipmentStatus.RETURNED, why == null ? "Returned to sender" : "Returned to sender: " + why,
+                saved.getCurrentLocationId(), saved.getManifestId(), null);
+        auditService.record(AuditAction.SHIPMENT_RETURNED, ENTITY, saved.getId(),
+                Map.of("shipmentNumber", saved.getShipmentNumber(), "reason", String.valueOf(why)));
+        eventPublisher.publishEvent(new ShipmentEvent.Returned(saved.getId(), companyId, Instant.now()));
         return saved;
     }
 

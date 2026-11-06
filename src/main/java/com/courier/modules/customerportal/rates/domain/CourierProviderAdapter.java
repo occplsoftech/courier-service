@@ -86,6 +86,20 @@ public interface CourierProviderAdapter {
         return CancelOutcome.failed("The pickup time of this booking cannot be changed online. Please contact support.");
     }
 
+    /** The last failed delivery attempt of a booking (OCCPL Network), or null when none failed or this provider cannot say. */
+    default DeliveryIssue deliveryIssue(java.util.UUID companyId, java.util.UUID customerId, String orderRef) {
+        return null;
+    }
+
+    /**
+     * Records the customer's choice after a failed delivery attempt ({@code choice}: REATTEMPT with a date, CHANGE_ADDRESS with the new
+     * address and optional phone, or RETURN). A refusal is {@link CancelOutcome#failed} with a message the customer may read.
+     */
+    default CancelOutcome chooseDelivery(java.util.UUID companyId, java.util.UUID customerId, String orderRef, String choice,
+                                         java.time.LocalDate date, String address, String phone) {
+        return CancelOutcome.failed("Please contact support to arrange the delivery of this booking.");
+    }
+
     /** The shipment's progress now. Must not throw for a provider failure: answer {@link TrackingResult#unavailable}. */
     default TrackingResult track(ShipmentRef shipment) {
         return TrackingResult.unavailable("Tracking is not available for " + displayName() + " yet.");

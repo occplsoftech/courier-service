@@ -202,6 +202,10 @@ public sealed interface ShipmentEvent {
     record DeliveryFailed(UUID shipmentId, UUID companyId, Instant occurredAt) implements ShipmentEvent {
     }
 
+    /** The shipment was returned to the sender after failed delivery attempts (Phase 10.2). */
+    record Returned(UUID shipmentId, UUID companyId, Instant occurredAt) implements ShipmentEvent {
+    }
+
     record Dispatched(UUID shipmentId, UUID companyId, Instant occurredAt) implements ShipmentEvent {
     }
 

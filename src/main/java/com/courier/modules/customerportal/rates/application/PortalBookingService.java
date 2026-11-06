@@ -231,6 +231,26 @@ public class PortalBookingService {
     }
 
     /**
+     * The customer answers a failed delivery attempt on their booking: deliver again on a date, deliver to a new address (and phone), or
+     * return it. The branch sees the answer in its queue; a new address is written onto the shipment at once.
+     */
+    public BookingView chooseDelivery(UUID bookingId, String choice, java.time.LocalDate date, String address, String phone) {
+        ActingCustomer acting = resolver.require();
+        PortalBooking booking = store.findOwned(acting, bookingId)
+                .orElseThrow(() -> new com.courier.shared.exception.ResourceNotFoundException("Booking", bookingId));
+        if (booking.getStatus() != PortalBooking.Status.BOOKED) {
+            throw new BusinessRuleException("This booking has no delivery to arrange.");
+        }
+        CancelOutcome outcome = adapter(booking.getProviderCode()).chooseDelivery(acting.companyId(), acting.customerId(),
+                booking.getProviderOrderRef(), choice, date, address, phone);
+        if (outcome.result() != CancelOutcome.Result.CANCELLED) {
+            throw new BusinessRuleException(outcome.message());
+        }
+        log.info("Portal booking {} delivery choice {}", booking.getId(), choice);
+        return view(booking, outcome.message());
+    }
+
+    /**
      * A customer set up with the Credit payment mode is billed on their invoice, so a booking neither debits nor credits their
      * wallet, whatever balance it holds.
      */

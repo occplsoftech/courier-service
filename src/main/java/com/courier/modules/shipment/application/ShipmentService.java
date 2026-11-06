@@ -91,6 +91,19 @@ public interface ShipmentService {
      */
     Shipment markUndelivered(UUID shipmentId, com.courier.modules.shipment.domain.UndeliveredReason reason, String note);
 
+    /**
+     * The customer's choice for an open failed attempt (no {@code @PreAuthorize}: the customer portal has checked the booking is theirs).
+     * REATTEMPT needs a date from today to 7 days ahead; CHANGE_ADDRESS writes the new address (and phone, if given) onto the shipment.
+     */
+    Shipment recordDeliveryChoice(UUID shipmentId, com.courier.modules.shipment.domain.DeliveryChoice choice,
+                                  java.time.LocalDate date, String address, String phone);
+
+    /** Open failed-delivery cases, oldest first: every one for the company admin, the ones at or for their branch otherwise. */
+    List<Shipment> openUndelivered();
+
+    /** Ends the shipment as RETURNED (to the sender), from the branch or out for delivery; closes any open failed-attempt case. */
+    Shipment returnToSender(UUID shipmentId, String reason);
+
     Shipment create(CreateShipmentCommand command);
 
     /**

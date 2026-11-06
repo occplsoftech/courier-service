@@ -208,6 +208,17 @@ public class PortalShipmentService {
         }
     }
 
+    private com.courier.modules.customerportal.rates.domain.DeliveryIssue deliveryIssue(PortalBooking b) {
+        if (b.getStatus() != PortalBooking.Status.BOOKED) {
+            return null;
+        }
+        try {
+            return adapter(b.getProviderCode()).deliveryIssue(b.getCompanyId(), b.getCustomerId(), b.getProviderOrderRef());
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
     /** A confirmed booking whose provider can still cancel it (for OCCPL Network: the parcel has not been collected). */
     private boolean cancellable(PortalBooking b) {
         if (b.getStatus() != PortalBooking.Status.BOOKED) {
@@ -239,7 +250,7 @@ public class PortalShipmentService {
                 b.getFailureMessage(),
                 BookingRequest.Party.of(snapshot.get("pickup")), BookingRequest.Party.of(snapshot.get("delivery")), parcel,
                 o == null ? List.of() : RateComparisonService.lines(o), b.getTotalAmount(), b.getCurrency(),
-                b.getSubmittedAt(), b.getBookedAt(), b.getCreatedAt(), delivery(b), cancellable(b), sched.date(), sched.slot(), PortalBookingService.PICKUP_SLOTS);
+                b.getSubmittedAt(), b.getBookedAt(), b.getCreatedAt(), delivery(b), cancellable(b), sched.date(), sched.slot(), PortalBookingService.PICKUP_SLOTS, deliveryIssue(b));
     }
 
     private static Set<PortalBooking.Status> statuses(String raw) {
@@ -336,7 +347,9 @@ public class PortalShipmentService {
                                 /** The customer may cancel it now (OCCPL Network, parcel not yet collected). */
                                 boolean cancellable,
                                 /** The pickup date and slot the customer chose (null when none), and the slots they may pick from. */
-                                java.time.LocalDate pickupDate, String pickupSlot, List<String> pickupSlots) {
+                                java.time.LocalDate pickupDate, String pickupSlot, List<String> pickupSlots,
+                                /** The last failed delivery attempt and the customer's choice; null when none failed. */
+                                com.courier.modules.customerportal.rates.domain.DeliveryIssue deliveryIssue) {
     }
 
     public record Parcel(BigDecimal actualWeightKg, BigDecimal volumetricWeightKg, BigDecimal chargeableWeightKg,

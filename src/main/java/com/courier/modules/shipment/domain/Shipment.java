@@ -315,6 +315,31 @@ public class Shipment extends CompanyOwnedEntity {
     @Column(name = "undelivered_open", nullable = false)
     private boolean undeliveredOpen = false;
 
+    /** What the customer chose for the open failed attempt (null until they choose; cleared when another attempt fails). */
+    @Column(name = "undelivered_choice", length = 20)
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    private DeliveryChoice undeliveredChoice;
+
+    /** The date the customer asked for a new attempt (REATTEMPT). */
+    @Column(name = "undelivered_choice_date")
+    private java.time.LocalDate undeliveredChoiceDate;
+
+    @Column(name = "undelivered_choice_at")
+    private java.time.Instant undeliveredChoiceAt;
+
+    /** Days without an answer after which an open case is due for return, like the attempt limit (staff decide). */
+    public static final int RETURN_DUE_AFTER_DAYS = 7;
+
+    /** An open case to return: the attempt limit is reached, the customer asked for it, or nobody answered within a week. */
+    public boolean isReturnFlagged(java.time.Instant now) {
+        if (!undeliveredOpen) {
+            return false;
+        }
+        boolean unanswered = undeliveredChoice == null && undeliveredAt != null
+                && undeliveredAt.isBefore(now.minus(java.time.Duration.ofDays(RETURN_DUE_AFTER_DAYS)));
+        return isReturnDue() || undeliveredChoice == DeliveryChoice.RETURN || unanswered;
+    }
+
     /** After this many failed attempts a shipment is due for return (staff decide; nothing returns by itself). */
     public static final int RETURN_DUE_AFTER_ATTEMPTS = 3;
 
