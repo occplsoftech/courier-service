@@ -106,4 +106,36 @@ class MarkupRuleServiceTest {
         assertThatThrownBy(() -> service.create(new MarkupRuleService.CreateCommand(null, null, true,
                 new BigDecimal("101"), Set.of(ChargeComponent.FREIGHT), null, null, null))).isInstanceOf(BusinessRuleException.class);
     }
+
+    @Test
+    @DisplayName("end now: an open rule ends now; a future rule ends at its start so it never applies; an ended rule is refused")
+    void endNow() {
+        PricingMarkupRule open = rule("SHIPROCKET", null, "12", NOW.minus(5, ChronoUnit.DAYS), null);
+        PricingMarkupRule future = rule(null, CUSTOMER, "7", NOW.plus(3, ChronoUnit.DAYS), null);
+        PricingMarkupRule ended = rule(null, null, "10", NOW.minus(9, ChronoUnit.DAYS), NOW.minus(1, ChronoUnit.DAYS));
+        when(repository.findAllWithinCompany(COMPANY)).thenReturn(List.of(open, future, ended));
+        when(repository.save(any(PricingMarkupRule.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.end(open.getId());
+        assertThat(open.getEffectiveTo()).isNotNull();
+        assertThat(open.coversInstant(Instant.now().plusSeconds(1))).isFalse();
+
+        service.end(future.getId());
+        assertThat(future.getEffectiveTo()).isEqualTo(future.getEffectiveFrom());
+
+        assertThatThrownBy(() -> service.end(ended.getId())).isInstanceOf(com.courier.shared.exception.BusinessRuleException.class);
+        assertThatThrownBy(() -> service.end(UUID.randomUUID())).isInstanceOf(com.courier.shared.exception.ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("check: shows the rule that wins for a customer and courier, or the default")
+    void check() {
+        PricingMarkupRule provider = rule("SHIPROCKET", null, "12", NOW.minus(5, ChronoUnit.DAYS), null);
+        when(repository.findCandidates(COMPANY, "SHIPROCKET", CUSTOMER)).thenReturn(List.of(provider));
+        when(repository.findCandidates(COMPANY, "DELHIVERY", CUSTOMER)).thenReturn(List.of());
+
+        assertThat(service.check("shiprocket", CUSTOMER).ruleId()).isEqualTo(provider.getId());
+        assertThat(service.check("DELHIVERY", CUSTOMER).ruleId()).isNull();
+        assertThat(service.check("DELHIVERY", CUSTOMER).percent()).isEqualByComparingTo("10");
+    }
 }

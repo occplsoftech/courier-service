@@ -109,6 +109,32 @@ public class MarkupRuleService {
         return rule;
     }
 
+    /** Stops a rule now (kept in the history). Refused for a rule that has already ended. */
+    @Transactional
+    @PreAuthorize(COMPANY_ADMIN)
+    public PricingMarkupRule end(UUID ruleId) {
+        UUID companyId = CompanyContext.requireCompanyId();
+        PricingMarkupRule rule = repository.findAllWithinCompany(companyId).stream().filter(r -> r.getId().equals(ruleId)).findFirst()
+                .orElseThrow(() -> new com.courier.shared.exception.ResourceNotFoundException("PricingMarkupRule", ruleId));
+        Instant now = Instant.now();
+        if (rule.getEffectiveTo() != null && !rule.getEffectiveTo().isAfter(now)) {
+            throw new BusinessRuleException("This rule has already ended.");
+        }
+        // A rule that has not started yet ends where it starts, so it never applies.
+        rule.setEffectiveTo(rule.getEffectiveFrom().isAfter(now) ? rule.getEffectiveFrom() : now);
+        PricingMarkupRule saved = repository.save(rule);
+        auditService.record(AuditAction.PRICING_MARKUP_RULE_CLOSED, "PricingMarkupRule", saved.getId(),
+                Map.of("effectiveTo", saved.getEffectiveTo().toString(), "by", "end now"));
+        return saved;
+    }
+
+    /** Which markup a customer gets on a courier right now (the winning rule, or the default), for staff to check. */
+    @Transactional(readOnly = true)
+    @PreAuthorize(COMPANY_ADMIN)
+    public Markup check(String providerCode, UUID customerId) {
+        return resolve(CompanyContext.requireCompanyId(), blankToNull(providerCode), customerId, Instant.now());
+    }
+
     private static void validate(CreateCommand c) {
         if (c.percent() == null || c.percent().signum() < 0 || c.percent().compareTo(new BigDecimal("100")) > 0) {
             throw new BusinessRuleException("The markup must be between 0 and 100 percent.");

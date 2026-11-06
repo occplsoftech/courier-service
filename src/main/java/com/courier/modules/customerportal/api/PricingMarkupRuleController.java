@@ -67,4 +67,23 @@ public class PricingMarkupRuleController {
                     r.getCreatedAt());
         }
     }
+
+    @PostMapping("/{id}/end")
+    @Operation(summary = "End a markup rule now", description = "`COMPANY_ADMIN`. It stays in the history; a rule not started yet never applies.")
+    public ApiResponse<RuleResponse> end(@org.springframework.web.bind.annotation.PathVariable UUID id) {
+        return ApiResponse.success(RuleResponse.of(service.end(id)), "Markup rule ended");
+    }
+
+    public record CheckResponse(UUID ruleId, boolean isDefault, boolean enabled, BigDecimal percent, Set<ChargeComponent> appliesTo,
+                                BigDecimal gstPercent) {
+    }
+
+    @GetMapping("/check")
+    @Operation(summary = "Which markup applies to a customer on a courier right now",
+            description = "`COMPANY_ADMIN`. `providerCode` and `customerId` are optional (blank = any). `isDefault` when no rule is in force.")
+    public ApiResponse<CheckResponse> check(@org.springframework.web.bind.annotation.RequestParam(required = false) String providerCode,
+                                            @org.springframework.web.bind.annotation.RequestParam(required = false) UUID customerId) {
+        var m = service.check(providerCode, customerId);
+        return ApiResponse.success(new CheckResponse(m.ruleId(), m.ruleId() == null, m.enabled(), m.percent(), m.components(), m.gstPercent()));
+    }
 }

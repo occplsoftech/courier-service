@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-06 — Phase 11.5 (backend): end a markup rule now, and check which markup applies
+
+- `POST /pricing-markup-rules/{id}/end` ends a rule now (a rule that has not started yet ends at its start, so it never applies); an already-ended rule is refused. Audited as `PRICING_MARKUP_RULE_CLOSED`.
+- `GET /pricing-markup-rules/check?providerCode&customerId` returns the markup a customer would get with a courier right now: the winning rule (most specific in force) or the default (`isDefault`), with percent, charge lines and GST. Company admin only.
+
+---
+
 ## 2026-11-06 — Phase 11.3 (backend): COD amount and COD paid into the customer's wallet
 
 - The customer can give a separate **amount to collect** for a COD booking (`codAmount` on the rates request and the bulk sheet's optional `COD Amount (if COD)` column; blank = the declared value). `RateRequest.collectAmount()` is what outside couriers now collect (Delhivery `cod_amount`, Shipyaari `collectableAmount` split across boxes, Shiprocket `sub_total` for COD).
