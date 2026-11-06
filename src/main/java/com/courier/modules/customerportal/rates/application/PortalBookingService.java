@@ -12,6 +12,7 @@ import com.courier.modules.finance.application.WalletService;
 import com.courier.modules.finance.application.command.CustomerBookingDebitCommand;
 import com.courier.modules.finance.application.command.CustomerBookingRefundCommand;
 import com.courier.shared.audit.application.AuditService;
+import com.courier.modules.customerportal.rates.domain.CancelOutcome;
 import com.courier.shared.audit.domain.AuditAction;
 import com.courier.shared.exception.BusinessRuleException;
 import com.courier.shared.exception.ErrorCode;
@@ -146,6 +147,38 @@ public class PortalBookingService {
                 "providerRef", String.valueOf(finished.getProviderOrderRef()), "awb", String.valueOf(finished.getAwbNumber())));
         log.info("Portal booking {} -> {} ({})", finished.getId(), finished.getStatus(), finished.getProviderCode());
         return view(finished, outcome.message());
+    }
+
+    /**
+     * The customer cancels their own booking before the parcel is collected (OCCPL Network). The courier side is cancelled first (the
+     * shipment, freeing its number, then the pickup); only when that succeeds is the booking marked cancelled and the wallet debit
+     * (if any) credited back. A refusal changes nothing and says why.
+     */
+    public BookingView cancel(UUID bookingId, String reason) {
+        ActingCustomer acting = resolver.require();
+        PortalBooking booking = store.findOwned(acting, bookingId)
+                .orElseThrow(() -> new com.courier.shared.exception.ResourceNotFoundException("Booking", bookingId));
+        if (booking.getStatus() == PortalBooking.Status.CANCELLED) {
+            return view(booking, "This booking is already cancelled.");
+        }
+        if (booking.getStatus() != PortalBooking.Status.BOOKED) {
+            throw new BusinessRuleException("Only a confirmed booking can be cancelled.");
+        }
+        CourierProviderAdapter adapter = adapter(booking.getProviderCode());
+        String why = reason == null || reason.isBlank() ? "Cancelled by the customer" : "Cancelled by the customer: " + reason.trim();
+        CancelOutcome outcome = adapter.cancelBooking(acting.companyId(), acting.customerId(), booking.getProviderOrderRef(),
+                why.length() > 200 ? why.substring(0, 200) : why);
+        if (outcome.result() == CancelOutcome.Result.FAILED) {
+            throw new BusinessRuleException(outcome.message());
+        }
+        PortalBooking cancelled = store.markCancelled(acting, bookingId);
+        if (!creditCustomer(acting)) {
+            refundToWallet(cancelled, "Booking cancelled by the customer");
+        }
+        auditService.record(AuditAction.PORTAL_BOOKING_CANCELLED, "PortalBooking", cancelled.getId(),
+                Map.of("provider", cancelled.getProviderCode(), "providerRef", String.valueOf(cancelled.getProviderOrderRef())));
+        log.info("Portal booking {} cancelled by the customer ({})", cancelled.getId(), cancelled.getProviderCode());
+        return view(cancelled, "Booking cancelled." + (creditCustomer(acting) ? "" : " The amount was credited back to your wallet."));
     }
 
     /**

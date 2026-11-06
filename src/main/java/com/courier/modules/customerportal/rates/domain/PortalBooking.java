@@ -36,7 +36,9 @@ import java.util.UUID;
 public class PortalBooking extends CompanyOwnedEntity {
 
     public enum Status {
-        PENDING, SUBMITTING, BOOKED, FAILED, OUTCOME_UNKNOWN;
+        PENDING, SUBMITTING, BOOKED, FAILED, OUTCOME_UNKNOWN,
+        /** The customer cancelled it before pickup (OCCPL Network). */
+        CANCELLED;
 
         /** Statuses that block another booking of the same quote. */
         public static final Set<Status> ACTIVE = EnumSet.of(PENDING, SUBMITTING, BOOKED, OUTCOME_UNKNOWN);

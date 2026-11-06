@@ -380,4 +380,69 @@ class PortalBookingServiceTest {
         verify(walletService, never()).debitForCustomerBooking(any());
         verify(walletService, never()).refundCustomerBooking(any());
     }
+
+    // ---------------------------------------------------------------- cancel by the customer
+
+    private CourierProviderAdapter cancellingAdapter(com.courier.modules.customerportal.rates.domain.CancelOutcome outcome) {
+        CourierProviderAdapter a = mock(CourierProviderAdapter.class);
+        when(a.code()).thenReturn("SHIPROCKET");
+        when(a.displayName()).thenReturn("Shiprocket");
+        when(a.cancelBooking(any(), any(), any(), any())).thenReturn(outcome);
+        return a;
+    }
+
+    private PortalBooking bookedForCancel() {
+        PortalBooking b = booking(PortalBooking.Status.BOOKED, "h");
+        b.setProviderOrderRef("PU-1");
+        when(store.findOwned(ACTING, b.getId())).thenReturn(java.util.Optional.of(b));
+        when(store.markCancelled(ACTING, b.getId())).thenAnswer(i -> { b.setStatus(PortalBooking.Status.CANCELLED); return b; });
+        return b;
+    }
+
+    @Test
+    @DisplayName("cancel: the courier cancels first, then the booking is marked cancelled and the wallet credited back")
+    void cancelRefunds() {
+        PortalBooking b = bookedForCancel();
+        var view = service(cancellingAdapter(com.courier.modules.customerportal.rates.domain.CancelOutcome.cancelled("ok")))
+                .cancel(b.getId(), "wrong address");
+
+        assertThat(view.status()).isEqualTo("CANCELLED");
+        verify(walletService).refundCustomerBooking(any(CustomerBookingRefundCommand.class));
+    }
+
+    @Test
+    @DisplayName("cancel: a refusal (parcel already collected) changes nothing and refunds nothing")
+    void cancelRefusedKeepsEverything() {
+        PortalBooking b = bookedForCancel();
+        var svc = service(cancellingAdapter(com.courier.modules.customerportal.rates.domain.CancelOutcome.failed("already collected")));
+
+        assertThatThrownBy(() -> svc.cancel(b.getId(), null)).isInstanceOf(BusinessRuleException.class).hasMessageContaining("already collected");
+        verify(store, never()).markCancelled(any(), any());
+        verify(walletService, never()).refundCustomerBooking(any());
+    }
+
+    @Test
+    @DisplayName("cancel: a credit customer is not refunded to a wallet they never paid from")
+    void cancelCreditCustomerNoRefund() {
+        customerPays(com.courier.modules.customer.domain.CustomerPaymentMode.CREDIT);
+        PortalBooking b = bookedForCancel();
+
+        service(cancellingAdapter(com.courier.modules.customerportal.rates.domain.CancelOutcome.cancelled("ok"))).cancel(b.getId(), null);
+
+        verify(walletService, never()).refundCustomerBooking(any());
+    }
+
+    @Test
+    @DisplayName("cancel: only a confirmed booking can be cancelled, and cancelling twice is harmless")
+    void cancelStates() {
+        PortalBooking failed = booking(PortalBooking.Status.FAILED, "h");
+        when(store.findOwned(ACTING, failed.getId())).thenReturn(java.util.Optional.of(failed));
+        var svc = service(cancellingAdapter(com.courier.modules.customerportal.rates.domain.CancelOutcome.cancelled("ok")));
+        assertThatThrownBy(() -> svc.cancel(failed.getId(), null)).isInstanceOf(BusinessRuleException.class);
+
+        PortalBooking done = booking(PortalBooking.Status.CANCELLED, "h");
+        when(store.findOwned(ACTING, done.getId())).thenReturn(java.util.Optional.of(done));
+        assertThat(svc.cancel(done.getId(), null).status()).isEqualTo("CANCELLED");
+        verify(walletService, never()).refundCustomerBooking(any());
+    }
 }

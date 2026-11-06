@@ -803,6 +803,17 @@ class ShipmentServiceImplTest {
     }
 
     @Test
+    @DisplayName("the portal cannot cancel a shipment the hub already handed to a courier")
+    void portalCannotCancelAForwardedShipment() {
+        Shipment existing = existingShipment(ShipmentStatus.BOOKED);
+        existing.setForwardState("UNKNOWN");
+        when(shipmentRepository.findByIdWithinCompany(existing.getId(), COMPANY)).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> service.cancelFromPortal(existing.getId(), "customer cancelled"))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("handed to a courier");
+    }
+
+    @Test
     @DisplayName("a DISPATCHED shipment can no longer be cancelled — it has left the branch")
     void cancelRefusedOnceDispatched() {
         Shipment existing = existingShipment(ShipmentStatus.DISPATCHED);

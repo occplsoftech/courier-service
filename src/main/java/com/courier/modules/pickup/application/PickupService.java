@@ -64,6 +64,15 @@ public interface PickupService {
 
     PickupRequest cancel(UUID id, String reason);
 
+    /** Whether the customer's own pickup can still be cancelled (it has not been collected). False for anyone else's or an unknown number. */
+    boolean isCancellableForCustomer(String pickupNo, UUID customerId);
+
+    /**
+     * Cancels the customer's own pickup before it is collected. No {@code @PreAuthorize}: the portal has resolved the customer. Refused
+     * with a plain message once the parcel was collected.
+     */
+    PickupRequest cancelForCustomer(String pickupNo, UUID customerId, String reason);
+
     /**
      * Ties the shipment issued when a customer booked in the portal to its pickup request, without moving the request: it
      * is collected as usual and becomes BOOKED by itself when the parcel is picked up. No {@code @PreAuthorize}: the portal

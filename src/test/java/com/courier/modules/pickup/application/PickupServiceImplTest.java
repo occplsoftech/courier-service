@@ -286,6 +286,25 @@ class PickupServiceImplTest {
     }
 
     @Test
+    @DisplayName("a customer cancels their own pickup until it is collected, and never someone else's")
+    void customerCancelsOwnPickup() {
+        UUID customer = UUID.randomUUID();
+        PickupRequest p = created(PDP);
+        p.setCustomerId(customer);
+        when(pickups.findByPickupNo(COMPANY, p.getPickupNo())).thenReturn(Optional.of(p));
+
+        assertThat(service.isCancellableForCustomer(p.getPickupNo(), customer)).isTrue();
+        assertThat(service.isCancellableForCustomer(p.getPickupNo(), UUID.randomUUID())).isFalse();
+        assertThatThrownBy(() -> service.cancelForCustomer(p.getPickupNo(), UUID.randomUUID(), "x"))
+                .isInstanceOf(com.courier.shared.exception.ResourceNotFoundException.class);
+
+        service.cancelForCustomer(p.getPickupNo(), customer, "wrong address");
+        assertThat(p.getStatus()).isEqualTo(PickupStatus.CANCELLED);
+        assertThatThrownBy(() -> service.cancelForCustomer(p.getPickupNo(), customer, "again"))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("already been collected");
+    }
+
+    @Test
     @DisplayName("invalid pincode and mobile are refused")
     void validation() {
         assertThatThrownBy(() -> service.create(new SaveCommand(null, "Ravi", "9000000001", "addr", null, null,

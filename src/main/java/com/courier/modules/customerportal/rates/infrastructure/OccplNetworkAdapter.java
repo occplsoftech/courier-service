@@ -19,7 +19,9 @@ import com.courier.modules.master.application.PincodeLocation;
 import com.courier.modules.master.application.PincodeService;
 import com.courier.modules.master.domain.Pincode;
 import com.courier.modules.pickup.application.PickupService;
+import com.courier.modules.customerportal.rates.domain.CancelOutcome;
 import com.courier.modules.pickup.domain.PickupRequest;
+import java.util.UUID;
 import com.courier.modules.pickup.domain.PickupStatus;
 import com.courier.modules.shipment.application.ShipmentPortalQueries;
 import com.courier.modules.tariff.application.TariffQuoteService;
@@ -216,6 +218,33 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
         }
         return BookingOutcome.booked(p.getPickupNo(), null, null,
                 "Pickup " + p.getPickupNo() + " requested. The tracking number is issued when the parcel is collected and booked.");
+    }
+
+    @Override
+    public boolean canCancelBooking(UUID companyId, UUID customerId, String orderRef) {
+        return orderRef != null && pickups.isCancellableForCustomer(orderRef, customerId);
+    }
+
+    /** Cancels the shipment issued at booking (freeing its number), then the pickup request, while the parcel is still with the customer. */
+    @Override
+    public CancelOutcome cancelBooking(UUID companyId, UUID customerId, String orderRef, String reason) {
+        PickupRequest pickup = orderRef == null ? null : pickups.findByNumberForCustomer(orderRef, customerId).orElse(null);
+        if (pickup == null) {
+            return CancelOutcome.notFound("The pickup for this booking was not found.");
+        }
+        // Checked before anything is changed, so a collected parcel never leaves a half-cancelled booking behind.
+        if (!pickups.isCancellableForCustomer(orderRef, customerId)) {
+            return CancelOutcome.failed("This parcel has already been collected, so the booking can no longer be cancelled.");
+        }
+        try {
+            if (pickup.getShipmentId() != null) {
+                shipmentService.cancelFromPortal(pickup.getShipmentId(), reason);
+            }
+            pickups.cancelForCustomer(orderRef, customerId, reason);
+            return CancelOutcome.cancelled("The booking was cancelled.");
+        } catch (ApiException e) {
+            return CancelOutcome.failed(e.getMessage());
+        }
     }
 
     private com.courier.modules.shipment.application.command.PortalShipmentCommand portalShipment(BookingRequest b,

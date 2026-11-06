@@ -108,6 +108,16 @@ public class PortalBookingStore {
         return bookings.save(b);
     }
 
+    /** The customer cancelled a booked shipment before it was collected: no further tracking checks. */
+    @Transactional
+    public PortalBooking markCancelled(ActingCustomer acting, UUID bookingId) {
+        PortalBooking b = bookings.findOwned(bookingId, acting.companyId(), acting.customerId())
+                .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
+        b.setStatus(PortalBooking.Status.CANCELLED);
+        b.setNextTrackingSyncAt(null);
+        return bookings.save(b);
+    }
+
     @Transactional(readOnly = true)
     public Optional<PortalBooking> findByKey(ActingCustomer acting, String key) {
         return bookings.findByKey(acting.companyId(), acting.customerId(), key);

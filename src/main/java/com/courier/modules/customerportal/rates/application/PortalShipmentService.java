@@ -115,6 +115,7 @@ public class PortalShipmentService {
         if (b.getStatus() != PortalBooking.Status.BOOKED) {
             return new TrackingView(b.getId(), adapter.displayName(), b.getAwbNumber(), false, null, null, List.of(),
                     b.getStatus() == PortalBooking.Status.FAILED ? "This booking was not placed, so there is nothing to track."
+                            : b.getStatus() == PortalBooking.Status.CANCELLED ? "This booking was cancelled."
                             : "Tracking starts once the booking is confirmed.", Instant.now());
         }
         limiter.check(acting.userId());
@@ -196,6 +197,18 @@ public class PortalShipmentService {
                 b.getDeliveryLocation(), b.getDeliveryStatusAt(), b.getTrackingSyncedAt());
     }
 
+    /** A confirmed booking whose provider can still cancel it (for OCCPL Network: the parcel has not been collected). */
+    private boolean cancellable(PortalBooking b) {
+        if (b.getStatus() != PortalBooking.Status.BOOKED) {
+            return false;
+        }
+        try {
+            return adapter(b.getProviderCode()).canCancelBooking(b.getCompanyId(), b.getCustomerId(), b.getProviderOrderRef());
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
     private BookingDetail detail(Row row) {
         PortalBooking b = row.booking();
         RateQuote q = row.quote();
@@ -214,7 +227,7 @@ public class PortalShipmentService {
                 b.getFailureMessage(),
                 BookingRequest.Party.of(snapshot.get("pickup")), BookingRequest.Party.of(snapshot.get("delivery")), parcel,
                 o == null ? List.of() : RateComparisonService.lines(o), b.getTotalAmount(), b.getCurrency(),
-                b.getSubmittedAt(), b.getBookedAt(), b.getCreatedAt(), delivery(b));
+                b.getSubmittedAt(), b.getBookedAt(), b.getCreatedAt(), delivery(b), cancellable(b));
     }
 
     private static Set<PortalBooking.Status> statuses(String raw) {
@@ -307,7 +320,9 @@ public class PortalShipmentService {
                                 String bookingReference, String trackingNumber, boolean labelDownloadable, String message,
                                 BookingRequest.Party pickup, BookingRequest.Party delivery, Parcel parcel,
                                 List<BreakdownLine> charges, BigDecimal totalAmount, String currency,
-                                Instant submittedAt, Instant bookedAt, Instant createdAt, Delivery deliveryStatus) {
+                                Instant submittedAt, Instant bookedAt, Instant createdAt, Delivery deliveryStatus,
+                                /** The customer may cancel it now (OCCPL Network, parcel not yet collected). */
+                                boolean cancellable) {
     }
 
     public record Parcel(BigDecimal actualWeightKg, BigDecimal volumetricWeightKg, BigDecimal chargeableWeightKg,

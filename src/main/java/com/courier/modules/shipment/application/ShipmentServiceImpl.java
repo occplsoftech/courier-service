@@ -1362,8 +1362,21 @@ public class ShipmentServiceImpl implements ShipmentService {
     @Transactional
     @PreAuthorize(WRITERS)
     public Shipment cancel(UUID id, String remarks) {
+        return doCancel(id, remarks, false);
+    }
+
+    @Override
+    @Transactional
+    public Shipment cancelFromPortal(UUID id, String remarks) {
+        return doCancel(id, remarks, true);
+    }
+
+    private Shipment doCancel(UUID id, String remarks, boolean fromPortal) {
         UUID companyId = requireCompany();
         Shipment shipment = loadOrThrow(id, companyId);
+        if (fromPortal && shipment.getForwardState() != null) {
+            throw new BusinessRuleException("This shipment has been handed to a courier and can no longer be cancelled here.");
+        }
 
         if (!shipment.getStatus().isCancellable()) {
             throw new BusinessRuleException(

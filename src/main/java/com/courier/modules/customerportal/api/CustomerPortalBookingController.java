@@ -90,6 +90,18 @@ public class CustomerPortalBookingController {
         return ApiResponse.success(shipments.detail(bookingId));
     }
 
+    public record CancelRequest(String reason) {
+    }
+
+    @PostMapping("/bookings/{bookingId}/cancel")
+    @Operation(summary = "Cancel one of the customer's own bookings before pickup (OCCPL Network)",
+            description = "Cancels the shipment and pickup, frees the shipment number, and credits a wallet payment back. Refused (422, with "
+                    + "the reason) once the parcel is collected or for a courier that cannot be cancelled online.")
+    public ApiResponse<BookingView> cancel(@PathVariable UUID bookingId,
+                                                                @org.springframework.web.bind.annotation.RequestBody(required = false) CancelRequest request) {
+        return ApiResponse.success(service.cancel(bookingId, request == null ? null : request.reason()), "Booking cancelled");
+    }
+
     @GetMapping("/bookings/{bookingId}/tracking")
     @Operation(summary = "Live tracking from the courier",
             description = "Asked of the courier on every call (30 tracking/label calls a minute per account). "

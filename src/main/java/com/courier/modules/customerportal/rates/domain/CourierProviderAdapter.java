@@ -59,6 +59,19 @@ public interface CourierProviderAdapter {
         return CancelOutcome.failed(displayName() + " orders cannot be cancelled from here yet. Cancel it in the " + displayName() + " panel.");
     }
 
+    /** Whether a booking this provider confirmed can still be cancelled by the customer (not for couriers we cannot cancel with). */
+    default boolean canCancelBooking(java.util.UUID companyId, java.util.UUID customerId, String orderRef) {
+        return false;
+    }
+
+    /**
+     * Cancels a booking this provider confirmed, before pickup, for the customer who made it. Must not throw for a provider failure:
+     * a refusal is {@link CancelOutcome#failed} with a message the customer may read.
+     */
+    default CancelOutcome cancelBooking(java.util.UUID companyId, java.util.UUID customerId, String orderRef, String reason) {
+        return CancelOutcome.failed("This booking cannot be cancelled online. Please contact support.");
+    }
+
     /** The shipment's progress now. Must not throw for a provider failure: answer {@link TrackingResult#unavailable}. */
     default TrackingResult track(ShipmentRef shipment) {
         return TrackingResult.unavailable("Tracking is not available for " + displayName() + " yet.");

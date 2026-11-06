@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-06 — Phase 9.2 (backend): the customer cancels a booking before pickup
+
+- `POST /customer-portal/bookings/{id}/cancel` (optional `reason`): OCCPL Network bookings only, while the parcel is not collected. Cancels the issued shipment (frees its number), then the pickup, then marks the booking `CANCELLED` and credits a wallet payment back (`refundCustomerBooking`, idempotent; none for Credit customers). A refusal changes nothing and says why. Audit `PORTAL_BOOKING_CANCELLED`.
+- `BookingDetail.cancellable` tells the portal when to show the button. `CourierProviderAdapter.canCancelBooking/cancelBooking` (default: not supported); `ShipmentService.cancelFromPortal` and `PickupService.cancelForCustomer/isCancellableForCustomer` are internal (no PreAuthorize); a forwarded shipment is refused.
+
+---
+
 ## 2026-11-06 — Fix: cancelling a shipment whose number was released and re-issued
 
 - Cancelling frees the number and renames the row to `<number>-CXL`; the number is then issued again, and cancelling that second shipment collided with the first `-CXL` (409). It now takes the first free name: `-CXL`, `-CXL2`, `-CXL3`...
