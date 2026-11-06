@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-06 — Phase 10.1 (part B): notifications and public tracking for outside-courier bookings
+
+- `PortalBookingNotice` is published when an outside courier confirms a portal booking (`BOOKED`) and on every stage the tracking sync saves. `ShipmentCommunicationListener` maps BOOKED / PICKED_UP / OUT_FOR_DELIVERY / DELIVERED / CANCELLED to the usual events; the orchestrator and send service fall back to `PortalBookingDirectoryPort` (customer-portal adapter) for the snapshot, so the same templates, switches and log rows serve these bookings (log `shipment_id` holds the booking id). OCCPL Network bookings are skipped (their shipment speaks for them).
+- Public tracking (`GET /track/{number}`) falls back to `CourierBookingTrackingPort`: an outside-courier booking found by AWB (one only, across companies) is shown from its last saved status, never a live courier call. `PublicTrackResponse` gains `carrier`, `latestStatus`, `latestLocation`.
+
+---
+
 ## 2026-11-06 — Phase 10.1 (part A): "parcel collected" notification
 
 - New `CommunicationEventType.SHIPMENT_PICKED_UP` (sender-facing) with default WhatsApp/SMS/email templates, added to every company by `seedMissingDefaults` (each can switch it off).

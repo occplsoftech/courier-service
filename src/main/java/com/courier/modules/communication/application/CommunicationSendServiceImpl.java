@@ -40,6 +40,7 @@ public class CommunicationSendServiceImpl implements CommunicationSendService {
     private final CommunicationTemplateRepository templateRepository;
     private final CommunicationSettingService settingService;
     private final ShipmentDirectoryPort shipmentDirectoryPort;
+    private final com.courier.modules.communication.domain.PortalBookingDirectoryPort portalBookings;
     private final TemplateRenderer templateRenderer;
     private final CommunicationRetryProperties retryProperties;
     private final ObjectMapper objectMapper;
@@ -59,7 +60,8 @@ public class CommunicationSendServiceImpl implements CommunicationSendService {
             return;
         }
 
-        var snapshotOpt = shipmentDirectoryPort.findSnapshot(companyId, logRow.getShipmentId());
+        var snapshotOpt = shipmentDirectoryPort.findSnapshot(companyId, logRow.getShipmentId())
+                .or(() -> portalBookings.findSnapshot(companyId, logRow.getShipmentId()));
         if (snapshotOpt.isEmpty()) {
             cancel(logRow, "Shipment no longer found.");
             return;

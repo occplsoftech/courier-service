@@ -78,6 +78,23 @@ public class ShipmentCommunicationListener {
         dispatch(event.companyId(), event.shipmentId(), CommunicationEventType.SHIPMENT_CANCELLED);
     }
 
+    /** A portal booking with an outside courier was confirmed or reached a delivery stage (fallback: the sync publishes outside a transaction). */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void on(com.courier.modules.customerportal.rates.domain.PortalBookingNotice notice) {
+        CommunicationEventType type = switch (notice.event()) {
+            case "BOOKED" -> CommunicationEventType.SHIPMENT_BOOKED;
+            case "PICKED_UP" -> CommunicationEventType.SHIPMENT_PICKED_UP;
+            case "OUT_FOR_DELIVERY" -> CommunicationEventType.OUT_FOR_DELIVERY;
+            case "DELIVERED" -> CommunicationEventType.SHIPMENT_DELIVERED;
+            case "CANCELLED" -> CommunicationEventType.SHIPMENT_CANCELLED;
+            default -> null; // awaiting pickup, in transit, returned: no message
+        };
+        if (type != null) {
+            dispatch(notice.companyId(), notice.bookingId(), type);
+        }
+    }
+
     private void dispatch(java.util.UUID companyId, java.util.UUID shipmentId, CommunicationEventType eventType) {
         try {
             CompanyContext.runAs(companyId, () -> orchestrator.handle(companyId, shipmentId, eventType));

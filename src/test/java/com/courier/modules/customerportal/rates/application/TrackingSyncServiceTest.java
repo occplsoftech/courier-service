@@ -104,6 +104,25 @@ class TrackingSyncServiceTest {
     }
 
     @Test
+    @DisplayName("every saved stage is announced, so the Communication Center can tell the customer or receiver")
+    void announcesTheStage() {
+        var events = mock(org.springframework.context.ApplicationEventPublisher.class);
+        TrackingSyncService withEvents = new TrackingSyncService(bookings, List.of(delhivery), properties,
+                new TransactionTemplate(mock(PlatformTransactionManager.class)), walletService, events);
+        PortalBooking b = booked(NOW.minus(Duration.ofDays(1)));
+        when(bookings.findDueForTrackingSyncAcrossCompanies(eq(NOW), any())).thenReturn(List.of(b));
+        courierSays(TrackingResult.of("Out for delivery", "AWB1", "Mumbai", List.of()));
+
+        withEvents.syncDue(NOW);
+
+        var notice = org.mockito.ArgumentCaptor.forClass(com.courier.modules.customerportal.rates.domain.PortalBookingNotice.class);
+        org.mockito.Mockito.verify(events).publishEvent(notice.capture());
+        assertThat(notice.getValue().bookingId()).isEqualTo(b.getId());
+        assertThat(notice.getValue().companyId()).isEqualTo(COMPANY);
+        assertThat(notice.getValue().event()).isEqualTo("OUT_FOR_DELIVERY");
+    }
+
+    @Test
     @DisplayName("a delivered shipment is saved and never asked about again")
     void stopsWhenDelivered() {
         PortalBooking b = booked(NOW.minus(Duration.ofDays(2)));

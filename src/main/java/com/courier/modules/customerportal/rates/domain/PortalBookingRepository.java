@@ -83,6 +83,12 @@ public interface PortalBookingRepository extends JpaRepository<PortalBooking, UU
     @Query("select b from PortalBooking b where b.companyId = :companyId and b.providerCode = :provider and b.awbNumber = :awb")
     List<PortalBooking> findByAwb(@Param("companyId") UUID companyId, @Param("provider") String provider, @Param("awb") String awb);
 
+    /** Public tracking: bookings with an outside courier carrying this AWB, in any company (the caller refuses to guess between two). */
+    @Query("select b from PortalBooking b where b.awbNumber = :awb and b.providerCode <> 'OCCPL_NETWORK' "
+            + "and b.status in (com.courier.modules.customerportal.rates.domain.PortalBooking.Status.BOOKED, "
+            + "com.courier.modules.customerportal.rates.domain.PortalBooking.Status.CANCELLED)")
+    List<PortalBooking> findOutsideCourierByAwbAcrossCompanies(@Param("awb") String awb);
+
     /** Saves what the courier said. A bulk update: never bumps the version or touches the booking's other columns. */
     @org.springframework.data.jpa.repository.Modifying
     @Query("update PortalBooking b set b.deliveryStatus = :stage, b.deliveryStatusText = :text, b.deliveryLocation = :location, "

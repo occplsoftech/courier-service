@@ -55,11 +55,23 @@ public class PortalBookingService {
     private final WalletService walletService;
     private final CustomerPortalProperties properties;
     private final com.courier.modules.customer.application.CustomerPortalLookup customers;
+    private final org.springframework.context.ApplicationEventPublisher events;
 
+    /** Without notifications (tests). */
     public PortalBookingService(CurrentCustomerResolver resolver, PortalBookingStore store,
                                 List<CourierProviderAdapter> adapters, AuditService auditService,
                                 WalletService walletService, CustomerPortalProperties properties,
                                 com.courier.modules.customer.application.CustomerPortalLookup customers) {
+        this(resolver, store, adapters, auditService, walletService, properties, customers, e -> { });
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public PortalBookingService(CurrentCustomerResolver resolver, PortalBookingStore store,
+                                List<CourierProviderAdapter> adapters, AuditService auditService,
+                                WalletService walletService, CustomerPortalProperties properties,
+                                com.courier.modules.customer.application.CustomerPortalLookup customers,
+                                org.springframework.context.ApplicationEventPublisher events) {
+        this.events = events;
         this.resolver = resolver;
         this.store = store;
         this.adapters = adapters;
@@ -146,6 +158,10 @@ public class PortalBookingService {
         auditService.record(action, "PortalBooking", finished.getId(), Map.of("provider", finished.getProviderCode(),
                 "providerRef", String.valueOf(finished.getProviderOrderRef()), "awb", String.valueOf(finished.getAwbNumber())));
         log.info("Portal booking {} -> {} ({})", finished.getId(), finished.getStatus(), finished.getProviderCode());
+        if (finished.getStatus() == PortalBooking.Status.BOOKED) {
+            events.publishEvent(new com.courier.modules.customerportal.rates.domain.PortalBookingNotice(
+                    finished.getId(), acting.companyId(), "BOOKED"));
+        }
         return view(finished, outcome.message());
     }
 

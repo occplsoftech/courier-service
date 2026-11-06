@@ -23,6 +23,16 @@ public record PublicTrackResponse(
         LocalDate expectedDeliveryDate,
         String fromCity,
         String toCity,
-        List<PublicTrackEventResponse> timeline
+        List<PublicTrackEventResponse> timeline,
+        @io.swagger.v3.oas.annotations.media.Schema(description = "The outside courier delivering it (a customer-portal booking), or null for an OCCPL shipment")
+        String carrier,
+        @io.swagger.v3.oas.annotations.media.Schema(description = "The courier's latest status text and where, when known (outside couriers)")
+        String latestStatus,
+        String latestLocation
 ) {
+    /** An OCCPL shipment: no outside courier. */
+    public PublicTrackResponse(String trackingNumber, String shipmentNumber, ShipmentStatus status, LocalDate bookingDate,
+                               LocalDate expectedDeliveryDate, String fromCity, String toCity, List<PublicTrackEventResponse> timeline) {
+        this(trackingNumber, shipmentNumber, status, bookingDate, expectedDeliveryDate, fromCity, toCity, timeline, null, null, null);
+    }
 }

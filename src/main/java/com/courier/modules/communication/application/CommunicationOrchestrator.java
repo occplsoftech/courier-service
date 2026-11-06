@@ -34,6 +34,7 @@ import java.util.UUID;
 public class CommunicationOrchestrator {
 
     private final ShipmentDirectoryPort shipmentDirectoryPort;
+    private final com.courier.modules.communication.domain.PortalBookingDirectoryPort portalBookings;
     private final CommunicationSettingService settingService;
     private final CommunicationTemplateService templateService;
     private final CommunicationLogRepository logRepository;
@@ -49,7 +50,8 @@ public class CommunicationOrchestrator {
         if (!settingService.hasAnyEnabled(companyId)) {
             return;
         }
-        var snapshot = shipmentDirectoryPort.findSnapshot(companyId, shipmentId);
+        var snapshot = shipmentDirectoryPort.findSnapshot(companyId, shipmentId)
+                .or(() -> portalBookings.findSnapshot(companyId, shipmentId));
         if (snapshot.isEmpty()) {
             log.warn("Communication event {} for shipment {} in company {} — shipment not found, skipping",
                     eventType, shipmentId, companyId);

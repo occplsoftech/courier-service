@@ -53,6 +53,7 @@ class CommunicationSendServiceImplTest {
     @Mock private CommunicationTemplateRepository templateRepository;
     @Mock private CommunicationSettingService settingService;
     @Mock private ShipmentDirectoryPort shipmentDirectoryPort;
+    @Mock private com.courier.modules.communication.domain.PortalBookingDirectoryPort portalBookings;
     @Mock private WhatsAppProvider whatsAppProvider;
     @Mock private SmsProvider smsProvider;
     @Mock private EmailProvider emailProvider;
@@ -62,7 +63,7 @@ class CommunicationSendServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new CommunicationSendServiceImpl(logRepository, templateRepository, settingService,
-                shipmentDirectoryPort, new TemplateRenderer("http://localhost:4200/track/{trackingNumber}"),
+                shipmentDirectoryPort, portalBookings, new TemplateRenderer("http://localhost:4200/track/{trackingNumber}"),
                 retryProperties(), new ObjectMapper(), whatsAppProvider, smsProvider, emailProvider);
 
         when(shipmentDirectoryPort.findSnapshot(COMPANY, SHIPMENT_ID)).thenReturn(Optional.of(snapshot()));

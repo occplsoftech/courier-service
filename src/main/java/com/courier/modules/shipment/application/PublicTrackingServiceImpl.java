@@ -15,6 +15,7 @@ import com.courier.modules.shipment.api.dto.PublicTrackResponse;
 import com.courier.modules.shipment.api.dto.PublicTrackTicketResponse;
 import com.courier.modules.shipment.application.storage.FileStoragePort;
 import com.courier.modules.shipment.domain.Shipment;
+import com.courier.modules.shipment.domain.ShipmentStatus;
 import com.courier.modules.shipment.domain.ShipmentAsset;
 import com.courier.modules.shipment.domain.ShipmentAssetRepository;
 import com.courier.modules.shipment.domain.ShipmentAssetType;
@@ -69,11 +70,22 @@ public class PublicTrackingServiceImpl implements PublicTrackingService {
     private final BranchRepository branchRepository;
     private final FileStoragePort fileStoragePort;
     private final PublicTrackVerificationLimiter verificationLimiter;
+    private final java.util.Optional<com.courier.modules.shipment.domain.CourierBookingTrackingPort> courierBookings;
 
     @Override
     @Transactional(readOnly = true)
     public PublicTrackResponse track(String number) {
-        Shipment shipment = findShipment(number);
+        Shipment shipment;
+        try {
+            shipment = findShipment(number);
+        } catch (ResourceNotFoundException notOurs) {
+            // Not an OCCPL shipment: it may be a customer-portal booking delivered by an outside courier.
+            var courier = courierBookings.flatMap(p -> p.findByAwb(number));
+            if (courier.isEmpty()) {
+                throw notOurs;
+            }
+            return fromCourier(courier.get());
+        }
 
         var timeline = shipmentStatusHistoryRepository.findAllByShipmentIdOrderByChangedAtAsc(shipment.getId())
                 .stream()
@@ -175,6 +187,29 @@ public class PublicTrackingServiceImpl implements PublicTrackingService {
         ticketSequenceRepository.advance(companyIdBytes);
         long serial = ticketSequenceRepository.nextValue();
         return "TKT-%06d".formatted(serial);
+    }
+
+    private static final java.time.ZoneId INDIA = java.time.ZoneId.of("Asia/Kolkata");
+
+    /** An outside courier's booking as the public page shows it: booked, then the courier's last saved stage. */
+    private static PublicTrackResponse fromCourier(com.courier.modules.shipment.domain.CourierBookingTrackingPort.CourierTrack t) {
+        ShipmentStatus status = switch (t.stage() == null ? "" : t.stage()) {
+            case "PICKED_UP" -> ShipmentStatus.IN_SCAN;
+            case "IN_TRANSIT" -> ShipmentStatus.DISPATCHED;
+            case "OUT_FOR_DELIVERY" -> ShipmentStatus.OUT_FOR_DELIVERY;
+            case "DELIVERED" -> ShipmentStatus.DELIVERED;
+            case "RETURNED" -> ShipmentStatus.RETURNED;
+            case "CANCELLED" -> ShipmentStatus.CANCELLED;
+            default -> ShipmentStatus.BOOKED;
+        };
+        List<PublicTrackEventResponse> timeline = new java.util.ArrayList<>();
+        timeline.add(new PublicTrackEventResponse(ShipmentStatus.BOOKED, t.bookedAt()));
+        if (status != ShipmentStatus.BOOKED) {
+            timeline.add(new PublicTrackEventResponse(status, t.statusAt()));
+        }
+        return new PublicTrackResponse(t.trackingNumber(), t.reference(), status,
+                t.bookedAt() == null ? null : t.bookedAt().atZone(INDIA).toLocalDate(), null, t.fromCity(), t.toCity(), timeline,
+                t.courierName(), t.statusText(), t.location());
     }
 
     private Shipment findShipment(String number) {
