@@ -55,6 +55,7 @@ public class PickupServiceImpl implements PickupService {
     private final BranchPincodeMappingService pincodeMappings;
     private final PincodeCoverageLookupPort coverage;
     private final com.courier.modules.company.domain.BranchRepository branches;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -271,6 +272,9 @@ public class PickupServiceImpl implements PickupService {
             earningService.recordPickup(saved.getPdpBranchId(), saved.getId(), saved.getPickupNo(), saved.getPincode(),
                     saved.getActualWeightKg(), java.time.LocalDate.now(java.time.ZoneOffset.UTC));
             audit(AuditAction.PICKUP_BOOKED, saved);
+            // Tells the customer their parcel was collected (Communication Center, after this commits).
+            eventPublisher.publishEvent(new com.courier.modules.shipment.application.event.ShipmentEvent.PickedUp(
+                    saved.getShipmentId(), saved.getCompanyId(), Instant.now()));
         }
         return saved;
     }

@@ -194,6 +194,10 @@ public sealed interface ShipmentEvent {
     record Booked(UUID shipmentId, UUID companyId, Instant occurredAt) implements ShipmentEvent {
     }
 
+    /** The parcel of a portal-booked shipment was collected from the customer (its pickup was completed). */
+    record PickedUp(UUID shipmentId, UUID companyId, Instant occurredAt) implements ShipmentEvent {
+    }
+
     record Dispatched(UUID shipmentId, UUID companyId, Instant occurredAt) implements ShipmentEvent {
     }
 

@@ -51,6 +51,7 @@ class PickupServiceImplTest {
     private static final UUID OTHER_PDP = UUID.randomUUID();
 
     @Mock private PickupRequestRepository pickups;
+    @Mock private org.springframework.context.ApplicationEventPublisher eventPublisher;
     @Mock private BranchService branchService;
     @Mock private UserService userService;
     @Mock private AuditService auditService;
@@ -63,7 +64,7 @@ class PickupServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new PickupServiceImpl(pickups, branchService, userService, auditService, earningService, pincodeMappings, coverage, branches);
+        service = new PickupServiceImpl(pickups, branchService, userService, auditService, earningService, pincodeMappings, coverage, branches, eventPublisher);
         CompanyContext.setCompanyId(COMPANY);
         when(pickups.save(any(PickupRequest.class))).thenAnswer(i -> {
             PickupRequest p = i.getArgument(0);
@@ -190,6 +191,10 @@ class PickupServiceImplTest {
         assertThat(p.getShipmentNo()).isEqualTo("PUN-000007");
         org.mockito.Mockito.verify(earningService).recordPickup(eq(PDP), eq(p.getId()), eq(p.getPickupNo()),
                 eq("411001"), eq(new BigDecimal("3")), any());
+        // the customer is told their parcel was collected
+        var event = org.mockito.ArgumentCaptor.forClass(com.courier.modules.shipment.application.event.ShipmentEvent.PickedUp.class);
+        org.mockito.Mockito.verify(eventPublisher).publishEvent(event.capture());
+        assertThat(event.getValue().shipmentId()).isEqualTo(shipment);
     }
 
     @Test

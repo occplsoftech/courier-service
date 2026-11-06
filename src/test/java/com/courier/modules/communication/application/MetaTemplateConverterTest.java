@@ -84,7 +84,7 @@ class MetaTemplateConverterTest {
                 .filter(sd -> sd.channel() == com.courier.modules.communication.domain.CommunicationChannel.WHATSAPP)
                 .toList();
 
-        assertThat(stock).hasSize(5);
+        assertThat(stock).hasSize(6);
         for (var seed : stock) {
             MetaTemplateConverter.requireValidName(seed.templateName());
             assertThat(convert(seed.content()).bodyText()).as(seed.templateName()).isNotBlank();

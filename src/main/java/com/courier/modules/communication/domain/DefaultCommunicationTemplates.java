@@ -51,6 +51,20 @@ public final class DefaultCommunicationTemplates {
                                 + "<p>Expected delivery: {{deliveryDate}}</p>"
                                 + "<p><a href=\"{{trackingUrl}}\">Track your shipment</a></p>"),
 
+                new Seed(CommunicationEventType.SHIPMENT_PICKED_UP, CommunicationChannel.WHATSAPP,
+                        "shipment_picked_up", null,
+                        "Hi {{customerName}}, your parcel {{trackingNumber}} for {{deliveryLocation}} has been "
+                                + "collected by {{companyName}}. Track it here: {{trackingUrl}} - thank you!"),
+                new Seed(CommunicationEventType.SHIPMENT_PICKED_UP, CommunicationChannel.SMS,
+                        "Shipment Picked Up - SMS", null,
+                        "{{companyName}}: Parcel {{trackingNumber}} collected, heading to {{deliveryLocation}}. "
+                                + "Track: {{trackingUrl}}"),
+                new Seed(CommunicationEventType.SHIPMENT_PICKED_UP, CommunicationChannel.EMAIL,
+                        "Shipment Picked Up - Email", "Your parcel {{shipmentNumber}} has been collected",
+                        "<p>Hi {{customerName}},</p><p>Your parcel <b>{{shipmentNumber}}</b> "
+                                + "(AWB {{trackingNumber}}) for {{deliveryLocation}} has been collected by {{companyName}}.</p>"
+                                + "<p><a href=\"{{trackingUrl}}\">Track your shipment</a></p>"),
+
                 new Seed(CommunicationEventType.SHIPMENT_DISPATCHED, CommunicationChannel.WHATSAPP,
                         "shipment_dispatched", null,
                         "Hi {{customerName}}, your shipment {{trackingNumber}} has been dispatched from "

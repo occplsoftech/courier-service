@@ -44,6 +44,12 @@ public class ShipmentCommunicationListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void on(ShipmentEvent.PickedUp event) {
+        dispatch(event.companyId(), event.shipmentId(), CommunicationEventType.SHIPMENT_PICKED_UP);
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void on(ShipmentEvent.Dispatched event) {
         dispatch(event.companyId(), event.shipmentId(), CommunicationEventType.SHIPMENT_DISPATCHED);
     }
