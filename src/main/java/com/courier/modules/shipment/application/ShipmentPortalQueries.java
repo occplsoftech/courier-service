@@ -34,6 +34,13 @@ public class ShipmentPortalQueries {
     private final ShipmentRepository repository;
     private final ShipmentStatusHistoryRepository history;
     private final BranchLookupPort branches;
+    private final com.courier.modules.shipment.domain.DeliveryAssignmentRepository deliveries;
+    private final com.courier.modules.shipment.domain.ShipmentAssetRepository assets;
+    private final com.courier.modules.pod.domain.PodVerificationRepository podVerifications;
+    private final com.courier.modules.shipment.application.storage.FileStoragePort files;
+
+    /** How long a POD photo/signature link works (the same as public tracking's). */
+    private static final java.time.Duration POD_LINK_TTL = java.time.Duration.ofMinutes(15);
 
     @Transactional(readOnly = true)
     public Map<ShipmentStatus, Long> statusCounts(UUID companyId, UUID customerId) {
@@ -86,6 +93,48 @@ public class ShipmentPortalQueries {
                         s.getUndeliveredChoice() == null ? null : s.getUndeliveredChoice().name(),
                         s.getUndeliveredChoice() == null ? null : s.getUndeliveredChoice().getLabel(), s.getUndeliveredChoiceDate(),
                         s.getReceiverAddress(), s.getReceiverContact()));
+    }
+
+    /**
+     * Proof of delivery of a delivered portal shipment: who received it and when, always; the photo and signature (short-lived links)
+     * only once the POD is approved, the same rule as public tracking. Empty until the shipment is delivered.
+     */
+    @Transactional(readOnly = true)
+    public Optional<Pod> proofOfDelivery(UUID companyId, UUID shipmentId) {
+        Optional<Shipment> found = repository.findByIdWithinCompany(shipmentId, companyId).filter(s -> s.getStatus() == ShipmentStatus.DELIVERED);
+        if (found.isEmpty()) {
+            return Optional.empty();
+        }
+        Shipment s = found.get();
+        var assignment = deliveries.findByShipmentIdWithinCompany(shipmentId, companyId).orElse(null);
+        var latest = podVerifications.findLatestByShipmentIdWithinCompany(shipmentId, companyId).orElse(null);
+        boolean approved = latest != null && latest.getVerificationStatus() == com.courier.modules.pod.domain.PodVerificationStatus.PASS;
+        String photo = null;
+        String signature = null;
+        var all = assets.findAllByShipmentIdWithinCompany(shipmentId, companyId);
+        boolean hasPhotoOrSignature = all.stream().anyMatch(a -> a.getAssetType() == com.courier.modules.shipment.domain.ShipmentAssetType.POD);
+        if (approved) {
+            photo = presign(latestPod(all, "PHOTO"));
+            signature = presign(latestPod(all, "SIGNATURE"));
+        }
+        return Optional.of(new Pod(s.getShipmentNumber(), s.getTrackingNumber(),
+                assignment == null ? null : assignment.getReceiverName(),
+                assignment != null && assignment.getDeliveredAt() != null ? assignment.getDeliveredAt() : null,
+                photo, signature, hasPhotoOrSignature && !approved));
+    }
+
+    private static String latestPod(java.util.List<com.courier.modules.shipment.domain.ShipmentAsset> all, String kind) {
+        return all.stream().filter(a -> a.getAssetType() == com.courier.modules.shipment.domain.ShipmentAssetType.POD && kind.equals(a.getKind()))
+                .findFirst().map(com.courier.modules.shipment.domain.ShipmentAsset::getAssetUrl).orElse(null);
+    }
+
+    private String presign(String url) {
+        return url == null ? null : files.presignGet(url, POD_LINK_TTL);
+    }
+
+    /** {@code photoPending}: a photo or signature exists but is not approved yet. */
+    public record Pod(String shipmentNumber, String trackingNumber, String deliveredTo, Instant deliveredAt, String photoUrl,
+                      String signatureUrl, boolean photoPending) {
     }
 
     public record DeliveryIssue(int attempts, String reason, String note, Instant at, boolean open, boolean returnFlagged,

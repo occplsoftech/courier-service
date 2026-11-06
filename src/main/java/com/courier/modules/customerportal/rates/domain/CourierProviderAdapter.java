@@ -100,6 +100,11 @@ public interface CourierProviderAdapter {
         return CancelOutcome.failed("Please contact support to arrange the delivery of this booking.");
     }
 
+    /** Proof of delivery of a delivered booking (OCCPL Network), or null when not delivered or this provider cannot give it. */
+    default ProofOfDelivery proofOfDelivery(java.util.UUID companyId, java.util.UUID customerId, String orderRef) {
+        return null;
+    }
+
     /** The shipment's progress now. Must not throw for a provider failure: answer {@link TrackingResult#unavailable}. */
     default TrackingResult track(ShipmentRef shipment) {
         return TrackingResult.unavailable("Tracking is not available for " + displayName() + " yet.");

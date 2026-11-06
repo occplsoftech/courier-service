@@ -208,6 +208,17 @@ public class PortalShipmentService {
         }
     }
 
+    private com.courier.modules.customerportal.rates.domain.ProofOfDelivery proofOfDelivery(PortalBooking b) {
+        if (b.getStatus() != PortalBooking.Status.BOOKED) {
+            return null;
+        }
+        try {
+            return adapter(b.getProviderCode()).proofOfDelivery(b.getCompanyId(), b.getCustomerId(), b.getProviderOrderRef());
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
     private com.courier.modules.customerportal.rates.domain.DeliveryIssue deliveryIssue(PortalBooking b) {
         if (b.getStatus() != PortalBooking.Status.BOOKED) {
             return null;
@@ -250,7 +261,7 @@ public class PortalShipmentService {
                 b.getFailureMessage(),
                 BookingRequest.Party.of(snapshot.get("pickup")), BookingRequest.Party.of(snapshot.get("delivery")), parcel,
                 o == null ? List.of() : RateComparisonService.lines(o), b.getTotalAmount(), b.getCurrency(),
-                b.getSubmittedAt(), b.getBookedAt(), b.getCreatedAt(), delivery(b), cancellable(b), sched.date(), sched.slot(), PortalBookingService.PICKUP_SLOTS, deliveryIssue(b));
+                b.getSubmittedAt(), b.getBookedAt(), b.getCreatedAt(), delivery(b), cancellable(b), sched.date(), sched.slot(), PortalBookingService.PICKUP_SLOTS, deliveryIssue(b), proofOfDelivery(b));
     }
 
     private static Set<PortalBooking.Status> statuses(String raw) {
@@ -349,7 +360,9 @@ public class PortalShipmentService {
                                 /** The pickup date and slot the customer chose (null when none), and the slots they may pick from. */
                                 java.time.LocalDate pickupDate, String pickupSlot, List<String> pickupSlots,
                                 /** The last failed delivery attempt and the customer's choice; null when none failed. */
-                                com.courier.modules.customerportal.rates.domain.DeliveryIssue deliveryIssue) {
+                                com.courier.modules.customerportal.rates.domain.DeliveryIssue deliveryIssue,
+                                /** Who received it and when (and the photo and signature once approved); null until delivered. */
+                                com.courier.modules.customerportal.rates.domain.ProofOfDelivery proofOfDelivery) {
     }
 
     public record Parcel(BigDecimal actualWeightKg, BigDecimal volumetricWeightKg, BigDecimal chargeableWeightKg,
