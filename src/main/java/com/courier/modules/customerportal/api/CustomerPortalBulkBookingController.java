@@ -64,6 +64,19 @@ public class CustomerPortalBulkBookingController {
         return ApiResponse.success(service.checkRow(request.row() == null ? 0 : request.row(), request.fields()));
     }
 
+    public record ResultsRequest(List<PortalBulkBookingService.ResultLine> lines) {
+    }
+
+    @PostMapping("/results")
+    @Operation(summary = "The bulk booking results as an Excel sheet",
+            description = "Send the result lines shown on screen; returns an .xlsx with row, receiver, result, tracking number, reference and message.")
+    public ResponseEntity<byte[]> results(@RequestBody ResultsRequest request) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename("bulk-booking-results.xlsx").build().toString())
+                .body(service.resultsSheet(request.lines()));
+    }
+
     @PostMapping("/book")
     @Operation(summary = "Book the confirmed rows",
             description = "Send the `quoteId` and `optionId` of each row to book from the preview. Rows book independently; each result says booked or why not.")
