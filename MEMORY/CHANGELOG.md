@@ -8,6 +8,12 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-06 — Phase 11.2 (backend): invoices and statement in the customer portal
+
+- `GET /customer-portal/invoices` (outstanding, unpaid count, last payment, approved invoices newest first), `GET /customer-portal/invoices/{id}` (lines and payments), `GET /customer-portal/invoices/statement?from&to` (opening, each invoice and payment with running balance, closing; default this year, max 366 days) and `/statement/export` (Excel). Read-only, the signed-in customer's own **approved** invoices only. Amount owed per invoice = total − prepaid − paid; cancelled invoices owe nothing and stay out of the statement. `PortalInvoiceService`, `CustomerInvoiceRepository.findApprovedForCustomer`.
+
+---
+
 ## 2026-11-06 — Phase 11.4: commission on portal shipments; credit billing matches portal shipments
 
 - Portal shipments now store the booking branch's commission by the counter formula (company service charge % off the freight, branch % of the rest, branch share of other charges) from that branch's own settings (`BranchLookupPort.findCommissionRates`, read without staff-only rules). It is credited exactly like a counter booking: at in-scan at destination (prepaid / credit) or on delivery (COD / To Pay), only with instant commission on, reversed on cancel. New bookings only; earlier portal shipments keep ₹0.
