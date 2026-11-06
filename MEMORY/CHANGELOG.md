@@ -8,6 +8,12 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-06 — Fix: a customer's cancel failed with "Branch not found"
+
+- Freeing a shipment number (on cancel) read the booking branch through `BranchService.getById`, which hides branches from non-staff, so the portal cancel failed. It now uses `BranchLookupPort`. Found on the live dev test of Phase 9.2.
+
+---
+
 ## 2026-11-06 — Phase 9.2 (backend): the customer cancels a booking before pickup
 
 - `POST /customer-portal/bookings/{id}/cancel` (optional `reason`): OCCPL Network bookings only, while the parcel is not collected. Cancels the issued shipment (frees its number), then the pickup, then marks the booking `CANCELLED` and credits a wallet payment back (`refundCustomerBooking`, idempotent; none for Credit customers). A refusal changes nothing and says why. Audit `PORTAL_BOOKING_CANCELLED`.

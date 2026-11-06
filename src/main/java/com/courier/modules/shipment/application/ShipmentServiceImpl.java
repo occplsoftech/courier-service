@@ -3073,7 +3073,12 @@ public class ShipmentServiceImpl implements ShipmentService {
         if (shipment.getBookingBranchId() == null || number.length() + 4 > 30) {
             return;
         }
-        String branchCode = branchService.getById(shipment.getBookingBranchId()).getBranchCode();
+        // Not BranchService.getById: it hides branches from a caller who is not staff, and this also runs when a customer cancels from the portal.
+        String branchCode = branchLookup.findBranch(shipment.getBookingBranchId(), shipment.getCompanyId())
+                .map(com.courier.modules.shipment.domain.BranchLookupPort.BranchRef::branchCode).orElse(null);
+        if (branchCode == null) {
+            return;
+        }
         java.util.regex.Matcher m = java.util.regex.Pattern
                 .compile("^" + java.util.regex.Pattern.quote(branchCode) + "-(\\d{6})$").matcher(number);
         if (!m.matches()) {
