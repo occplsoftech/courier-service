@@ -8,6 +8,12 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-06 — Undelivered queue lists only shipments back at the branch
+
+- `findOpenUndelivered` now also requires status IN_SCAN: a shipment moved on by a manual status override kept a stale open flag and showed in the queue. Found on the live dev test of 10.2.
+
+---
+
 ## 2026-11-06 — Phase 10.2 (part b backend): the customer's choice, the staff queue, return to sender
 
 - V158: `undelivered_choice` (REATTEMPT / CHANGE_ADDRESS / RETURN), `undelivered_choice_date`, `undelivered_choice_at`. A new failed attempt clears the choice.
