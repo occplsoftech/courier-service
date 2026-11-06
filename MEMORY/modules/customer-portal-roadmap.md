@@ -71,7 +71,7 @@ Defaults agreed in the brief: courier collects from the branch/hub; customer pri
 | 9.1 | Print **all labels** of a bulk upload in one go; download the bulk result as Excel | CS, EC | S |
 | 9.2 | **Cancel** a booking before pickup (refund to wallet, release the shipment number) — backend done (OCCPL Network only); portal button next | CS, EC | M |
 | 9.3 | **Reschedule** the pickup (date and slot) — backend done; portal card next | CS, EC | M |
-| 9.4 | Wallet statement export; shipments list export | EC | S |
+| 9.4 | Wallet statement export; shipments list export — backend done; portal buttons next | CS, EC | S |
 
 ## Phase 10 — Notifications and delivery exceptions `[ ]`
 

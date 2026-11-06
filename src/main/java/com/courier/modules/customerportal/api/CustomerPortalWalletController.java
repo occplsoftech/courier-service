@@ -53,6 +53,7 @@ public class CustomerPortalWalletController {
     private final WalletTopupRequestService topupRequests;
     private final TopupRequestMapper topupMapper;
     private final WalletMapper mapper;
+    private final com.courier.modules.customerportal.application.PortalExportService exports;
 
     @GetMapping
     @Operation(summary = "The signed-in customer's wallet",
@@ -70,6 +71,21 @@ public class CustomerPortalWalletController {
         Wallet wallet = ownWallet(me);
         return ApiResponse.success(PageResponse.from(
                 wallets.ledgerOfWallet(me.companyId(), wallet.getId(), page, size), mapper::toResponse));
+    }
+
+    @GetMapping("/statement")
+    @Operation(summary = "The wallet statement as Excel",
+            description = "`from` / `to`: yyyy-MM-dd, India time, inclusive (default: this month). At most 366 days. Opening and closing balance, "
+                    + "totals and every transaction of the period, oldest first.")
+    public org.springframework.http.ResponseEntity<byte[]> statement(
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate from,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate to) {
+        byte[] file = exports.walletStatement(from, to);
+        return org.springframework.http.ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, org.springframework.http.ContentDisposition.attachment()
+                        .filename("wallet-statement.xlsx").build().toString())
+                .body(file);
     }
 
     private Wallet ownWallet(ActingCustomer me) {

@@ -47,6 +47,7 @@ public class CustomerPortalBookingController {
 
     private final PortalBookingService service;
     private final PortalShipmentService shipments;
+    private final com.courier.modules.customerportal.application.PortalExportService exports;
 
     @PostMapping("/shipments")
     @Operation(summary = "Book a courier service from a quote",
@@ -76,6 +77,22 @@ public class CustomerPortalBookingController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ApiResponse.success(PageResponse.from(shipments.list(status, delivery, provider, from, to, page, size)));
+    }
+
+    @GetMapping("/bookings/export")
+    @Operation(summary = "The customer's shipments as Excel, with the same filters as the list",
+            description = "Every matching shipment, newest first; refused when more than 5,000 match (narrow the filters).")
+    public ResponseEntity<byte[]> export(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String delivery,
+            @RequestParam(required = false) String provider,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, org.springframework.http.ContentDisposition.attachment()
+                        .filename("shipments.xlsx").build().toString())
+                .body(exports.shipments(status, delivery, provider, from, to));
     }
 
     @GetMapping("/bookings/couriers")
