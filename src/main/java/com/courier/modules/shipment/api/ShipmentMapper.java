@@ -151,10 +151,15 @@ public class ShipmentMapper {
                 items.stream().map(this::toResponse).toList(),
                 s.getForwardState() == null ? null : new ShipmentResponse.ForwardInfo(s.getForwardProvider(), s.getForwardService(),
                         s.getForwardState(), s.getForwardAwb(), s.getForwardLabelUrl(), s.getForwardCost(), s.getForwardedAt(), s.getForwardNote()),
-                s.getFailedAttempts() <= 0 ? null : new ShipmentResponse.UndeliveredInfo(s.getFailedAttempts(),
-                        s.getUndeliveredReason() == null ? null : s.getUndeliveredReason().name(),
-                        s.getUndeliveredReason() == null ? null : s.getUndeliveredReason().getLabel(), s.getUndeliveredNote(),
-                        s.getUndeliveredAt(), s.isUndeliveredOpen(), s.isReturnDue()));
+                undelivered(s));
+    }
+
+    /** The last failed delivery attempt, or null when none failed. */
+    private static ShipmentResponse.UndeliveredInfo undelivered(Shipment s) {
+        return s.getFailedAttempts() <= 0 ? null : new ShipmentResponse.UndeliveredInfo(s.getFailedAttempts(),
+                s.getUndeliveredReason() == null ? null : s.getUndeliveredReason().name(),
+                s.getUndeliveredReason() == null ? null : s.getUndeliveredReason().getLabel(), s.getUndeliveredNote(),
+                s.getUndeliveredAt(), s.isUndeliveredOpen(), s.isReturnDue());
     }
 
     private String createdByName(Shipment s) {
@@ -224,7 +229,7 @@ public class ShipmentMapper {
                 charge == null ? null : charge.getBranchCommissionOnOtherAmount(),
                 charge == null ? null : charge.getCompanyCommissionOnBasicFreight(),
                 s.getStatus(), deliveredAt, s.getCreatedAt(), s.getVersion(), invoiceNumber, receivedAt,
-                ewayBillNumber, s.getNumberOfPackages());
+                ewayBillNumber, s.getNumberOfPackages(), undelivered(s));
     }
 
     public ShipmentItemResponse toResponse(ShipmentItem i) {
