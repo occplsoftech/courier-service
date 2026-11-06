@@ -44,10 +44,20 @@ public class TrackingSyncService {
     private final CustomerPortalProperties properties;
     private final TransactionTemplate tx;
     private final WalletService walletService;
+    private final org.springframework.context.ApplicationEventPublisher events;
 
+    /** Without notifications (tests). */
     public TrackingSyncService(PortalBookingRepository bookings, List<CourierProviderAdapter> adapters,
                                CustomerPortalProperties properties, TransactionTemplate tx,
                                WalletService walletService) {
+        this(bookings, adapters, properties, tx, walletService, e -> { });
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public TrackingSyncService(PortalBookingRepository bookings, List<CourierProviderAdapter> adapters,
+                               CustomerPortalProperties properties, TransactionTemplate tx,
+                               WalletService walletService, org.springframework.context.ApplicationEventPublisher events) {
+        this.events = events;
         this.walletService = walletService;
         this.bookings = bookings;
         this.adapters = adapters;
@@ -147,6 +157,8 @@ public class TrackingSyncService {
         if (stage == DeliveryStage.CANCELLED) {
             refundCancelled(id, companyId);
         }
+        // The Communication Center decides whether to tell anyone (outside couriers only) and never repeats a message.
+        events.publishEvent(new com.courier.modules.customerportal.rates.domain.PortalBookingNotice(id, companyId, stage.name()));
     }
 
     /**

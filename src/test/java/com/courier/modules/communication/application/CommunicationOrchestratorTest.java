@@ -42,6 +42,8 @@ class CommunicationOrchestratorTest {
     private static final UUID SHIPMENT_ID = UUID.randomUUID();
 
     @Mock private ShipmentDirectoryPort shipmentDirectoryPort;
+
+    @Mock private com.courier.modules.communication.domain.PortalBookingDirectoryPort portalBookings;
     @Mock private CommunicationSettingService settingService;
     @Mock private CommunicationTemplateService templateService;
     @Mock private CommunicationLogRepository logRepository;
@@ -50,7 +52,7 @@ class CommunicationOrchestratorTest {
 
     @BeforeEach
     void setUp() {
-        orchestrator = new CommunicationOrchestrator(shipmentDirectoryPort, settingService, templateService,
+        orchestrator = new CommunicationOrchestrator(shipmentDirectoryPort, portalBookings, settingService, templateService,
                 logRepository);
         when(settingService.hasAnyEnabled(any())).thenReturn(true);
         when(shipmentDirectoryPort.findSnapshot(COMPANY, SHIPMENT_ID)).thenReturn(Optional.of(snapshot(true, true, true)));
