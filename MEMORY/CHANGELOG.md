@@ -11,6 +11,9 @@ All notable changes to this project. Format based on
 ## 2026-11-06 — Fix: a customer viewing tracking delayed the next OCCPL check by an hour
 
 - The customer's tracking view saved the courier's answer and rescheduled the next background check with the outside-courier interval (1 h), even for OCCPL Network bookings (normally every 2 min), so e.g. a cancellation's wallet refund waited up to an hour. It now keeps the provider's own pace. Found on the live dev test of 10.2.
+## 2026-11-06 — Undelivered queue lists only shipments back at the branch
+
+- `findOpenUndelivered` now also requires status IN_SCAN: a shipment moved on by a manual status override kept a stale open flag and showed in the queue. Found on the live dev test of 10.2.
 
 ---
 

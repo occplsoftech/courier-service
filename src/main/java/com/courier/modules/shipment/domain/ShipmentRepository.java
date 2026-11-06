@@ -34,8 +34,12 @@ public interface ShipmentRepository extends JpaRepository<Shipment, UUID>,
     void renameShipmentNumber(@Param("id") byte[] id, @Param("newNumber") String newNumber);
 
 
-    /** Open failed-delivery cases (Phase 10.2), oldest attempt first. */
-    @Query("select s from Shipment s where s.companyId = :companyId and s.undeliveredOpen = true order by s.undeliveredAt asc")
+    /**
+     * Open failed-delivery cases (Phase 10.2), oldest attempt first: only shipments actually back at the branch (IN_SCAN). A shipment
+     * moved on some other way (a manual status override) keeps a stale flag but is not a case any more.
+     */
+    @Query("select s from Shipment s where s.companyId = :companyId and s.undeliveredOpen = true "
+            + "and s.status = com.courier.modules.shipment.domain.ShipmentStatus.IN_SCAN order by s.undeliveredAt asc")
     List<Shipment> findOpenUndelivered(@Param("companyId") UUID companyId);
 
     @Query("select s from Shipment s where s.id = :id and s.companyId = :companyId")
