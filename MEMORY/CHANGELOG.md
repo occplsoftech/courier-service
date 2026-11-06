@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-06 — Phase 9.4 (backend): wallet statement and shipments list as Excel
+
+- `GET /customer-portal/wallet/statement?from&to` (default this month, at most 366 days): opening/closing balance, credit and debit totals, every transaction of the period oldest first.
+- `GET /customer-portal/bookings/export` with the list's filters: every matching shipment (at most 5,000, else refused with advice to narrow). `PortalExportService`; formula-like text is neutralised.
+
+---
+
 ## 2026-11-06 — Phase 9.3 (backend): the customer reschedules the pickup
 
 - `POST /customer-portal/bookings/{id}/reschedule` `{date, slot}`: OCCPL Network, Booked, parcel not collected. Date today..+14 days (India time); slot Morning (9-12) / Afternoon (12-4) / Evening (4-8) or empty (any time). Updates the pickup's preferred date and slot (a partner already assigned stays assigned); audit `PICKUP_RESCHEDULED` with the previous values.
