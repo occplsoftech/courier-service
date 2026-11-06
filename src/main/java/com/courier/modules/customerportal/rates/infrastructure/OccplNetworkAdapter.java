@@ -225,6 +225,29 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
         return orderRef != null && pickups.isCancellableForCustomer(orderRef, customerId);
     }
 
+    @Override
+    public com.courier.modules.customerportal.rates.domain.PickupSchedule pickupSchedule(UUID companyId, UUID customerId, String orderRef) {
+        if (orderRef == null) {
+            return com.courier.modules.customerportal.rates.domain.PickupSchedule.NONE;
+        }
+        return pickups.findByNumberForCustomer(orderRef, customerId)
+                .map(p -> new com.courier.modules.customerportal.rates.domain.PickupSchedule(p.getPreferredDate(), p.getPreferredSlot()))
+                .orElse(com.courier.modules.customerportal.rates.domain.PickupSchedule.NONE);
+    }
+
+    @Override
+    public CancelOutcome reschedulePickup(UUID companyId, UUID customerId, String orderRef, java.time.LocalDate date, String slot) {
+        if (orderRef == null || pickups.findByNumberForCustomer(orderRef, customerId).isEmpty()) {
+            return CancelOutcome.notFound("The pickup for this booking was not found.");
+        }
+        try {
+            pickups.rescheduleForCustomer(orderRef, customerId, date, slot);
+            return CancelOutcome.cancelled("The pickup time was changed.");
+        } catch (ApiException e) {
+            return CancelOutcome.failed(e.getMessage());
+        }
+    }
+
     /** Cancels the shipment issued at booking (freeing its number), then the pickup request, while the parcel is still with the customer. */
     @Override
     public CancelOutcome cancelBooking(UUID companyId, UUID customerId, String orderRef, String reason) {

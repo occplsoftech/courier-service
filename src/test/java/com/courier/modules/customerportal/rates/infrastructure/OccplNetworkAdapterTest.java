@@ -285,6 +285,30 @@ class OccplNetworkAdapterTest {
     }
 
     @Test
+    @DisplayName("pickupSchedule and reschedulePickup read and change the pickup's preferred date and slot")
+    void readsAndChangesThePickupSchedule() {
+        UUID company = UUID.randomUUID();
+        UUID customer = UUID.randomUUID();
+        LocalDate day = LocalDate.now().plusDays(1);
+        PickupRequest p = mock(PickupRequest.class);
+        when(p.getPreferredDate()).thenReturn(day);
+        when(p.getPreferredSlot()).thenReturn("Evening (4-8)");
+        when(pickups.findByNumberForCustomer("PU-3", customer)).thenReturn(Optional.of(p));
+
+        var schedule = adapter.pickupSchedule(company, customer, "PU-3");
+        assertThat(schedule.date()).isEqualTo(day);
+        assertThat(schedule.slot()).isEqualTo("Evening (4-8)");
+
+        var out = adapter.reschedulePickup(company, customer, "PU-3", day.plusDays(1), null);
+        assertThat(out.result()).isEqualTo(com.courier.modules.customerportal.rates.domain.CancelOutcome.Result.CANCELLED);
+        org.mockito.Mockito.verify(pickups).rescheduleForCustomer("PU-3", customer, day.plusDays(1), null);
+
+        assertThat(adapter.reschedulePickup(company, customer, "PU-404", day, null).result())
+                .isEqualTo(com.courier.modules.customerportal.rates.domain.CancelOutcome.Result.NOT_FOUND);
+        assertThat(adapter.pickupSchedule(company, customer, null).date()).isNull();
+    }
+
+    @Test
     @DisplayName("cancelBooking: a collected parcel is refused before anything is cancelled")
     void refusesACollectedParcel() {
         UUID customer = UUID.randomUUID();

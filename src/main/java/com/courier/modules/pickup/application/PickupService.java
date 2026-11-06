@@ -68,6 +68,12 @@ public interface PickupService {
     boolean isCancellableForCustomer(String pickupNo, UUID customerId);
 
     /**
+     * Changes the preferred date and slot of the customer's own pickup while it is not yet collected. No {@code @PreAuthorize}: the portal
+     * has resolved the customer. A partner already assigned stays assigned and sees the new time.
+     */
+    PickupRequest rescheduleForCustomer(String pickupNo, UUID customerId, java.time.LocalDate date, String slot);
+
+    /**
      * Cancels the customer's own pickup before it is collected. No {@code @PreAuthorize}: the portal has resolved the customer. Refused
      * with a plain message once the parcel was collected.
      */

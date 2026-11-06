@@ -305,6 +305,27 @@ class PickupServiceImplTest {
     }
 
     @Test
+    @DisplayName("a customer reschedules their own pickup until it is collected; the new date and slot replace the old ones")
+    void customerReschedulesOwnPickup() {
+        UUID customer = UUID.randomUUID();
+        PickupRequest p = created(PDP);
+        p.setCustomerId(customer);
+        when(pickups.findByPickupNo(COMPANY, p.getPickupNo())).thenReturn(Optional.of(p));
+        java.time.LocalDate day = java.time.LocalDate.now().plusDays(2);
+
+        service.rescheduleForCustomer(p.getPickupNo(), customer, day, "Morning (9-12)");
+
+        assertThat(p.getPreferredDate()).isEqualTo(day);
+        assertThat(p.getPreferredSlot()).isEqualTo("Morning (9-12)");
+        assertThatThrownBy(() -> service.rescheduleForCustomer(p.getPickupNo(), UUID.randomUUID(), day, null))
+                .isInstanceOf(com.courier.shared.exception.ResourceNotFoundException.class);
+
+        service.cancelForCustomer(p.getPickupNo(), customer, "x");
+        assertThatThrownBy(() -> service.rescheduleForCustomer(p.getPickupNo(), customer, day, null))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("already been collected");
+    }
+
+    @Test
     @DisplayName("invalid pincode and mobile are refused")
     void validation() {
         assertThatThrownBy(() -> service.create(new SaveCommand(null, "Ravi", "9000000001", "addr", null, null,

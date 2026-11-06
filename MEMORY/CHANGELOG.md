@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-06 — Phase 9.3 (backend): the customer reschedules the pickup
+
+- `POST /customer-portal/bookings/{id}/reschedule` `{date, slot}`: OCCPL Network, Booked, parcel not collected. Date today..+14 days (India time); slot Morning (9-12) / Afternoon (12-4) / Evening (4-8) or empty (any time). Updates the pickup's preferred date and slot (a partner already assigned stays assigned); audit `PICKUP_RESCHEDULED` with the previous values.
+- `BookingDetail` now carries `pickupDate`, `pickupSlot`, `pickupSlots`. `CourierProviderAdapter.pickupSchedule/reschedulePickup` (default: unsupported), `PickupService.rescheduleForCustomer`.
+
+---
+
 ## 2026-11-06 — Fix: a customer's cancel failed with "Branch not found"
 
 - Freeing a shipment number (on cancel) read the booking branch through `BranchService.getById`, which hides branches from non-staff, so the portal cancel failed. It now uses `BranchLookupPort`. Found on the live dev test of Phase 9.2.
