@@ -1227,6 +1227,9 @@ class ShipmentServiceImplTest {
         UUID branch = UUID.randomUUID();
         when(branchLookup.findBranch(branch, COMPANY)).thenReturn(java.util.Optional.of(
                 new com.courier.modules.shipment.domain.BranchLookupPort.BranchRef(branch, "PUN", "Pune", true)));
+        // the branch's counter settings: company service charge 10%, branch 20% of the remaining freight
+        when(branchLookup.findCommissionRates(branch, COMPANY)).thenReturn(java.util.Optional.of(
+                new com.courier.modules.shipment.domain.BranchLookupPort.CommissionRates(BigDecimal.TEN, new BigDecimal("20"), new BigDecimal("30"))));
         PaymentMode paid = paymentMode(true);
         paid.setCompanyId(COMPANY);
         PaymentMode toPay = paymentMode(false);
@@ -1256,9 +1259,30 @@ class ShipmentServiceImplTest {
         assertThat(cap.getValue().getNetAmount()).isEqualByComparingTo("189");
         assertThat(cap.getValue().getFreight()).isEqualByComparingTo("150");
         assertThat(cap.getValue().getRoundOff()).isEqualByComparingTo("0.20");
+        // commission like a counter booking: company 10% of 150 = 15, branch 20% of 135 = 27 (no other charges)
+        assertThat(cap.getValue().getCompanyCommissionOnBasicFreight()).isEqualByComparingTo("15");
+        assertThat(cap.getValue().getCommissionOnBasicFreight()).isEqualByComparingTo("27");
+        assertThat(cap.getValue().getTotalCommission()).isEqualByComparingTo("42");
         verify(freightCalculationService, never()).calculate(any(), any(), any(), any(), any(), any(), any());
         verify(walletService, never()).debitForBooking(any());
         verify(eventPublisher, never()).publishEvent(any(ShipmentEvent.PrepaidBookingConfirmed.class));
+    }
+
+    @Test
+    void portalCommissionUsesTheCounterFormulaAndIsZeroWithoutSettings() {
+        var charge = com.courier.modules.shipment.domain.ShipmentCharge.builder().build();
+        charge.setFreight(new BigDecimal("100"));
+        charge.setOtherCharges(new BigDecimal("50"));
+        ShipmentServiceImpl.applyPortalCommission(charge,
+                new com.courier.modules.shipment.domain.BranchLookupPort.CommissionRates(BigDecimal.TEN, new BigDecimal("20"), new BigDecimal("30")));
+        assertThat(charge.getCompanyCommissionOnBasicFreight()).isEqualByComparingTo("10");    // 10% of 100
+        assertThat(charge.getCommissionOnBasicFreight()).isEqualByComparingTo("18");           // 20% of 90
+        assertThat(charge.getBranchCommissionOnOtherAmount()).isEqualByComparingTo("35");      // 70% of 50
+        assertThat(charge.getTotalCommission()).isEqualByComparingTo("63");
+
+        ShipmentServiceImpl.applyPortalCommission(charge, null);
+        assertThat(charge.getTotalCommission()).isEqualByComparingTo("0");
+        assertThat(charge.getCommissionOnBasicFreight()).isEqualByComparingTo("0");
     }
 
     @Test

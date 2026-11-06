@@ -33,4 +33,14 @@ public interface BranchLookupPort {
 
     /** The branch, if it exists within this company. Empty for a foreign or unknown id. */
     Optional<BranchRef> findBranch(UUID branchId, UUID companyId);
+
+    /** A branch's commission settings (percentages), the same ones a counter booking uses. */
+    record CommissionRates(java.math.BigDecimal companyServiceChargePercentage, java.math.BigDecimal commissionOnBasicFreight,
+                           java.math.BigDecimal commissionOnOtherCharges) {
+    }
+
+    /** The branch's commission settings, read without the staff-only branch rules (a customer's portal booking needs them too). */
+    default Optional<CommissionRates> findCommissionRates(UUID branchId, UUID companyId) {
+        return Optional.empty();
+    }
 }

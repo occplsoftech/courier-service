@@ -38,8 +38,8 @@ import java.util.UUID;
  * in {@link CompanyContext}: every query is scoped to it explicitly, since native SQL bypasses
  * the Hibernate company filter.
  *
- * <p>Shipments are matched to the customer on the consignor's mobile (a shipment stores plain
- * sender values, never a customer id). A booking on payment mode PAID is listed but counted as
+ * <p>Shipments are matched to the customer by {@code business_customer_id} (set on business-customer bookings, including every
+ * customer-portal booking) or, for older counter bookings without it, on the consignor's mobile. A booking on payment mode PAID is listed but counted as
  * {@code prepaid} — it was settled at the counter.
  */
 @Slf4j
@@ -93,11 +93,12 @@ public class CustomerInvoiceGenerator {
                         + "FROM shipments s LEFT JOIN shipment_charges sc ON sc.shipment_id = s.id AND sc.deleted = 0 "
                         + "LEFT JOIN master_payment_modes pm ON pm.id = s.payment_mode_id "
                         + "WHERE s.company_id = :c AND s.deleted = 0 AND s.status <> 'CANCELLED' "
-                        + "AND s.sender_contact = :mobile AND s.created_at < :before "
+                        + "AND (s.business_customer_id = :cid OR s.sender_contact = :mobile) AND s.created_at < :before "
                         + "AND NOT EXISTS (SELECT 1 FROM customer_invoice_lines l WHERE l.shipment_id = s.id AND l.deleted = 0) "
                         + "ORDER BY s.created_at, s.shipment_number")
                 .setParameter("c", TimeOrderedUuid.toBytes(company))
                 .setParameter("mobile", c.mobile())
+                .setParameter("cid", TimeOrderedUuid.toBytes(customerId))
                 .setParameter("before", Timestamp.from(upTo.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)))
                 .getResultList();
         List<Unbilled> out = new ArrayList<>();

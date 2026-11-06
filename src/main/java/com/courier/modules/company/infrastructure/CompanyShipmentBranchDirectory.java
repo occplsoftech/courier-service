@@ -42,4 +42,13 @@ public class CompanyShipmentBranchDirectory implements BranchLookupPort {
         return new BranchRef(branch.getId(), branch.getBranchCode(), branch.getBranchName(),
                 branch.isActive());
     }
+
+    @Override
+    public Optional<CommissionRates> findCommissionRates(UUID branchId, UUID companyId) {
+        if (branchId == null) {
+            return Optional.empty();
+        }
+        return branchRepository.findByIdWithinCompany(branchId, companyId).map(b -> new CommissionRates(
+                b.getCompanyServiceChargePercentage(), b.getCommissionOnBasicFreight(), b.getCommissionOnOtherCharges()));
+    }
 }
