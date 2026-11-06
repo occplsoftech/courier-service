@@ -8,6 +8,12 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-06 — Fix: cancelling a shipment whose number was released and re-issued
+
+- Cancelling frees the number and renames the row to `<number>-CXL`; the number is then issued again, and cancelling that second shipment collided with the first `-CXL` (409). It now takes the first free name: `-CXL`, `-CXL2`, `-CXL3`...
+
+---
+
 ## 2026-11-05 — Phase 9.1 (backend): bulk results carry the booking id; results as Excel
 
 - `BookResult` now has `bookingId` (so the portal can print every label of a bulk upload).

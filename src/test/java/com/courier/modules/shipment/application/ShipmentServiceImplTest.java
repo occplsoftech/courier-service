@@ -785,6 +785,24 @@ class ShipmentServiceImplTest {
     }
 
     @Test
+    @DisplayName("cancelling a re-issued number picks a free -CXL name instead of colliding with the earlier cancelled one")
+    void cancelRenamesToAFreeName() {
+        Shipment existing = existingShipment(ShipmentStatus.BOOKED);
+        existing.setBookingBranchId(UUID.randomUUID());
+        existing.setCompanyId(COMPANY);
+        when(shipmentRepository.findByIdWithinCompany(existing.getId(), COMPANY)).thenReturn(Optional.of(existing));
+        // number "PUNE-000001" of branch "PUNE"
+        existing.setShipmentNumber("PUNE-000001");
+        when(shipmentRepository.existsByCompanyIdAndShipmentNumber(COMPANY, "PUNE-000001-CXL")).thenReturn(true);
+        when(shipmentRepository.existsByCompanyIdAndShipmentNumber(COMPANY, "PUNE-000001-CXL2")).thenReturn(false);
+
+        service.cancel(existing.getId(), "test cleanup");
+
+        verify(shipmentRepository).renameShipmentNumber(any(), org.mockito.ArgumentMatchers.eq("PUNE-000001-CXL2"));
+        com.courier.shared.activity.application.ActivityContext.clear();
+    }
+
+    @Test
     @DisplayName("a DISPATCHED shipment can no longer be cancelled — it has left the branch")
     void cancelRefusedOnceDispatched() {
         Shipment existing = existingShipment(ShipmentStatus.DISPATCHED);

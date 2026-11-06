@@ -3066,9 +3066,25 @@ public class ShipmentServiceImpl implements ShipmentService {
         if (!m.matches()) {
             return;
         }
-        shipmentRepository.renameShipmentNumber(TimeOrderedUuid.toBytes(shipment.getId()), number + "-CXL");
+        shipmentRepository.renameShipmentNumber(TimeOrderedUuid.toBytes(shipment.getId()), cancelledNumber(shipment.getCompanyId(), number));
         releasedShipmentNumberRepository.release(
                 TimeOrderedUuid.toBytes(shipment.getBookingBranchId()), Long.parseLong(m.group(1)));
+    }
+
+    /**
+     * {@code "<number>-CXL"}, or {@code -CXL2}, {@code -CXL3}... when that name is taken: a released number is issued again and can be
+     * cancelled again, and shipment numbers are unique per company.
+     */
+    private String cancelledNumber(UUID companyId, String number) {
+        String candidate = number + "-CXL";
+        for (int n = 2; shipmentRepository.existsByCompanyIdAndShipmentNumber(companyId, candidate) && n < 1000; n++) {
+            String next = number + "-CXL" + n;
+            if (next.length() > 30) {
+                break; // the column is 30 wide: keep the plain name rather than overflow it
+            }
+            candidate = next;
+        }
+        return candidate;
     }
 
     /**
