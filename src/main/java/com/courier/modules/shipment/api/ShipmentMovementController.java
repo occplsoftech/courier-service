@@ -219,6 +219,47 @@ public class ShipmentMovementController {
                 shipmentService.getEwayBill(s.getId()).orElse(null)), "Delivery attempt recorded");
     }
 
+    /** One open failed-delivery case for the staff queue. */
+    public record UndeliveredCase(UUID shipmentId, String shipmentNumber, String trackingNumber, String receiverName,
+                                  String receiverContact, String receiverAddress, String toCity, UUID currentLocationId,
+                                  UUID deliveryBranchId, int attempts, String reason, String reasonLabel, String note,
+                                  java.time.Instant failedAt, long daysWaiting, String choice, String choiceLabel,
+                                  java.time.LocalDate choiceDate, java.time.Instant choiceAt, boolean returnFlagged) {
+    }
+
+    @GetMapping("/undelivered")
+    @Operation(summary = "Open failed-delivery cases (staff queue)",
+            description = "Shipments whose last delivery attempt failed and that nobody has sent out again, delivered or returned yet, oldest "
+                    + "first. `choice` is what the customer asked for (REATTEMPT, CHANGE_ADDRESS, RETURN) or null. `returnFlagged`: 3 attempts, "
+                    + "the customer asked for a return, or no answer for 7 days. A branch manager sees the ones at or for their branch.")
+    public ApiResponse<java.util.List<UndeliveredCase>> undeliveredQueue() {
+        java.time.Instant now = java.time.Instant.now();
+        return ApiResponse.success(shipmentService.openUndelivered().stream().map(s -> new UndeliveredCase(s.getId(), s.getShipmentNumber(),
+                s.getTrackingNumber(), s.getReceiverName(), s.getReceiverContact(), s.getReceiverAddress(), s.getToCity(),
+                s.getCurrentLocationId(), s.getDeliveryBranchId(), s.getFailedAttempts(),
+                s.getUndeliveredReason() == null ? null : s.getUndeliveredReason().name(),
+                s.getUndeliveredReason() == null ? null : s.getUndeliveredReason().getLabel(), s.getUndeliveredNote(), s.getUndeliveredAt(),
+                s.getUndeliveredAt() == null ? 0 : java.time.Duration.between(s.getUndeliveredAt(), now).toDays(),
+                s.getUndeliveredChoice() == null ? null : s.getUndeliveredChoice().name(),
+                s.getUndeliveredChoice() == null ? null : s.getUndeliveredChoice().getLabel(), s.getUndeliveredChoiceDate(),
+                s.getUndeliveredChoiceAt(), s.isReturnFlagged(now))).toList());
+    }
+
+    public record ReturnRequest(@jakarta.validation.constraints.Size(max = 200) String reason) {
+    }
+
+    @PostMapping("/{shipmentId}/return")
+    @Operation(summary = "Return the shipment to the sender",
+            description = "From the delivery branch (IN_SCAN) or out for delivery. The shipment ends as RETURNED; the physical trip back is arranged by "
+                    + "the branch. The customer is told (return-to-origin message, when that template is active).")
+    public ApiResponse<ShipmentResponse> returnToSender(@PathVariable UUID shipmentId,
+                                                        @org.springframework.web.bind.annotation.RequestBody(required = false) ReturnRequest request) {
+        Shipment s = shipmentService.returnToSender(shipmentId, request == null ? null : request.reason());
+        return ApiResponse.success(shipmentMapper.toResponse(s, shipmentService.getItems(s.getId()),
+                shipmentService.getDeliveryAssignment(s.getId()), shipmentService.getAssets(s.getId()),
+                shipmentService.getEwayBill(s.getId()).orElse(null)), "Shipment returned to sender");
+    }
+
     @PostMapping("/{shipmentId}/override-status")
     @Operation(summary = "Manually override a shipment's status (COMPANY_ADMIN/BRANCH_MANAGER)",
             description = "Opt-in per company (Company Settings > Shipment > Manual Status Override). "

@@ -309,6 +309,31 @@ class OccplNetworkAdapterTest {
     }
 
     @Test
+    @DisplayName("chooseDelivery passes the customer's choice to the shipment; an unknown choice or a refusal comes back as a reason")
+    void passesTheDeliveryChoice() {
+        UUID company = UUID.randomUUID();
+        UUID customer = UUID.randomUUID();
+        UUID shipmentId = UUID.randomUUID();
+        PickupRequest p = mock(PickupRequest.class);
+        when(p.getShipmentId()).thenReturn(shipmentId);
+        when(pickups.findByNumberForCustomer("PU-5", customer)).thenReturn(Optional.of(p));
+        LocalDate day = LocalDate.now().plusDays(1);
+
+        assertThat(adapter.chooseDelivery(company, customer, "PU-5", "reattempt", day, null, null).result())
+                .isEqualTo(com.courier.modules.customerportal.rates.domain.CancelOutcome.Result.CANCELLED);
+        org.mockito.Mockito.verify(shipmentService).recordDeliveryChoice(shipmentId,
+                com.courier.modules.shipment.domain.DeliveryChoice.REATTEMPT, day, null, null);
+
+        assertThat(adapter.chooseDelivery(company, customer, "PU-5", "teleport", null, null, null).result())
+                .isEqualTo(com.courier.modules.customerportal.rates.domain.CancelOutcome.Result.FAILED);
+        when(shipmentService.recordDeliveryChoice(any(), any(), any(), any(), any()))
+                .thenThrow(new com.courier.shared.exception.BusinessRuleException("There is no failed delivery waiting"));
+        var refused = adapter.chooseDelivery(company, customer, "PU-5", "RETURN", null, null, null);
+        assertThat(refused.result()).isEqualTo(com.courier.modules.customerportal.rates.domain.CancelOutcome.Result.FAILED);
+        assertThat(refused.message()).contains("no failed delivery");
+    }
+
+    @Test
     @DisplayName("cancelBooking: a collected parcel is refused before anything is cancelled")
     void refusesACollectedParcel() {
         UUID customer = UUID.randomUUID();

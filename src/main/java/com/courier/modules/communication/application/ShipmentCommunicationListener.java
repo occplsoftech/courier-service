@@ -56,6 +56,12 @@ public class ShipmentCommunicationListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void on(ShipmentEvent.Returned event) {
+        dispatch(event.companyId(), event.shipmentId(), CommunicationEventType.RTO_INITIATED);
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void on(ShipmentEvent.Dispatched event) {
         dispatch(event.companyId(), event.shipmentId(), CommunicationEventType.SHIPMENT_DISPATCHED);
     }

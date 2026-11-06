@@ -8,6 +8,14 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-06 — Phase 10.2 (part b backend): the customer's choice, the staff queue, return to sender
+
+- V158: `undelivered_choice` (REATTEMPT / CHANGE_ADDRESS / RETURN), `undelivered_choice_date`, `undelivered_choice_at`. A new failed attempt clears the choice.
+- Customer: `POST /customer-portal/bookings/{id}/delivery-choice` `{choice, date, address, phone}` (OCCPL Network, open case only). REATTEMPT: date today..+7. CHANGE_ADDRESS: the new address (and phone) is written onto the shipment at once, with a history line. `BookingDetail.deliveryIssue` shows the attempt and the choice.
+- Staff: `GET /shipment-movement/undelivered` (open cases, oldest first; branch managers see their branch's) with `daysWaiting`, `choice` and `returnFlagged` (3 attempts, the customer asked to return, or 7 days unanswered). `POST /shipment-movement/{id}/return` ends the shipment as RETURNED (IN_SCAN or OUT_FOR_DELIVERY), closes the case and publishes `ShipmentEvent.Returned` → `RTO_INITIATED` message (only when that template is active; it is not a default). Re-attempt uses the existing Out for Delivery step.
+
+---
+
 ## 2026-11-06 — Shipment list rows carry the failed-attempt info
 
 - `ShipmentSummaryResponse.undelivered` (same shape as on the full shipment), so the Delivery list can mark open failed attempts.

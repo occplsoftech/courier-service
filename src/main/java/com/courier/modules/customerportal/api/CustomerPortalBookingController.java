@@ -130,6 +130,17 @@ public class CustomerPortalBookingController {
         return ApiResponse.success(service.reschedule(bookingId, request.date(), request.slot()), "Pickup time changed");
     }
 
+    public record DeliveryChoiceRequest(String choice, java.time.LocalDate date, String address, String phone) {
+    }
+
+    @PostMapping("/bookings/{bookingId}/delivery-choice")
+    @Operation(summary = "Answer a failed delivery attempt on one of the customer's own bookings",
+            description = "`choice`: REATTEMPT (with `date`, today to 7 days ahead), CHANGE_ADDRESS (with `address`, optional `phone`) or RETURN. "
+                    + "Only while a failed attempt is waiting (see `deliveryIssue` on the booking).")
+    public ApiResponse<BookingView> deliveryChoice(@PathVariable UUID bookingId, @RequestBody DeliveryChoiceRequest r) {
+        return ApiResponse.success(service.chooseDelivery(bookingId, r.choice(), r.date(), r.address(), r.phone()), "Thank you");
+    }
+
     @GetMapping("/bookings/{bookingId}/tracking")
     @Operation(summary = "Live tracking from the courier",
             description = "Asked of the courier on every call (30 tracking/label calls a minute per account). "

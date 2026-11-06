@@ -36,6 +36,13 @@ class PortalBookingNoticeListenerTest {
     }
 
     @Test
+    @DisplayName("a shipment returned to the sender sends the return-to-origin message")
+    void returnedSendsRto() {
+        listener.on(new com.courier.modules.shipment.application.event.ShipmentEvent.Returned(booking, company, java.time.Instant.now()));
+        verify(orchestrator).handle(company, booking, CommunicationEventType.RTO_INITIATED);
+    }
+
+    @Test
     @DisplayName("stages with no message (awaiting pickup, in transit, returned) send nothing")
     void quietStages() {
         listener.on(new PortalBookingNotice(booking, company, "AWAITING_PICKUP"));
