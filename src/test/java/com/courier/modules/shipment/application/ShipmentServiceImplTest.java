@@ -791,7 +791,10 @@ class ShipmentServiceImplTest {
         existing.setBookingBranchId(UUID.randomUUID());
         existing.setCompanyId(COMPANY);
         when(shipmentRepository.findByIdWithinCompany(existing.getId(), COMPANY)).thenReturn(Optional.of(existing));
-        // number "PUNE-000001" of branch "PUNE"
+        // number "PUNE-000001" of branch "PUNE": found through the lookup port, which a customer caller may use (BranchService hides branches)
+        when(branchLookup.findBranch(any(), org.mockito.ArgumentMatchers.eq(COMPANY))).thenReturn(java.util.Optional.of(
+                new com.courier.modules.shipment.domain.BranchLookupPort.BranchRef(existing.getBookingBranchId(), "PUNE", "Pune", true)));
+        when(branchService.getById(any())).thenThrow(new com.courier.shared.exception.ResourceNotFoundException("Branch", existing.getBookingBranchId()));
         existing.setShipmentNumber("PUNE-000001");
         when(shipmentRepository.existsByCompanyIdAndShipmentNumber(COMPANY, "PUNE-000001-CXL")).thenReturn(true);
         when(shipmentRepository.existsByCompanyIdAndShipmentNumber(COMPANY, "PUNE-000001-CXL2")).thenReturn(false);
