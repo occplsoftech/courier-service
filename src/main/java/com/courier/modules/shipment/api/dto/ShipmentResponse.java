@@ -45,8 +45,15 @@ public record ShipmentResponse(
         UUID createdBy, String createdByName, Instant createdDate, UUID updatedBy, Instant updatedDate, Long version,
         @Schema(description = "STANDARD or MSRTC") String flowType,
         List<ShipmentItemResponse> items,
-        @Schema(description = "Set when the shipment was handed to a courier partner from the hub") ForwardInfo forward
+        @Schema(description = "Set when the shipment was handed to a courier partner from the hub") ForwardInfo forward,
+        @Schema(description = "Set once a delivery attempt failed") UndeliveredInfo undelivered
 ) {
+    /** The last failed delivery attempt: why, when, how many so far, and whether it still waits for someone to act. */
+    @Schema(name = "ShipmentUndeliveredInfo")
+    public record UndeliveredInfo(int attempts, String reason, String reasonLabel, String note, Instant at, boolean open,
+                                  @Schema(description = "3 attempts reached: staff should return it") boolean returnDue) {
+    }
+
     /** The courier a hub handed the shipment to: its own AWB and label, what it charges us, and where the forward stands
      *  (SUBMITTING, UNKNOWN = needs checking with the courier, BOOKED). */
     @Schema(name = "ShipmentForwardInfo")

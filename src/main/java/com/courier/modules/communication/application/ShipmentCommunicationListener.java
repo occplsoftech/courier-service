@@ -50,6 +50,12 @@ public class ShipmentCommunicationListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void on(ShipmentEvent.DeliveryFailed event) {
+        dispatch(event.companyId(), event.shipmentId(), CommunicationEventType.DELIVERY_FAILED);
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void on(ShipmentEvent.Dispatched event) {
         dispatch(event.companyId(), event.shipmentId(), CommunicationEventType.SHIPMENT_DISPATCHED);
     }

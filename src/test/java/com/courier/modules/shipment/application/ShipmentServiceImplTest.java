@@ -806,6 +806,44 @@ class ShipmentServiceImplTest {
     }
 
     @Test
+    @DisplayName("a failed delivery attempt sends the shipment back to the branch with the reason, counts it and tells the customer")
+    void failedDeliveryAttempt() {
+        Shipment existing = existingShipment(ShipmentStatus.OUT_FOR_DELIVERY);
+        when(shipmentRepository.findByIdWithinCompany(existing.getId(), COMPANY)).thenReturn(Optional.of(existing));
+
+        Shipment s = service.markUndelivered(existing.getId(), com.courier.modules.shipment.domain.UndeliveredReason.RECEIVER_NOT_AVAILABLE, " door locked ");
+
+        assertThat(s.getStatus()).isEqualTo(ShipmentStatus.IN_SCAN);
+        assertThat(s.getFailedAttempts()).isEqualTo(1);
+        assertThat(s.isUndeliveredOpen()).isTrue();
+        assertThat(s.getUndeliveredNote()).isEqualTo("door locked");
+        assertThat(s.isReturnDue()).isFalse();
+        var event = org.mockito.ArgumentCaptor.forClass(ShipmentEvent.DeliveryFailed.class);
+        verify(eventPublisher).publishEvent(event.capture());
+        assertThat(event.getValue().shipmentId()).isEqualTo(existing.getId());
+    }
+
+    @Test
+    @DisplayName("a failed attempt needs a shipment out for delivery, a reason, and a note for 'Other'; the third attempt makes it due for return")
+    void failedDeliveryRules() {
+        Shipment atBranch = existingShipment(ShipmentStatus.IN_SCAN);
+        when(shipmentRepository.findByIdWithinCompany(atBranch.getId(), COMPANY)).thenReturn(Optional.of(atBranch));
+        assertThatThrownBy(() -> service.markUndelivered(atBranch.getId(), com.courier.modules.shipment.domain.UndeliveredReason.REFUSED, null))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("out for delivery");
+
+        Shipment out = existingShipment(ShipmentStatus.OUT_FOR_DELIVERY);
+        when(shipmentRepository.findByIdWithinCompany(out.getId(), COMPANY)).thenReturn(Optional.of(out));
+        assertThatThrownBy(() -> service.markUndelivered(out.getId(), null, null)).isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> service.markUndelivered(out.getId(), com.courier.modules.shipment.domain.UndeliveredReason.OTHER, " "))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("note");
+
+        out.setFailedAttempts(2);
+        Shipment third = service.markUndelivered(out.getId(), com.courier.modules.shipment.domain.UndeliveredReason.PREMISES_CLOSED, null);
+        assertThat(third.getFailedAttempts()).isEqualTo(3);
+        assertThat(third.isReturnDue()).isTrue();
+    }
+
+    @Test
     @DisplayName("the portal cannot cancel a shipment the hub already handed to a courier")
     void portalCannotCancelAForwardedShipment() {
         Shipment existing = existingShipment(ShipmentStatus.BOOKED);

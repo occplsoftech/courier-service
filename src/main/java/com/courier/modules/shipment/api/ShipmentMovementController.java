@@ -203,6 +203,22 @@ public class ShipmentMovementController {
                 "Shipment delivered");
     }
 
+    public record UndeliveredRequest(@jakarta.validation.constraints.NotNull com.courier.modules.shipment.domain.UndeliveredReason reason,
+                                     @jakarta.validation.constraints.Size(max = 255) String note) {
+    }
+
+    @PostMapping("/{shipmentId}/undelivered")
+    @Operation(summary = "Record a failed delivery attempt",
+            description = "Shipment must be OUT_FOR_DELIVERY. `reason`: RECEIVER_NOT_AVAILABLE, ADDRESS_INCORRECT, REFUSED, PREMISES_CLOSED, "
+                    + "RESCHEDULE_REQUESTED, COD_NOT_READY or OTHER (`note` required). The shipment goes back to the delivery branch (IN_SCAN), "
+                    + "the attempt is counted and the customer is told. Send it out again with out-for-delivery, or return it.")
+    public ApiResponse<ShipmentResponse> undelivered(@PathVariable UUID shipmentId, @Valid @RequestBody UndeliveredRequest request) {
+        Shipment s = shipmentService.markUndelivered(shipmentId, request.reason(), request.note());
+        return ApiResponse.success(shipmentMapper.toResponse(s, shipmentService.getItems(s.getId()),
+                shipmentService.getDeliveryAssignment(s.getId()), shipmentService.getAssets(s.getId()),
+                shipmentService.getEwayBill(s.getId()).orElse(null)), "Delivery attempt recorded");
+    }
+
     @PostMapping("/{shipmentId}/override-status")
     @Operation(summary = "Manually override a shipment's status (COMPANY_ADMIN/BRANCH_MANAGER)",
             description = "Opt-in per company (Company Settings > Shipment > Manual Status Override). "

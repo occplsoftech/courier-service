@@ -16,6 +16,8 @@ public enum CommunicationEventType {
     SHIPMENT_RECEIVED,
     OUT_FOR_DELIVERY,
     SHIPMENT_DELIVERED,
+    /** A delivery attempt failed (Phase 10.2); the customer chooses what to do next. */
+    DELIVERY_FAILED,
     SHIPMENT_CANCELLED,
     RTO_INITIATED,
     RTO_DELIVERED,
@@ -24,10 +26,10 @@ public enum CommunicationEventType {
 
     /** The events seeded with a default WhatsApp+SMS+Email template (the brief's four, and picked up). */
     public static final java.util.Set<CommunicationEventType> DEFAULT_ENABLED = java.util.Set.of(
-            SHIPMENT_BOOKED, SHIPMENT_PICKED_UP, SHIPMENT_DISPATCHED, OUT_FOR_DELIVERY, SHIPMENT_DELIVERED);
+            SHIPMENT_BOOKED, SHIPMENT_PICKED_UP, SHIPMENT_DISPATCHED, OUT_FOR_DELIVERY, SHIPMENT_DELIVERED, DELIVERY_FAILED);
 
     private static final java.util.Set<CommunicationEventType> SENDER_FACING = java.util.EnumSet.of(
-            SHIPMENT_BOOKED, SHIPMENT_PICKED_UP, SHIPMENT_DISPATCHED, SHIPMENT_CANCELLED);
+            SHIPMENT_BOOKED, SHIPMENT_PICKED_UP, SHIPMENT_DISPATCHED, SHIPMENT_CANCELLED, DELIVERY_FAILED);
 
     /** True for events about the sender's own action (they booked/dispatched/cancelled it);
      *  false for events about the shipment arriving at the receiver — see {@code

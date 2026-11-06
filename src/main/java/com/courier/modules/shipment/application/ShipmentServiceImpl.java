@@ -1878,6 +1878,7 @@ public class ShipmentServiceImpl implements ShipmentService {
 
         ShipmentStatus previous = shipment.getStatus();
         shipment.transitionTo(ShipmentStatus.OUT_FOR_DELIVERY);
+        shipment.setUndeliveredOpen(false); // a failed attempt, if any, was acted on: it is out again
         Shipment saved = shipmentRepository.save(shipment);
         appendHistory(saved, companyId, previous, ShipmentStatus.OUT_FOR_DELIVERY, "DRS",
                 shipment.getDeliveryBranchId(), saved.getManifestId(), null);
@@ -1975,6 +1976,44 @@ public class ShipmentServiceImpl implements ShipmentService {
     @Override
     @Transactional
     @PreAuthorize(WRITERS)
+    public Shipment markUndelivered(UUID shipmentId, com.courier.modules.shipment.domain.UndeliveredReason reason, String note) {
+        UUID companyId = requireCompany();
+        Shipment shipment = loadOrThrow(shipmentId, companyId);
+        if (shipment.getStatus() != ShipmentStatus.OUT_FOR_DELIVERY) {
+            throw new BusinessRuleException("Shipment %s is %s — only a shipment out for delivery can be marked not delivered."
+                    .formatted(shipment.getShipmentNumber(), shipment.getStatus()));
+        }
+        if (reason == null) {
+            throw new BusinessRuleException("Choose why the shipment could not be delivered.");
+        }
+        String cleanNote = note == null || note.isBlank() ? null : note.trim();
+        if (reason == com.courier.modules.shipment.domain.UndeliveredReason.OTHER && cleanNote == null) {
+            throw new BusinessRuleException("Add a note saying why it could not be delivered.");
+        }
+        if (cleanNote != null && cleanNote.length() > 255) {
+            cleanNote = cleanNote.substring(0, 255);
+        }
+        ShipmentStatus previous = shipment.getStatus();
+        shipment.setFailedAttempts(shipment.getFailedAttempts() + 1);
+        shipment.setUndeliveredReason(reason);
+        shipment.setUndeliveredNote(cleanNote);
+        shipment.setUndeliveredAt(Instant.now());
+        shipment.setUndeliveredOpen(true);
+        shipment.transitionTo(ShipmentStatus.IN_SCAN);
+        Shipment saved = shipmentRepository.save(shipment);
+        String line = "Delivery attempt " + saved.getFailedAttempts() + " failed: " + reason.getLabel()
+                + (cleanNote == null ? "" : " (" + cleanNote + ")");
+        appendHistory(saved, companyId, previous, ShipmentStatus.IN_SCAN, line, shipment.getDeliveryBranchId(), saved.getManifestId(), null);
+        auditService.record(AuditAction.SHIPMENT_DELIVERY_FAILED, ENTITY, saved.getId(),
+                Map.of("shipmentNumber", saved.getShipmentNumber(), "reason", reason.name(), "attempt", String.valueOf(saved.getFailedAttempts())));
+        log.info("Shipment {} not delivered (attempt {}): {}", saved.getShipmentNumber(), saved.getFailedAttempts(), reason);
+        eventPublisher.publishEvent(new ShipmentEvent.DeliveryFailed(saved.getId(), companyId, Instant.now()));
+        return saved;
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(WRITERS)
     public Shipment deliver(UUID shipmentId, DeliverCommand command) {
         UUID companyId = requireCompany();
         Shipment shipment = loadOrThrow(shipmentId, companyId);
@@ -1995,6 +2034,7 @@ public class ShipmentServiceImpl implements ShipmentService {
 
         ShipmentStatus previous = shipment.getStatus();
         shipment.transitionTo(ShipmentStatus.DELIVERED);
+        shipment.setUndeliveredOpen(false);
         Shipment saved = shipmentRepository.save(shipment);
         appendHistory(saved, companyId, previous, ShipmentStatus.DELIVERED,
                 command.remarks() == null || command.remarks().isBlank()
