@@ -57,6 +57,25 @@ class CommunicationSettingServiceImplTest {
         verify3Saves();
     }
 
+    @Test
+    void list_createsMissingChannelsSwitchedOff_soReadingTheSettingsNeverStartsSending() {
+        when(repository.findAllByCompanyId(COMPANY)).thenReturn(List.of());
+
+        service.list();
+
+        var saved = org.mockito.ArgumentCaptor.forClass(com.courier.modules.communication.domain.CommunicationSetting.class);
+        org.mockito.Mockito.verify(repository, org.mockito.Mockito.times(3)).save(saved.capture());
+        assertThat(saved.getAllValues()).allMatch(x -> !x.isEnabled());
+    }
+
+    @Test
+    void get_createsAMissingChannelSwitchedOff() {
+        when(repository.findByCompanyIdAndChannel(COMPANY, CommunicationChannel.SMS)).thenReturn(java.util.Optional.empty());
+        when(repository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        assertThat(service.get(CommunicationChannel.SMS).isEnabled()).isFalse();
+    }
+
     private void verify3Saves() {
         org.mockito.Mockito.verify(repository, org.mockito.Mockito.times(3)).save(any());
     }

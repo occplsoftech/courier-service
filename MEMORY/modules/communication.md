@@ -357,3 +357,7 @@ channel config) — see the CHANGELOG entry "New template page, Reset to default
 ## Outside-courier portal bookings (Phase 10.1 part B)
 
 `PortalBookingNotice(bookingId, companyId, event)` from `PortalBookingService.book` (BOOKED) and `TrackingSyncService.store` (each saved stage). The listener runs with `fallbackExecution = true` (the sync publishes outside a transaction). Snapshot via `PortalBookingDirectoryPort` (`PortalBookingDirectoryAdapter`): sender = booking customer's preferences, receiver matched by mobile; empty for OCCPL Network bookings. Dedup is the existing `(shipment_id, event, channel)` unique row, with the booking id in `shipment_id`. The tracking link works because public tracking now also finds these bookings by AWB.
+
+## Channels start switched off (2026-11-06)
+
+`CommunicationSettingServiceImpl.list/get` create a missing channel with `enabled = false`. Before, they created it enabled, so opening the Channel Settings page turned every channel on. A company now sends only after an admin switches a channel on.
