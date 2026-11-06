@@ -294,6 +294,16 @@ public class Shipment extends CompanyOwnedEntity {
     @Column(name = "forwarded_by", columnDefinition = "BINARY(16)")
     private UUID forwardedBy;
 
+    // ---- cash on delivery for portal shipments (V159) ---------------------------------------------------------------------
+
+    /** What the delivery boy collects from the receiver for the customer (portal COD); null when nothing is collected for them. */
+    @Column(name = "cod_amount", precision = 12, scale = 2)
+    private BigDecimal codAmount;
+
+    /** When the COD amount was collected (and paid into the customer's wallet). */
+    @Column(name = "cod_collected_at")
+    private java.time.Instant codCollectedAt;
+
     // ---- failed delivery attempts (V157) --------------------------------------------------------------------------------------
 
     @Builder.Default

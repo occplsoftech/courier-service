@@ -140,6 +140,30 @@ class CustomerWalletMoneyOutTest {
                 BOOKING.toString(), TENANT)).thenReturn(List.of(entries));
     }
 
+    // ------------------------------------------------------------ COD collected for the customer (Phase 11.3)
+
+    @Test
+    @DisplayName("a collected COD amount is a COD credit to the customer's wallet, referenced to the shipment, and paid only once")
+    void codCreditOnce() {
+        UUID shipment = UUID.randomUUID();
+        var cmd = new com.courier.modules.finance.application.command.CustomerCodCreditCommand(CUSTOMER, new BigDecimal("1250.00"), shipment, "PUN-000001");
+
+        WalletTransaction first = service.creditCodForCustomer(cmd);
+
+        assertThat(first.getTransactionType()).isEqualTo(TransactionType.CR);
+        assertThat(first.getSubTransactionType()).isEqualTo(SubTransactionType.COD);
+        assertThat(first.getReferenceType()).isEqualTo(ReferenceType.SHIPMENT);
+        assertThat(first.getReferenceId()).isEqualTo(shipment.toString());
+        assertThat(wallet.getAvailableBalance()).isEqualByComparingTo("2250.00");
+
+        when(transactionRepository.findSettledByReferenceWithinCompany(ReferenceType.SHIPMENT, shipment.toString(), TENANT))
+                .thenReturn(List.of(first));
+        WalletTransaction again = service.creditCodForCustomer(cmd);
+
+        assertThat(again).isSameAs(first);
+        assertThat(wallet.getAvailableBalance()).isEqualByComparingTo("2250.00");
+    }
+
     // ------------------------------------------------------------ paying for a booking
 
     @Test

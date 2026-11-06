@@ -294,6 +294,13 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
                 .orElse(null);
     }
 
+    @Override
+    public java.time.Instant codCollectedAt(UUID companyId, UUID customerId, String orderRef) {
+        UUID shipmentId = orderRef == null ? null
+                : pickups.findByNumberForCustomer(orderRef, customerId).map(PickupRequest::getShipmentId).orElse(null);
+        return shipmentId == null ? null : shipments.codCollectedAt(companyId, shipmentId).orElse(null);
+    }
+
     /** Cancels the shipment issued at booking (freeing its number), then the pickup request, while the parcel is still with the customer. */
     @Override
     public CancelOutcome cancelBooking(UUID companyId, UUID customerId, String orderRef, String reason) {
@@ -341,7 +348,8 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
                 b.pickup().city() == null || b.pickup().city().isBlank() ? branch.getCity() : b.pickup().city(),
                 b.delivery().city() == null || b.delivery().city().isBlank() ? null : b.delivery().city(), kind, b.serviceCode(), b.contents(), b.rate().declaredValue(),
                 b.rate().packageCount(), b.rate().actualWeightKg(), b.chargeableWeightKg(), b.rate().lengthCm(), b.rate().breadthCm(), b.rate().heightCm(),
-                freight, fuel, handling, oda, insurance, gst, other, b.customerTotal());
+                freight, fuel, handling, oda, insurance, gst, other, b.customerTotal(),
+                b.rate().cod() ? b.rate().collectAmount() : null);
     }
 
     /**

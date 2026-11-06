@@ -31,5 +31,7 @@ public record PortalShipmentCommand(
         BigDecimal length, BigDecimal breadth, BigDecimal height,
         BigDecimal freight, BigDecimal fuel, BigDecimal handling, BigDecimal oda, BigDecimal insurance, BigDecimal gst,
         BigDecimal other,
-        BigDecimal total) {
+        BigDecimal total,
+        /** COD only: the amount to collect from the receiver (the customer's money); null otherwise. */
+        BigDecimal codAmount) {
 }

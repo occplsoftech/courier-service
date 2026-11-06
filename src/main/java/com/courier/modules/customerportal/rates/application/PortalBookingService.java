@@ -313,7 +313,8 @@ public class PortalBookingService {
                 party(snapshot.get("pickup")), party(snapshot.get("delivery")),
                 new RateComparisonService.PackageInput(num(pkg.get("actualWeightKg")), num(pkg.get("length")),
                         num(pkg.get("breadth")), num(pkg.get("height")), str(pkg.get("dimensionUnit")),
-                        q.getPackageCount(), str(pkg.get("contents")), q.getDeclaredValue(), q.getPaymentMode())));
+                        q.getPackageCount(), str(pkg.get("contents")), q.getDeclaredValue(), q.getPaymentMode(),
+                        num(pkg.get("codAmount")))));
         return new BookingRequest(acting.companyId(), acting.customerId(), booking.getId().toString(), serviceCode, rate,
                 pinned(BookingRequest.Party.of(snapshot.get("pickup")), pins.pickup()),
                 pinned(BookingRequest.Party.of(snapshot.get("delivery")), pins.delivery()),

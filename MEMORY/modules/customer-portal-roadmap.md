@@ -85,8 +85,8 @@ Defaults agreed in the brief: courier collects from the branch/hub; customer pri
 | # | Item | Repos | Size |
 |---|---|---|---|
 | 11.1 | Proof of delivery download for the customer — done (name/time always, photo/signature once approved; printable POD) | CS, EC | S |
-| 11.2 | Credit customers: ledger, invoices and statement in the portal (billing cycle already exists in staff) | CS, EC | M |
-| 11.3 | **COD remittance:** collected amount, settlement status and date per shipment; remittance statement | CS, CW, EC | L |
+| 11.2 | Credit customers: ledger, invoices and statement in the portal — done (read-only; approved invoices) | CS, EC | M |
+| 11.3 | **COD remittance** — chosen: separate amount to collect; collected COD paid straight into the customer's wallet on delivery (no remittance batches). Backend done; screens next | CS, CW, EC | L |
 | 11.4 | **Commission** for portal shipments — done: same % as a counter booking, credited at in-scan/delivery; invoices match portal shipments by customer id | CS | M |
 | 11.5 | Per-customer markup screen for external couriers (backend rules exist) | CW | M |
 | 11.6 | Rate card extras: minimum freight field, tiered slab pricing (optional) | CS, CW | M |

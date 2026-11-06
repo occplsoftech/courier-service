@@ -1246,7 +1246,7 @@ class ShipmentServiceImplTest {
                 "411016", "411004", "Acme", "12 MG Road", "9800000001", "Ravi", "5 Park St", "9800000002", "Pune", "Pune",
                 "PAID", "OCCPL_STD", "Garments", new BigDecimal("2000"), 1, new BigDecimal("3"), new BigDecimal("3"),
                 BigDecimal.TEN, BigDecimal.TEN, BigDecimal.TEN, new BigDecimal("150"), BigDecimal.ZERO, new BigDecimal("10"),
-                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("28.80"), BigDecimal.ZERO, new BigDecimal("189"));
+                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("28.80"), BigDecimal.ZERO, new BigDecimal("189"), null);
 
         Shipment saved = service.createFromPortalBooking(command);
 

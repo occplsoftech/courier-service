@@ -8,6 +8,14 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-06 — Phase 11.3 (backend): COD amount and COD paid into the customer's wallet
+
+- The customer can give a separate **amount to collect** for a COD booking (`codAmount` on the rates request and the bulk sheet's optional `COD Amount (if COD)` column; blank = the declared value). `RateRequest.collectAmount()` is what outside couriers now collect (Delhivery `cod_amount`, Shipyaari `collectableAmount` split across boxes, Shiprocket `sub_total` for COD).
+- OCCPL portal COD shipments store it (`shipments.cod_amount`, V159). On delivery the delivery branch is debited the **COD amount** (not the freight the customer already paid online) and the amount is paid into the customer's wallet once (`CodCollectedForCustomer` → `WalletService.creditCodForCustomer`, COD credit referenced to the shipment, repeat-safe), recording `cod_collected_at`. Counter COD bookings are unchanged (branch debited the freight).
+- Staff: `codAmount` / `codCollectedAt` on the shipment and its list row. Portal: `BookingDetail.codAmount` and `codCollectedAt`.
+
+---
+
 ## 2026-11-06 — Phase 11.2 (backend): invoices and statement in the customer portal
 
 - `GET /customer-portal/invoices` (outstanding, unpaid count, last payment, approved invoices newest first), `GET /customer-portal/invoices/{id}` (lines and payments), `GET /customer-portal/invoices/statement?from&to` (opening, each invoice and payment with running balance, closing; default this year, max 366 days) and `/statement/export` (Excel). Read-only, the signed-in customer's own **approved** invoices only. Amount owed per invoice = total − prepaid − paid; cancelled invoices owe nothing and stay out of the statement. `PortalInvoiceService`, `CustomerInvoiceRepository.findApprovedForCustomer`.

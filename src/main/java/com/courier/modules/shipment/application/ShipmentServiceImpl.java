@@ -545,6 +545,7 @@ public class ShipmentServiceImpl implements ShipmentService {
                 .volumetricWeight(weight.volumetricWeight())
                 .chargeableWeight(c.chargeableWeight() == null ? weight.chargeableWeight() : c.chargeableWeight())
                 .declaredValue(c.declaredValue())
+                .codAmount(c.codAmount() != null && c.codAmount().signum() > 0 ? c.codAmount() : null)
                 .numberOfPackages(Math.max(1, c.numberOfPackages()))
                 .status(ShipmentStatus.BOOKED)
                 .remarks(("Customer portal booking " + c.reference() + (c.contents() == null ? "" : ". Contents: " + c.contents())))
@@ -2151,10 +2152,20 @@ public class ShipmentServiceImpl implements ShipmentService {
             if (paymentMode.isCashOnDelivery()) {
                 ShipmentCharge charge = chargeRepository.findByShipmentIdWithinCompany(saved.getId(), companyId)
                         .orElseThrow(() -> new ResourceNotFoundException("ShipmentCharge", saved.getId()));
+                // A portal COD shipment collects the customer's COD amount (its freight was paid online); a counter one collects its freight.
+                boolean forCustomer = saved.getCodAmount() != null && saved.getCodAmount().signum() > 0;
                 eventPublisher.publishEvent(new ShipmentEvent.CodCollectedAtDelivery(
                         saved.getId(), companyId, saved.getDeliveryBranchId(), saved.getShipmentNumber(),
-                        charge.getNetAmount(), Instant.now()));
+                        forCustomer ? saved.getCodAmount() : charge.getNetAmount(), Instant.now()));
             }
+        }
+        // The COD amount of a portal shipment is the customer's money: it goes into their wallet (Phase 11.3).
+        if (paymentMode.isCashOnDelivery() && saved.getCodAmount() != null && saved.getCodAmount().signum() > 0
+                && saved.getBusinessCustomerId() != null && saved.getCodCollectedAt() == null) {
+            saved.setCodCollectedAt(Instant.now());
+            shipmentRepository.save(saved);
+            eventPublisher.publishEvent(new ShipmentEvent.CodCollectedForCustomer(saved.getId(), companyId, saved.getBusinessCustomerId(),
+                    saved.getShipmentNumber(), saved.getCodAmount(), Instant.now()));
         }
 
         // Collect-at-booking (PAID) commission normally credits at in-scan (see

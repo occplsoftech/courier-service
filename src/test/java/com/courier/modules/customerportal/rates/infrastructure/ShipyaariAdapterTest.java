@@ -277,6 +277,24 @@ class ShipyaariAdapterTest {
     }
 
     @Test
+    @DisplayName("a COD amount different from the declared value is what the boxes collect, split across them")
+    void codAmountIsCollected() {
+        login();
+        server.expect(requestTo("https://sy.test/api/v1/order/placeOrderApiV3"))
+                .andExpect(jsonPath("$.boxInfo[0].codInfo.collectableAmount").value(225.25))
+                .andExpect(jsonPath("$.boxInfo[1].codInfo.collectableAmount").value(225.25))
+                .andRespond(withSuccess(BOOKED, MediaType.APPLICATION_JSON));
+        RateRequest base = rate(RateRequest.PaymentMode.COD, 2);
+        RateRequest withCod = new RateRequest(base.companyId(), base.customerId(), base.pickupPincode(), base.deliveryPincode(),
+                base.actualWeightKg(), base.lengthCm(), base.breadthCm(), base.heightCm(), base.packageCount(), base.declaredValue(),
+                base.paymentMode(), new BigDecimal("450.50"));
+
+        adapter.book(booking("DTDC|ECONOMY|SURFACE", withCod, "9876543210"));
+
+        server.verify();
+    }
+
+    @Test
     @DisplayName("a 4xx refusal is REJECTED and shows the customer no Shipyaari wallet detail")
     void refusedIsRejected() {
         login();

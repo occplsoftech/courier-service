@@ -151,7 +151,7 @@ public class ShipmentMapper {
                 items.stream().map(this::toResponse).toList(),
                 s.getForwardState() == null ? null : new ShipmentResponse.ForwardInfo(s.getForwardProvider(), s.getForwardService(),
                         s.getForwardState(), s.getForwardAwb(), s.getForwardLabelUrl(), s.getForwardCost(), s.getForwardedAt(), s.getForwardNote()),
-                undelivered(s));
+                undelivered(s), s.getCodAmount(), s.getCodCollectedAt());
     }
 
     /** The last failed delivery attempt, or null when none failed. */
@@ -229,7 +229,7 @@ public class ShipmentMapper {
                 charge == null ? null : charge.getBranchCommissionOnOtherAmount(),
                 charge == null ? null : charge.getCompanyCommissionOnBasicFreight(),
                 s.getStatus(), deliveredAt, s.getCreatedAt(), s.getVersion(), invoiceNumber, receivedAt,
-                ewayBillNumber, s.getNumberOfPackages(), undelivered(s));
+                ewayBillNumber, s.getNumberOfPackages(), undelivered(s), s.getCodAmount());
     }
 
     public ShipmentItemResponse toResponse(ShipmentItem i) {

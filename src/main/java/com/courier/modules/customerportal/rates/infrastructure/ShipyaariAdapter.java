@@ -301,11 +301,16 @@ public class ShipyaariAdapter implements CourierProviderAdapter {
         BigDecimal declared = b.rate().declaredValue();
         BigDecimal perBox = declared.divide(BigDecimal.valueOf(packages), 2, RoundingMode.DOWN);
         BigDecimal perBoxWeight = b.rate().actualWeightKg().divide(BigDecimal.valueOf(packages), 3, RoundingMode.HALF_UP);
+        // The amount to collect (COD) is split across the boxes the same way, so the boxes together collect exactly it.
+        BigDecimal collect = b.rate().collectAmount();
+        BigDecimal perBoxCollect = collect.divide(BigDecimal.valueOf(packages), 2, RoundingMode.DOWN);
         List<Map<String, Object>> boxes = new ArrayList<>();
         for (int i = 0; i < packages; i++) {
             // The last box carries the rounding remainder so the boxes add up to exactly the declared value.
-            BigDecimal value = i == packages - 1 ? declared.subtract(perBox.multiply(BigDecimal.valueOf(packages - 1L))) : perBox;
-            boxes.add(box(b, i + 1, perBoxWeight, value));
+            boolean last = i == packages - 1;
+            BigDecimal value = last ? declared.subtract(perBox.multiply(BigDecimal.valueOf(packages - 1L))) : perBox;
+            BigDecimal boxCollect = last ? collect.subtract(perBoxCollect.multiply(BigDecimal.valueOf(packages - 1L))) : perBoxCollect;
+            boxes.add(box(b, i + 1, perBoxWeight, value, boxCollect));
         }
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("pickupDetails", party(b.pickup(), pickupMobile));
@@ -336,7 +341,7 @@ public class ShipyaariAdapter implements CourierProviderAdapter {
         return m;
     }
 
-    private static Map<String, Object> box(BookingRequest b, int number, BigDecimal weight, BigDecimal value) {
+    private static Map<String, Object> box(BookingRequest b, int number, BigDecimal weight, BigDecimal value, BigDecimal collect) {
         String contents = b.contents() == null || b.contents().isBlank() ? "Goods" : b.contents();
         Map<String, Object> product = new LinkedHashMap<>();
         product.put("name", contents);
@@ -356,7 +361,7 @@ public class ShipyaariAdapter implements CourierProviderAdapter {
         product.put("measureUnit", "cm");
         Map<String, Object> cod = new LinkedHashMap<>();
         cod.put("isCod", b.rate().cod());
-        cod.put("collectableAmount", b.rate().cod() ? value : BigDecimal.ZERO);
+        cod.put("collectableAmount", collect);
         cod.put("invoiceValue", value);
         Map<String, Object> box = new LinkedHashMap<>();
         box.put("name", "box_" + number);

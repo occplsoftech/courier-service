@@ -364,8 +364,12 @@ public class RateComparisonService {
         } catch (IllegalArgumentException e) {
             throw new BusinessRuleException("Payment mode must be PREPAID, COD or TOPAY.");
         }
+        BigDecimal codAmount = null;
+        if (mode == RateRequest.PaymentMode.COD && p.codAmount() != null) {
+            codAmount = positive(p.codAmount(), "Amount to collect", MAX_VALUE, 2);
+        }
         return new RateRequest(acting.companyId(), acting.customerId(), from, to, weight, l, b, h,
-                p.packageCount(), value, mode);
+                p.packageCount(), value, mode, codAmount);
     }
 
     private static String pincode(String raw, String which) {
@@ -408,6 +412,9 @@ public class RateComparisonService {
         pkg.put("contents", truncate(p.contents(), 200));
         pkg.put("declaredValue", p.declaredValue());
         pkg.put("paymentMode", p.paymentMode());
+        if (p.codAmount() != null) {
+            pkg.put("codAmount", p.codAmount());
+        }
         m.put("package", pkg);
         return m;
     }
@@ -486,7 +493,13 @@ public class RateComparisonService {
 
     public record PackageInput(BigDecimal actualWeightKg, BigDecimal length, BigDecimal breadth, BigDecimal height,
                                String dimensionUnit, Integer packageCount, String contents, BigDecimal declaredValue,
-                               String paymentMode) {
+                               String paymentMode, BigDecimal codAmount) {
+
+        /** Without a separate COD amount. */
+        public PackageInput(BigDecimal actualWeightKg, BigDecimal length, BigDecimal breadth, BigDecimal height, String dimensionUnit,
+                            Integer packageCount, String contents, BigDecimal declaredValue, String paymentMode) {
+            this(actualWeightKg, length, breadth, height, dimensionUnit, packageCount, contents, declaredValue, paymentMode, null);
+        }
     }
 
     public record EstimateCommand(String pickupPincode, String deliveryPincode, Integer packageCount, BigDecimal actualWeightKg,

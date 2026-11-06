@@ -217,6 +217,12 @@ public interface WalletService {
     WalletTransaction debitForCodDelivery(CodDeliveryDebitCommand command);
 
     /**
+     * Pays the COD amount collected for a customer's shipment into the customer's wallet (Phase 11.3). No {@code @PreAuthorize}: it runs
+     * after a delivery, from the shipment module. Safe to repeat: a second call for the same shipment returns the first entry.
+     */
+    WalletTransaction creditCodForCustomer(com.courier.modules.finance.application.command.CustomerCodCreditCommand command);
+
+    /**
      * Debits the delivery branch's wallet for a {@code TO_PAY} shipment the moment it is
      * in-scanned off its incoming Trip Hire Challan at its own final delivery branch
      * ({@code TPY}, referencing the shipment number) — not a crossing hub's in-scan, and not
