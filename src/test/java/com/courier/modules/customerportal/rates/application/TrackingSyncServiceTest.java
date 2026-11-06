@@ -123,6 +123,19 @@ class TrackingSyncServiceTest {
     }
 
     @Test
+    @DisplayName("a customer's own tracking view keeps OCCPL's few-minute pace, so it never pushes the next check an hour out")
+    void customerViewKeepsTheProvidersPace() {
+        UUID id = UUID.randomUUID();
+        TrackingResult unreadable = TrackingResult.of("Some status nobody maps", "AWB1", null, List.of());
+
+        service.record(id, COMPANY, unreadable, NOW, false);
+        org.mockito.Mockito.verify(bookings).recordSyncAttempt(eq(id), eq(COMPANY), eq(NOW), eq(NOW.plus(properties.getTrackingSync().getInternalInterval())));
+
+        service.record(id, COMPANY, unreadable, NOW, true);
+        org.mockito.Mockito.verify(bookings).recordSyncAttempt(eq(id), eq(COMPANY), eq(NOW), eq(NOW.plus(properties.getTrackingSync().getInterval())));
+    }
+
+    @Test
     @DisplayName("a delivered shipment is saved and never asked about again")
     void stopsWhenDelivered() {
         PortalBooking b = booked(NOW.minus(Duration.ofDays(2)));
