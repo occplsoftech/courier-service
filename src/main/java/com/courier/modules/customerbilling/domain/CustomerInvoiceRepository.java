@@ -11,6 +11,12 @@ import java.util.UUID;
 
 public interface CustomerInvoiceRepository extends JpaRepository<CustomerInvoice, UUID> {
 
+    /** A customer's approved invoices, newest first: what the customer portal shows (drafts awaiting approval are not). */
+    @Query("select i from CustomerInvoice i where i.companyId = :companyId and i.customerId = :customerId "
+            + "and i.approvalStatus = com.courier.modules.customerbilling.domain.ApprovalStatus.APPROVED "
+            + "order by i.invoiceDate desc, i.invoiceNumber desc")
+    List<CustomerInvoice> findApprovedForCustomer(@Param("companyId") UUID companyId, @Param("customerId") UUID customerId);
+
     @Query("select i from CustomerInvoice i where i.id = :id and i.companyId = :companyId")
     Optional<CustomerInvoice> findByIdWithinCompany(@Param("id") UUID id, @Param("companyId") UUID companyId);
 
