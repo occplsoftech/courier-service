@@ -113,7 +113,8 @@ class PortalExportServiceTest {
 
     private static BookingSummary row(String awb, String status) {
         return new BookingSummary(UUID.randomUUID(), status, "OCCPL_NETWORK", "OCCPL Network", "OCCPL SURFACE", "SURFACE", "PU-1", awb,
-                "Pune", "411016", "Ravi", "Mumbai", "400001", 1, new BigDecimal("82.60"), "INR", Instant.now(), Instant.now(), null);
+                "Pune", "411016", "Ravi", "Mumbai", "400001", 1, new BigDecimal("82.60"), "INR", Instant.now(), Instant.now(),
+                new PortalShipmentService.Delivery("AWAITING_PICKUP", "Booked", null, Instant.now(), Instant.now()));
     }
 
     @Test
@@ -129,6 +130,8 @@ class PortalExportServiceTest {
         assertThat(s.getRow(1).getCell(1).getStringCellValue()).isEqualTo("A1");
         assertThat(s.getRow(2).getCell(1).getStringCellValue()).isEqualTo("A2");
         assertThat(s.getRow(2).getCell(5).getStringCellValue()).isEqualTo("Cancelled");
+        assertThat(s.getRow(1).getCell(6).getStringCellValue()).isEqualTo("Booked");   // a booked shipment keeps its delivery status
+        assertThat(s.getRow(2).getCell(6).getStringCellValue()).isEmpty();              // a cancelled booking does not show its last check
         assertThat(s.getRow(1).getCell(12).getNumericCellValue()).isEqualTo(82.6);
     }
 
