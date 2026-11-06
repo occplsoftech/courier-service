@@ -8,6 +8,12 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-06 — Phase 11.1 (backend): proof of delivery for the customer
+
+- `BookingDetail.proofOfDelivery` on a delivered OCCPL Network booking: delivered to (receiver name), delivered at, and the photo/signature as 15-minute signed links once the POD is approved (verification PASS) — the same rule as public tracking; `photoPending` while it is being checked. `ShipmentPortalQueries.proofOfDelivery`, `CourierProviderAdapter.proofOfDelivery` (default none).
+
+---
+
 ## 2026-11-06 — Fix: a customer viewing tracking delayed the next OCCPL check by an hour
 
 - The customer's tracking view saved the courier's answer and rescheduled the next background check with the outside-courier interval (1 h), even for OCCPL Network bookings (normally every 2 min), so e.g. a cancellation's wallet refund waited up to an hour. It now keeps the provider's own pace. Found on the live dev test of 10.2.

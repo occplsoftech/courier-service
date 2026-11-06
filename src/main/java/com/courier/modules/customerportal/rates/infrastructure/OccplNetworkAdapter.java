@@ -282,6 +282,18 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
         }
     }
 
+    @Override
+    public com.courier.modules.customerportal.rates.domain.ProofOfDelivery proofOfDelivery(UUID companyId, UUID customerId, String orderRef) {
+        UUID shipmentId = orderRef == null ? null
+                : pickups.findByNumberForCustomer(orderRef, customerId).map(PickupRequest::getShipmentId).orElse(null);
+        if (shipmentId == null) {
+            return null;
+        }
+        return shipments.proofOfDelivery(companyId, shipmentId).map(p -> new com.courier.modules.customerportal.rates.domain.ProofOfDelivery(
+                p.shipmentNumber(), p.trackingNumber(), p.deliveredTo(), p.deliveredAt(), p.photoUrl(), p.signatureUrl(), p.photoPending()))
+                .orElse(null);
+    }
+
     /** Cancels the shipment issued at booking (freeing its number), then the pickup request, while the parcel is still with the customer. */
     @Override
     public CancelOutcome cancelBooking(UUID companyId, UUID customerId, String orderRef, String reason) {
