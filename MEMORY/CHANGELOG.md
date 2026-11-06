@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-06 — Phase 11.4: commission on portal shipments; credit billing matches portal shipments
+
+- Portal shipments now store the booking branch's commission by the counter formula (company service charge % off the freight, branch % of the rest, branch share of other charges) from that branch's own settings (`BranchLookupPort.findCommissionRates`, read without staff-only rules). It is credited exactly like a counter booking: at in-scan at destination (prepaid / credit) or on delivery (COD / To Pay), only with instant commission on, reversed on cancel. New bookings only; earlier portal shipments keep ₹0.
+- Customer invoices (billing cycle) now pick a customer's shipments by `business_customer_id` or the sender mobile. Portal shipments carry the customer id but their sender phone may be written differently (e.g. with +91), so they could be missed. Credit customers' portal bookings use the credit payment mode, so they are billed (not counted as prepaid).
+
+---
+
 ## 2026-11-06 — Phase 11.1 (backend): proof of delivery for the customer
 
 - `BookingDetail.proofOfDelivery` on a delivered OCCPL Network booking: delivered to (receiver name), delivered at, and the photo/signature as 15-minute signed links once the POD is approved (verification PASS) — the same rule as public tracking; `photoPending` while it is being checked. `ShipmentPortalQueries.proofOfDelivery`, `CourierProviderAdapter.proofOfDelivery` (default none).

@@ -569,7 +569,9 @@ public class ShipmentServiceImpl implements ShipmentService {
         charge.setOtherCharges(nz(c.other()));
         charge.setRoundOff(c.total().subtract(known));
         charge.setNetAmount(c.total());
-        charge.setTotalCommission(zero);
+        // The booking branch earns the same commission as on a counter booking (its own percentages), credited at the same
+        // moment (in-scan at destination, or delivery for COD / To Pay) and only when the branch has instant commission on.
+        applyPortalCommission(charge, branchLookup.findCommissionRates(branch.branchId(), companyId).orElse(null));
         chargeRepository.save(charge);
 
         appendHistory(saved, companyId, null, ShipmentStatus.BOOKED, "Booked from the customer portal; awaiting pickup");
@@ -3060,6 +3062,29 @@ public class ShipmentServiceImpl implements ShipmentService {
         charge.setMatchedRateId(priced.matchedRate() == null ? null : priced.matchedRate().getId());
         charge.setAppliedFreightFactor(priced.appliedFreightFactor());
         charge.setRatePerKgOverride(ratePerKgOverride);
+    }
+
+    /**
+     * A portal shipment's commission, by the counter formula: the company's service charge comes off the freight first, the branch
+     * earns its percentage of the rest, plus its share of any other charges. No settings: no commission.
+     */
+    static void applyPortalCommission(ShipmentCharge charge, com.courier.modules.shipment.domain.BranchLookupPort.CommissionRates rates) {
+        if (rates == null) {
+            charge.setCommissionOnBasicFreight(BigDecimal.ZERO);
+            charge.setBranchCommissionOnOtherAmount(BigDecimal.ZERO);
+            charge.setCompanyCommissionOnBasicFreight(BigDecimal.ZERO);
+            charge.setTotalCommission(BigDecimal.ZERO);
+            return;
+        }
+        BigDecimal freight = nz(charge.getFreight());
+        BigDecimal other = nz(charge.getOtherCharges());
+        BigDecimal company = percentOf(freight, nz(rates.companyServiceChargePercentage()));
+        BigDecimal basic = percentOf(freight.subtract(company), nz(rates.commissionOnBasicFreight()));
+        BigDecimal onOther = percentOf(other, BigDecimal.valueOf(100).subtract(nz(rates.commissionOnOtherCharges())));
+        charge.setCommissionOnBasicFreight(basic);
+        charge.setBranchCommissionOnOtherAmount(onOther);
+        charge.setCompanyCommissionOnBasicFreight(company);
+        charge.setTotalCommission(basic.add(onOther).add(company));
     }
 
     private static BigDecimal percentOf(BigDecimal amount, BigDecimal percentage) {
