@@ -44,6 +44,8 @@ public record ShipmentSummaryResponse(
          *  E-WAY BILL NO column. */
         String ewayBillNumber,
         /** Package count — the THC's own QTY column. */
-        Integer numberOfPackages
+        Integer numberOfPackages,
+        /** Set once a delivery attempt failed (Phase 10.2), so the Delivery list can show it. */
+        ShipmentResponse.UndeliveredInfo undelivered
 ) {
 }

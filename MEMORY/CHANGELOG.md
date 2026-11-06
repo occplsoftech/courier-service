@@ -8,6 +8,12 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-06 — Shipment list rows carry the failed-attempt info
+
+- `ShipmentSummaryResponse.undelivered` (same shape as on the full shipment), so the Delivery list can mark open failed attempts.
+
+---
+
 ## 2026-11-06 — Phase 10.2 (part a): failed delivery attempts
 
 - `POST /shipment-movement/{id}/undelivered` `{reason, note}` (OUT_FOR_DELIVERY only; reasons in `UndeliveredReason`, OTHER needs a note): the shipment goes back to the delivery branch (new edge OUT_FOR_DELIVERY → IN_SCAN), `failed_attempts` is counted, the reason/note/time kept and `undelivered_open` set (V157). A history line says "Delivery attempt N failed: <reason>". Sending it out again or delivering it closes the case; after 3 attempts `returnDue` is true (staff decide).
