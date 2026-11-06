@@ -72,6 +72,20 @@ public interface CourierProviderAdapter {
         return CancelOutcome.failed("This booking cannot be cancelled online. Please contact support.");
     }
 
+    /** The pickup date and slot the customer chose for a booking (OCCPL Network); {@link PickupSchedule#NONE} when unknown or not applicable. */
+    default PickupSchedule pickupSchedule(java.util.UUID companyId, java.util.UUID customerId, String orderRef) {
+        return PickupSchedule.NONE;
+    }
+
+    /**
+     * Changes the pickup date and slot of a booking before the parcel is collected. Must not throw for a provider failure: a refusal is
+     * {@link CancelOutcome#failed} with a message the customer may read ({@code CANCELLED} here means "changed").
+     */
+    default CancelOutcome reschedulePickup(java.util.UUID companyId, java.util.UUID customerId, String orderRef,
+                                           java.time.LocalDate date, String slot) {
+        return CancelOutcome.failed("The pickup time of this booking cannot be changed online. Please contact support.");
+    }
+
     /** The shipment's progress now. Must not throw for a provider failure: answer {@link TrackingResult#unavailable}. */
     default TrackingResult track(ShipmentRef shipment) {
         return TrackingResult.unavailable("Tracking is not available for " + displayName() + " yet.");

@@ -319,6 +319,26 @@ public class PickupServiceImpl implements PickupService {
     }
 
     @Override
+    @Transactional
+    public PickupRequest rescheduleForCustomer(String pickupNo, UUID customerId, java.time.LocalDate date, String slot) {
+        PickupRequest p = findByNumberForCustomer(pickupNo, customerId)
+                .orElseThrow(() -> new ResourceNotFoundException(ENTITY, pickupNo));
+        if (!p.getStatus().canMoveTo(PickupStatus.CANCELLED)) {
+            throw new BusinessRuleException("This parcel has already been collected, so the pickup time can no longer be changed.");
+        }
+        java.time.LocalDate before = p.getPreferredDate();
+        String beforeSlot = p.getPreferredSlot();
+        p.setPreferredDate(date);
+        p.setPreferredSlot(slot == null || slot.isBlank() ? null : slot.trim());
+        PickupRequest saved = pickups.save(p);
+        auditService.record(AuditAction.PICKUP_RESCHEDULED, ENTITY, saved.getId(),
+                Map.of("pickupNo", saved.getPickupNo(), "date", String.valueOf(date), "slot", String.valueOf(saved.getPreferredSlot()),
+                        "previousDate", String.valueOf(before), "previousSlot", String.valueOf(beforeSlot)));
+        log.info("Pickup {} rescheduled to {} {} (was {} {})", saved.getPickupNo(), date, saved.getPreferredSlot(), before, beforeSlot);
+        return saved;
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public boolean isCancellableForCustomer(String pickupNo, UUID customerId) {
         return findByNumberForCustomer(pickupNo, customerId).map(p -> p.getStatus().canMoveTo(PickupStatus.CANCELLED)).orElse(false);

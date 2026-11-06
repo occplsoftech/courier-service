@@ -102,6 +102,17 @@ public class CustomerPortalBookingController {
         return ApiResponse.success(service.cancel(bookingId, request == null ? null : request.reason()), "Booking cancelled");
     }
 
+    public record RescheduleRequest(java.time.LocalDate date, String slot) {
+    }
+
+    @PostMapping("/bookings/{bookingId}/reschedule")
+    @Operation(summary = "Change the pickup date and slot of one of the customer's own bookings (OCCPL Network, before collection)",
+            description = "`date` is today or later, at most 14 days ahead; `slot` is Morning (9-12), Afternoon (12-4), Evening (4-8) or empty for any "
+                    + "time. Refused (422, with the reason) once the parcel is collected.")
+    public ApiResponse<BookingView> reschedule(@PathVariable UUID bookingId, @RequestBody RescheduleRequest request) {
+        return ApiResponse.success(service.reschedule(bookingId, request.date(), request.slot()), "Pickup time changed");
+    }
+
     @GetMapping("/bookings/{bookingId}/tracking")
     @Operation(summary = "Live tracking from the courier",
             description = "Asked of the courier on every call (30 tracking/label calls a minute per account). "

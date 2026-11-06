@@ -181,6 +181,39 @@ public class PortalBookingService {
         return view(cancelled, "Booking cancelled." + (creditCustomer(acting) ? "" : " The amount was credited back to your wallet."));
     }
 
+    /** The pickup slots the branch network works to (the same ones staff use). */
+    public static final List<String> PICKUP_SLOTS = List.of("Morning (9-12)", "Afternoon (12-4)", "Evening (4-8)");
+    static final int MAX_DAYS_AHEAD = 14;
+    private static final java.time.ZoneId INDIA = java.time.ZoneId.of("Asia/Kolkata");
+
+    /**
+     * The customer changes the pickup date and slot of their own booking before the parcel is collected (OCCPL Network). The date is
+     * today or later, at most {@value #MAX_DAYS_AHEAD} days ahead; the slot is one of {@link #PICKUP_SLOTS} or empty (any time).
+     */
+    public BookingView reschedule(UUID bookingId, java.time.LocalDate date, String slot) {
+        ActingCustomer acting = resolver.require();
+        PortalBooking booking = store.findOwned(acting, bookingId)
+                .orElseThrow(() -> new com.courier.shared.exception.ResourceNotFoundException("Booking", bookingId));
+        if (booking.getStatus() != PortalBooking.Status.BOOKED) {
+            throw new BusinessRuleException("Only a confirmed booking can be rescheduled.");
+        }
+        java.time.LocalDate today = java.time.LocalDate.now(INDIA);
+        if (date == null || date.isBefore(today) || date.isAfter(today.plusDays(MAX_DAYS_AHEAD))) {
+            throw new BusinessRuleException("Choose a pickup date between today and " + today.plusDays(MAX_DAYS_AHEAD) + ".");
+        }
+        String cleanSlot = slot == null || slot.isBlank() ? null : slot.trim();
+        if (cleanSlot != null && !PICKUP_SLOTS.contains(cleanSlot)) {
+            throw new BusinessRuleException("Choose one of the pickup slots: " + String.join(", ", PICKUP_SLOTS) + ".");
+        }
+        CancelOutcome outcome = adapter(booking.getProviderCode()).reschedulePickup(acting.companyId(), acting.customerId(),
+                booking.getProviderOrderRef(), date, cleanSlot);
+        if (outcome.result() != CancelOutcome.Result.CANCELLED) {
+            throw new BusinessRuleException(outcome.message());
+        }
+        log.info("Portal booking {} pickup rescheduled to {} {}", booking.getId(), date, cleanSlot);
+        return view(booking, "Pickup time changed to " + date + (cleanSlot == null ? "" : ", " + cleanSlot) + ".");
+    }
+
     /**
      * A customer set up with the Credit payment mode is billed on their invoice, so a booking neither debits nor credits their
      * wallet, whatever balance it holds.

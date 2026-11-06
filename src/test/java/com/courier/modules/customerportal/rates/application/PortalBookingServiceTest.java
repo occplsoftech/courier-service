@@ -432,6 +432,61 @@ class PortalBookingServiceTest {
         verify(walletService, never()).refundCustomerBooking(any());
     }
 
+    // ---------------------------------------------------------------- reschedule by the customer
+
+    private CourierProviderAdapter reschedulingAdapter(com.courier.modules.customerportal.rates.domain.CancelOutcome outcome) {
+        CourierProviderAdapter a = mock(CourierProviderAdapter.class);
+        when(a.code()).thenReturn("SHIPROCKET");
+        when(a.displayName()).thenReturn("Shiprocket");
+        when(a.reschedulePickup(any(), any(), any(), any(), any())).thenReturn(outcome);
+        return a;
+    }
+
+    private static java.time.LocalDate today() {
+        return java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
+    }
+
+    @Test
+    @DisplayName("reschedule: a valid date and slot are passed to the pickup")
+    void reschedules() {
+        PortalBooking b = bookedForCancel();
+        CourierProviderAdapter a = reschedulingAdapter(com.courier.modules.customerportal.rates.domain.CancelOutcome.cancelled("ok"));
+
+        var view = service(a).reschedule(b.getId(), today().plusDays(2), " Morning (9-12) ");
+
+        assertThat(view.message()).contains("Morning (9-12)");
+        verify(a).reschedulePickup(ACTING.companyId(), ACTING.customerId(), "PU-1", today().plusDays(2), "Morning (9-12)");
+    }
+
+    @Test
+    @DisplayName("reschedule: a past date, a date too far ahead and an unknown slot are refused before the pickup is touched")
+    void rescheduleValidation() {
+        PortalBooking b = bookedForCancel();
+        CourierProviderAdapter a = reschedulingAdapter(com.courier.modules.customerportal.rates.domain.CancelOutcome.cancelled("ok"));
+        var svc = service(a);
+
+        assertThatThrownBy(() -> svc.reschedule(b.getId(), today().minusDays(1), null)).isInstanceOf(BusinessRuleException.class).hasMessageContaining("between today");
+        assertThatThrownBy(() -> svc.reschedule(b.getId(), today().plusDays(15), null)).isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> svc.reschedule(b.getId(), null, null)).isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> svc.reschedule(b.getId(), today(), "Midnight")).isInstanceOf(BusinessRuleException.class).hasMessageContaining("slots");
+        verify(a, never()).reschedulePickup(any(), any(), any(), any(), any());
+        // an empty slot means "any time"
+        svc.reschedule(b.getId(), today(), "");
+        verify(a).reschedulePickup(any(), any(), any(), eq(today()), eq(null));
+    }
+
+    @Test
+    @DisplayName("reschedule: a refusal (parcel collected) surfaces its reason; only a confirmed booking can be rescheduled")
+    void rescheduleRefusals() {
+        PortalBooking b = bookedForCancel();
+        var svc = service(reschedulingAdapter(com.courier.modules.customerportal.rates.domain.CancelOutcome.failed("already collected")));
+        assertThatThrownBy(() -> svc.reschedule(b.getId(), today(), null)).hasMessageContaining("already collected");
+
+        PortalBooking failed = booking(PortalBooking.Status.FAILED, "h");
+        when(store.findOwned(ACTING, failed.getId())).thenReturn(java.util.Optional.of(failed));
+        assertThatThrownBy(() -> svc.reschedule(failed.getId(), today(), null)).isInstanceOf(BusinessRuleException.class);
+    }
+
     @Test
     @DisplayName("cancel: only a confirmed booking can be cancelled, and cancelling twice is harmless")
     void cancelStates() {

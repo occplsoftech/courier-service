@@ -197,6 +197,17 @@ public class PortalShipmentService {
                 b.getDeliveryLocation(), b.getDeliveryStatusAt(), b.getTrackingSyncedAt());
     }
 
+    private com.courier.modules.customerportal.rates.domain.PickupSchedule schedule(PortalBooking b) {
+        if (b.getStatus() != PortalBooking.Status.BOOKED) {
+            return com.courier.modules.customerportal.rates.domain.PickupSchedule.NONE;
+        }
+        try {
+            return adapter(b.getProviderCode()).pickupSchedule(b.getCompanyId(), b.getCustomerId(), b.getProviderOrderRef());
+        } catch (RuntimeException e) {
+            return com.courier.modules.customerportal.rates.domain.PickupSchedule.NONE;
+        }
+    }
+
     /** A confirmed booking whose provider can still cancel it (for OCCPL Network: the parcel has not been collected). */
     private boolean cancellable(PortalBooking b) {
         if (b.getStatus() != PortalBooking.Status.BOOKED) {
@@ -220,6 +231,7 @@ public class PortalShipmentService {
                 o == null ? null : o.getChargeableWeightKg(), q.getPackageCount(), num(pkg.get("length")),
                 num(pkg.get("breadth")), num(pkg.get("height")), str(pkg.get("dimensionUnit")), str(pkg.get("contents")),
                 q.getDeclaredValue(), q.getPaymentMode());
+        var sched = schedule(b);
         return new BookingDetail(b.getId(), b.getQuoteId(), b.getStatus().name(), b.getProviderCode(), providerName(b.getProviderCode()),
                 o == null ? null : o.getServiceName(), o == null ? null : o.getTransportMode(),
                 o == null ? null : o.getEtaMinDays(), o == null ? null : o.getEtaMaxDays(), b.getProviderOrderRef(),
@@ -227,7 +239,7 @@ public class PortalShipmentService {
                 b.getFailureMessage(),
                 BookingRequest.Party.of(snapshot.get("pickup")), BookingRequest.Party.of(snapshot.get("delivery")), parcel,
                 o == null ? List.of() : RateComparisonService.lines(o), b.getTotalAmount(), b.getCurrency(),
-                b.getSubmittedAt(), b.getBookedAt(), b.getCreatedAt(), delivery(b), cancellable(b));
+                b.getSubmittedAt(), b.getBookedAt(), b.getCreatedAt(), delivery(b), cancellable(b), sched.date(), sched.slot(), PortalBookingService.PICKUP_SLOTS);
     }
 
     private static Set<PortalBooking.Status> statuses(String raw) {
@@ -322,7 +334,9 @@ public class PortalShipmentService {
                                 List<BreakdownLine> charges, BigDecimal totalAmount, String currency,
                                 Instant submittedAt, Instant bookedAt, Instant createdAt, Delivery deliveryStatus,
                                 /** The customer may cancel it now (OCCPL Network, parcel not yet collected). */
-                                boolean cancellable) {
+                                boolean cancellable,
+                                /** The pickup date and slot the customer chose (null when none), and the slots they may pick from. */
+                                java.time.LocalDate pickupDate, String pickupSlot, List<String> pickupSlots) {
     }
 
     public record Parcel(BigDecimal actualWeightKg, BigDecimal volumetricWeightKg, BigDecimal chargeableWeightKg,
