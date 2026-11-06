@@ -265,6 +265,41 @@ class OccplNetworkAdapterTest {
     }
 
     @Test
+    @DisplayName("cancelBooking: cancels the issued shipment, then the pickup, while the parcel is not collected")
+    void cancelsShipmentThenPickup() {
+        UUID company = UUID.randomUUID();
+        UUID customer = UUID.randomUUID();
+        UUID shipmentId = UUID.randomUUID();
+        PickupRequest p = mock(PickupRequest.class);
+        when(p.getShipmentId()).thenReturn(shipmentId);
+        when(pickups.findByNumberForCustomer("PU-9", customer)).thenReturn(Optional.of(p));
+        when(pickups.isCancellableForCustomer("PU-9", customer)).thenReturn(true);
+
+        var out = adapter.cancelBooking(company, customer, "PU-9", "wrong address");
+
+        assertThat(out.result()).isEqualTo(com.courier.modules.customerportal.rates.domain.CancelOutcome.Result.CANCELLED);
+        var order = org.mockito.Mockito.inOrder(shipmentService, pickups);
+        order.verify(shipmentService).cancelFromPortal(shipmentId, "wrong address");
+        order.verify(pickups).cancelForCustomer("PU-9", customer, "wrong address");
+        assertThat(adapter.canCancelBooking(company, customer, "PU-9")).isTrue();
+    }
+
+    @Test
+    @DisplayName("cancelBooking: a collected parcel is refused before anything is cancelled")
+    void refusesACollectedParcel() {
+        UUID customer = UUID.randomUUID();
+        PickupRequest p = mock(PickupRequest.class);
+        when(pickups.findByNumberForCustomer("PU-9", customer)).thenReturn(Optional.of(p));
+        when(pickups.isCancellableForCustomer("PU-9", customer)).thenReturn(false);
+
+        var out = adapter.cancelBooking(UUID.randomUUID(), customer, "PU-9", "x");
+
+        assertThat(out.result()).isEqualTo(com.courier.modules.customerportal.rates.domain.CancelOutcome.Result.FAILED);
+        assertThat(out.message()).contains("already been collected");
+        org.mockito.Mockito.verify(shipmentService, org.mockito.Mockito.never()).cancelFromPortal(any(), any());
+    }
+
+    @Test
     @DisplayName("tracking a shipment the hub handed to a courier follows that courier too, and the customer keeps the OCCPL number")
     void tracksAForwardedShipmentThroughItsCourier() {
         UUID company = UUID.randomUUID();

@@ -318,6 +318,27 @@ public class PickupServiceImpl implements PickupService {
         return saved;
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isCancellableForCustomer(String pickupNo, UUID customerId) {
+        return findByNumberForCustomer(pickupNo, customerId).map(p -> p.getStatus().canMoveTo(PickupStatus.CANCELLED)).orElse(false);
+    }
+
+    @Override
+    @Transactional
+    public PickupRequest cancelForCustomer(String pickupNo, UUID customerId, String reason) {
+        PickupRequest p = findByNumberForCustomer(pickupNo, customerId)
+                .orElseThrow(() -> new ResourceNotFoundException(ENTITY, pickupNo));
+        if (!p.getStatus().canMoveTo(PickupStatus.CANCELLED)) {
+            throw new BusinessRuleException("This parcel has already been collected, so the booking can no longer be cancelled.");
+        }
+        p.setCancelReason(requireReason(reason, "A reason is required to cancel a pickup."));
+        p.moveTo(PickupStatus.CANCELLED);
+        PickupRequest saved = pickups.save(p);
+        audit(AuditAction.PICKUP_CANCELLED, saved);
+        return saved;
+    }
+
     // ------------------------------------------------------------------ helpers
 
     private void apply(PickupRequest p, SaveCommand c) {

@@ -225,6 +225,12 @@ public interface ShipmentService {
      */
     Shipment cancel(UUID id, String remarks);
 
+    /**
+     * As {@link #cancel}, for the customer portal cancelling its own booking before pickup. No {@code @PreAuthorize}: the portal has
+     * resolved the customer and checked the booking is theirs; a shipment already forwarded to a courier is refused.
+     */
+    Shipment cancelFromPortal(UUID id, String remarks);
+
     List<ShipmentItem> getItems(UUID shipmentId);
 
     ShipmentCharges getCharges(UUID shipmentId);
