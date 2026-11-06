@@ -247,7 +247,7 @@ class PortalShipmentServiceTest {
         assertThat(v.events()).hasSize(1);
         verify(limiter).check(ACTING.userId());
         verify(store).recordTrackingNumber(ACTING, b.getId(), "AWB9");
-        verify(trackingSync).record(eq(b.getId()), eq(ACTING.companyId()), eq(tracking), any());
+        verify(trackingSync).record(eq(b.getId()), eq(ACTING.companyId()), eq(tracking), any(), org.mockito.ArgumentMatchers.anyBoolean());
     }
 
     @Test

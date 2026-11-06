@@ -130,7 +130,7 @@ public class PortalShipmentService {
             store.recordTrackingNumber(acting, b.getId(), result.trackingNumber());
         }
         try {
-            trackingSync.record(b.getId(), acting.companyId(), result, Instant.now());
+            trackingSync.record(b.getId(), acting.companyId(), result, Instant.now(), adapter.external());
         } catch (RuntimeException e) {
             log.warn("Saving the delivery status of booking {} failed: {}", b.getId(), e.getClass().getSimpleName());
         }

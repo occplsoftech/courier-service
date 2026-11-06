@@ -105,6 +105,15 @@ public class TrackingSyncService {
         record(bookingId, companyId, result, now, properties.getTrackingSync().getInterval());
     }
 
+    /**
+     * As above, from a customer's own tracking view: the next background check keeps the provider's own pace (OCCPL's network every
+     * few minutes, an outside courier hourly), so viewing a booking never delays a status change such as a cancellation's refund.
+     */
+    public void record(UUID bookingId, UUID companyId, TrackingResult result, Instant now, boolean externalProvider) {
+        CustomerPortalProperties.TrackingSync cfg = properties.getTrackingSync();
+        record(bookingId, companyId, result, now, externalProvider ? cfg.getInterval() : cfg.getInternalInterval());
+    }
+
     /** As above, asking again after {@code every} (OCCPL's own network is asked far more often than an external courier). */
     void record(UUID bookingId, UUID companyId, TrackingResult result, Instant now, java.time.Duration every) {
         Instant next = now.plus(every);

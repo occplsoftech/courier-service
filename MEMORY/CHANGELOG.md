@@ -8,6 +8,12 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-06 — Fix: a customer viewing tracking delayed the next OCCPL check by an hour
+
+- The customer's tracking view saved the courier's answer and rescheduled the next background check with the outside-courier interval (1 h), even for OCCPL Network bookings (normally every 2 min), so e.g. a cancellation's wallet refund waited up to an hour. It now keeps the provider's own pace. Found on the live dev test of 10.2.
+
+---
+
 ## 2026-11-06 — Phase 10.2 (part b backend): the customer's choice, the staff queue, return to sender
 
 - V158: `undelivered_choice` (REATTEMPT / CHANGE_ADDRESS / RETURN), `undelivered_choice_date`, `undelivered_choice_at`. A new failed attempt clears the choice.
