@@ -105,6 +105,11 @@ public interface CourierProviderAdapter {
         return null;
     }
 
+    /** When the COD amount of a booking was collected and paid into the customer's wallet (OCCPL Network); null until then. */
+    default java.time.Instant codCollectedAt(java.util.UUID companyId, java.util.UUID customerId, String orderRef) {
+        return null;
+    }
+
     /** The shipment's progress now. Must not throw for a provider failure: answer {@link TrackingResult#unavailable}. */
     default TrackingResult track(ShipmentRef shipment) {
         return TrackingResult.unavailable("Tracking is not available for " + displayName() + " yet.");

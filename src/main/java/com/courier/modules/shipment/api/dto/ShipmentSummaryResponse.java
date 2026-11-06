@@ -46,6 +46,8 @@ public record ShipmentSummaryResponse(
         /** Package count — the THC's own QTY column. */
         Integer numberOfPackages,
         /** Set once a delivery attempt failed (Phase 10.2), so the Delivery list can show it. */
-        ShipmentResponse.UndeliveredInfo undelivered
+        ShipmentResponse.UndeliveredInfo undelivered,
+        /** Portal COD: the amount to collect from the receiver for the customer; null otherwise. */
+        java.math.BigDecimal codAmount
 ) {
 }

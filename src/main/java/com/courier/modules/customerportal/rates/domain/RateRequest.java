@@ -17,9 +17,27 @@ public record RateRequest(UUID companyId,
                           BigDecimal heightCm,
                           int packageCount,
                           BigDecimal declaredValue,
-                          PaymentMode paymentMode) {
+                          PaymentMode paymentMode,
+                          /** COD only: the amount to collect from the receiver; null means the declared value. */
+                          BigDecimal codAmount) {
 
     public enum PaymentMode { PREPAID, COD, TOPAY }
+
+    /** Without a separate COD amount (the declared value is collected). */
+    public RateRequest(UUID companyId, UUID customerId, String pickupPincode, String deliveryPincode, BigDecimal actualWeightKg,
+                       BigDecimal lengthCm, BigDecimal breadthCm, BigDecimal heightCm, int packageCount, BigDecimal declaredValue,
+                       PaymentMode paymentMode) {
+        this(companyId, customerId, pickupPincode, deliveryPincode, actualWeightKg, lengthCm, breadthCm, heightCm, packageCount,
+                declaredValue, paymentMode, null);
+    }
+
+    /** What the courier collects from the receiver: the COD amount (or the declared value) for COD, zero otherwise. */
+    public BigDecimal collectAmount() {
+        if (!cod()) {
+            return BigDecimal.ZERO;
+        }
+        return codAmount != null && codAmount.signum() > 0 ? codAmount : declaredValue;
+    }
 
     /** TO PAY: the receiver pays the freight on delivery, so nothing is taken from the sender at booking. */
     public boolean topay() {

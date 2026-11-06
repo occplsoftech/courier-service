@@ -100,7 +100,7 @@ public class DelhiveryAdapter implements CourierProviderAdapter {
                                 .queryParam("d_pin", r.deliveryPincode())
                                 .queryParam("cgm", grams.toPlainString())
                                 .queryParam("pt", r.cod() ? "COD" : "Pre-paid")
-                                .queryParam("cod", r.cod() ? r.declaredValue().toPlainString() : "0")
+                                .queryParam("cod", r.cod() ? r.collectAmount().toPlainString() : "0")
                                 .build())
                         .header("Authorization", "Token " + token(r.companyId()))
                         .accept(MediaType.APPLICATION_JSON)
@@ -324,7 +324,7 @@ public class DelhiveryAdapter implements CourierProviderAdapter {
         s.put("phone", b.delivery().phone());
         s.put("order", b.reference());
         s.put("payment_mode", b.rate().cod() ? "COD" : "Prepaid");
-        s.put("cod_amount", b.rate().cod() ? b.rate().declaredValue().toPlainString() : "0");
+        s.put("cod_amount", b.rate().cod() ? b.rate().collectAmount().toPlainString() : "0");
         s.put("total_amount", b.rate().declaredValue().toPlainString());
         s.put("products_desc", b.contents());
         s.put("quantity", String.valueOf(b.rate().packageCount()));

@@ -46,7 +46,9 @@ public record ShipmentResponse(
         @Schema(description = "STANDARD or MSRTC") String flowType,
         List<ShipmentItemResponse> items,
         @Schema(description = "Set when the shipment was handed to a courier partner from the hub") ForwardInfo forward,
-        @Schema(description = "Set once a delivery attempt failed") UndeliveredInfo undelivered
+        @Schema(description = "Set once a delivery attempt failed") UndeliveredInfo undelivered,
+        @Schema(description = "Portal COD: the amount to collect from the receiver for the customer") BigDecimal codAmount,
+        @Schema(description = "When the COD amount was collected (and paid into the customer's wallet)") Instant codCollectedAt
 ) {
     /** The last failed delivery attempt: why, when, how many so far, and whether it still waits for someone to act. */
     @Schema(name = "ShipmentUndeliveredInfo")

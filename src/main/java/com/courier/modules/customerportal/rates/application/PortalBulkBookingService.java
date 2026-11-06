@@ -55,6 +55,12 @@ public class PortalBulkBookingService {
             "Weight (kg)", "Packages", "Contents",
             "Payment Mode (PREPAID/COD/TOPAY)"};
 
+    /** Optional: the amount to collect from the receiver on a COD row (blank means the declared value). Sheets without it still work. */
+    static final String COD_AMOUNT = "COD Amount (if COD)";
+    /** Every column the template has and the reader accepts: the required ones, then the optional ones. */
+    private static final String[] COLUMNS = java.util.stream.Stream.concat(java.util.Arrays.stream(HEADERS), java.util.stream.Stream.of(COD_AMOUNT))
+            .toArray(String[]::new);
+
     /** Parcel size is not asked: every shipment is priced at 10 x 10 x 10 cm, so the weight (not volume) sets the charge. */
     private static final BigDecimal DEFAULT_DIMENSION_CM = BigDecimal.TEN;
 
@@ -113,15 +119,15 @@ public class PortalBulkBookingService {
             bold.setBold(true);
             head.setFont(bold);
             Row h = sheet.createRow(0);
-            for (int i = 0; i < HEADERS.length; i++) {
+            for (int i = 0; i < COLUMNS.length; i++) {
                 Cell c = h.createCell(i);
-                c.setCellValue(HEADERS[i]);
+                c.setCellValue(COLUMNS[i]);
                 c.setCellStyle(head);
                 sheet.setColumnWidth(i, 20 * 256);
             }
             String[] sample = {
                     "Ravi Kumar", "9800000002", "5 Park Street, Mumbai", "400001",
-                    "2.5", "1", "Garments", "PREPAID"};
+                    "2.5", "1", "Garments", "PREPAID", ""};
             Row r = sheet.createRow(1);
             for (int i = 0; i < sample.length; i++) {
                 r.createCell(i).setCellValue(sample[i]);
@@ -130,7 +136,7 @@ public class PortalBulkBookingService {
             String[] lines = {
                     "Pickup name, phone and address are your own contact person, mobile and default pickup address from your profile; you do not enter them. One row per shipment, starting on row 2 of the Shipments sheet (replace the sample row). Up to " + MAX_ROWS + " rows.",
                     "Pincodes are 6 digits. Phone numbers are 10 digits. Weight is in kg, for the whole shipment.",
-                    "Payment mode: PREPAID, COD or TOPAY (left blank means PREPAID).",
+                    "Payment mode: PREPAID, COD or TOPAY (left blank means PREPAID). For COD, put the amount to collect from the receiver in COD Amount (blank means the shipment value).",
                     "Parcel size is not needed: every shipment is priced by its weight.",
                     "Each row is priced at your business rate when you have one for that destination, otherwise at the cheapest courier you are allowed to use.",
                     "After upload you see every row checked, with its price. Nothing is booked until you confirm."};
@@ -243,7 +249,7 @@ public class PortalBulkBookingService {
     /** Re-checks one row after the customer edited it on screen: the same checks and pricing as the upload. */
     public PreviewRow checkRow(int rowNo, Map<String, String> edited) {
         Map<String, String> v = new LinkedHashMap<>();
-        for (String h : HEADERS) {
+        for (String h : COLUMNS) {
             v.put(h, edited == null || edited.get(h) == null ? "" : edited.get(h).trim());
         }
         return previewRow(rowNo, v, contact());
@@ -251,7 +257,7 @@ public class PortalBulkBookingService {
 
     private PreviewRow previewRow(int rowNo, Map<String, String> raw, Contact contact) {
         Map<String, String> v = new LinkedHashMap<>();
-        for (String h : HEADERS) {
+        for (String h : COLUMNS) {
             v.put(h, raw.get(h) == null ? "" : raw.get(h));
         }
         String dName = v.get("Delivery Name");
@@ -266,7 +272,8 @@ public class PortalBulkBookingService {
             PackageInput pkg = new PackageInput(weight, DEFAULT_DIMENSION_CM, DEFAULT_DIMENSION_CM, DEFAULT_DIMENSION_CM, "CM",
                     blank(v.get("Packages")) ? 1 : integer(v.get("Packages"), "Packages"),
                     blank(v.get("Contents")) ? "General goods" : v.get("Contents"),
-                    DEFAULT_DECLARED_VALUE, mode);
+                    DEFAULT_DECLARED_VALUE, mode,
+                    "COD".equals(mode) && !blank(v.get(COD_AMOUNT)) ? decimal(v.get(COD_AMOUNT), "COD amount") : null);
             CompareCommand cmd = new CompareCommand(
                     new PartyInput(contact.name(), contact.phone(), contact.address(), contact.pincode(), null, null),
                     new PartyInput(dName, v.get("Delivery Phone"), v.get("Delivery Address"), dPin, city(dPin), state(dPin)),
@@ -359,7 +366,7 @@ public class PortalBulkBookingService {
             Map<Integer, String> cols = new HashMap<>();
             for (Cell c : head) {
                 String t = fmt.formatCellValue(c).trim();
-                for (String known : HEADERS) {
+                for (String known : COLUMNS) {
                     if (known.equalsIgnoreCase(t)) {
                         cols.put(c.getColumnIndex(), known);
                     }
@@ -381,7 +388,7 @@ public class PortalBulkBookingService {
                     m.put(e.getValue(), val);
                 }
                 if (!any) continue;
-                for (String h : HEADERS) {
+                for (String h : COLUMNS) {
                     m.putIfAbsent(h, "");
                 }
                 if (rows.size() >= MAX_ROWS) {

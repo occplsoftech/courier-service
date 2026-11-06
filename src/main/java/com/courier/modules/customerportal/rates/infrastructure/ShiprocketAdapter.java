@@ -372,7 +372,8 @@ public class ShiprocketAdapter implements CourierProviderAdapter {
                 "units", b.rate().packageCount(), "selling_price", b.rate().declaredValue()
                         .divide(BigDecimal.valueOf(b.rate().packageCount()), 2, RoundingMode.HALF_UP))));
         m.put("payment_method", b.rate().cod() ? "COD" : "Prepaid");
-        m.put("sub_total", b.rate().declaredValue());
+        // For COD, Shiprocket collects the order total from the receiver: the amount to collect.
+        m.put("sub_total", b.rate().cod() ? b.rate().collectAmount() : b.rate().declaredValue());
         m.put("length", b.rate().lengthCm());
         m.put("breadth", b.rate().breadthCm());
         m.put("height", b.rate().heightCm());

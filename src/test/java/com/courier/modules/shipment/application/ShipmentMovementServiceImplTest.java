@@ -919,6 +919,38 @@ class ShipmentMovementServiceImplTest {
         assertThat(captor.getValue().deliveryBranchId()).isEqualTo(DELIVERY_BRANCH);
         assertThat(captor.getValue().shipmentNumber()).isEqualTo(shipment.getShipmentNumber());
         assertThat(captor.getValue().netAmount()).isEqualByComparingTo("450.0000");
+        // a counter COD booking collects its freight for the company: nothing goes to a customer's wallet
+        verify(eventPublisher, org.mockito.Mockito.never()).publishEvent(any(ShipmentEvent.CodCollectedForCustomer.class));
+    }
+
+    @Test
+    @DisplayName("a portal COD shipment debits the delivery branch its COD amount (not the freight) and pays it into the customer's wallet")
+    void portalCodGoesToTheCustomersWallet() {
+        Shipment shipment = shipment(ShipmentStatus.OUT_FOR_DELIVERY);
+        UUID customer = UUID.randomUUID();
+        shipment.setBusinessCustomerId(customer);
+        shipment.setCodAmount(new BigDecimal("1250.00"));
+        when(shipmentRepository.findByIdWithinCompany(shipment.getId(), COMPANY)).thenReturn(Optional.of(shipment));
+        DeliveryAssignment assignment = DeliveryAssignment.builder()
+                .shipmentId(shipment.getId()).status(DeliveryAssignmentStatus.ASSIGNED).build();
+        when(deliveryAssignmentRepository.findByShipmentIdWithinCompany(shipment.getId(), COMPANY)).thenReturn(Optional.of(assignment));
+        when(deliveryAssignmentRepository.save(any(DeliveryAssignment.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(paymentModeService.getById(shipment.getPaymentModeId())).thenReturn(codPaymentMode());
+        when(chargeRepository.findByShipmentIdWithinCompany(shipment.getId(), COMPANY))
+                .thenReturn(Optional.of(ShipmentCharge.builder().netAmount(new BigDecimal("118.00")).build()));
+        when(branchService.getById(shipment.getDeliveryBranchId())).thenReturn(Branch.builder().branchCode("PUNE").build());
+        when(branchService.getById(BOOKING_BRANCH)).thenReturn(Branch.builder().branchCode("MUMBAI").build());
+
+        service.deliver(shipment.getId(), new ShipmentService.DeliverCommand("Rahul Verma", null, null, null, null));
+
+        var branchDebit = org.mockito.ArgumentCaptor.forClass(ShipmentEvent.CodCollectedAtDelivery.class);
+        verify(eventPublisher).publishEvent(branchDebit.capture());
+        assertThat(branchDebit.getValue().netAmount()).isEqualByComparingTo("1250.00");
+        var customerCredit = org.mockito.ArgumentCaptor.forClass(ShipmentEvent.CodCollectedForCustomer.class);
+        verify(eventPublisher).publishEvent(customerCredit.capture());
+        assertThat(customerCredit.getValue().customerId()).isEqualTo(customer);
+        assertThat(customerCredit.getValue().amount()).isEqualByComparingTo("1250.00");
+        assertThat(shipment.getCodCollectedAt()).isNotNull();
     }
 
     @Test

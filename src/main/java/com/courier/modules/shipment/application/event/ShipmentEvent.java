@@ -78,6 +78,11 @@ public sealed interface ShipmentEvent {
      * delivery. Handled by {@code ShipmentDeliveryWalletListener}, which calls {@code
      * WalletService.debitForCodDelivery}.
      */
+    /** The COD amount of a portal shipment was collected: it is paid into the customer's wallet (Phase 11.3). */
+    record CodCollectedForCustomer(UUID shipmentId, UUID companyId, UUID customerId, String shipmentNumber, BigDecimal amount,
+                                   Instant occurredAt) implements ShipmentEvent {
+    }
+
     record CodCollectedAtDelivery(
             UUID shipmentId,
             UUID companyId,

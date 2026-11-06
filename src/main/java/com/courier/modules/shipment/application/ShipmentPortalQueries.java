@@ -137,6 +137,12 @@ public class ShipmentPortalQueries {
                       String signatureUrl, boolean photoPending) {
     }
 
+    /** When a portal shipment's COD amount was collected (and paid into the customer's wallet); empty until then. */
+    @Transactional(readOnly = true)
+    public Optional<Instant> codCollectedAt(UUID companyId, UUID shipmentId) {
+        return repository.findByIdWithinCompany(shipmentId, companyId).map(Shipment::getCodCollectedAt);
+    }
+
     public record DeliveryIssue(int attempts, String reason, String note, Instant at, boolean open, boolean returnFlagged,
                                 String choice, String choiceLabel, LocalDate choiceDate, String receiverAddress, String receiverPhone) {
     }

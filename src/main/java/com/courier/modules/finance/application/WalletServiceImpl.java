@@ -685,6 +685,27 @@ public class WalletServiceImpl implements WalletService {
                 command.referenceType(), command.referenceId(), command.remarks());
     }
 
+    @Override
+    @Transactional
+    public WalletTransaction creditCodForCustomer(com.courier.modules.finance.application.command.CustomerCodCreditCommand command) {
+        UUID companyId = requireCompany();
+        BigDecimal amount = requirePositiveAmount(command.amount());
+        String ref = command.shipmentId().toString();
+        customerWallets.getForCustomer(command.customerId());
+        // Locked first so two deliveries of one shipment serialise and the second sees the first's credit.
+        Wallet wallet = lockOwned(Owner.customer(command.customerId()), companyId);
+        Optional<WalletTransaction> already = transactionRepository
+                .findSettledByReferenceWithinCompany(ReferenceType.SHIPMENT, ref, companyId).stream()
+                .filter(t -> t.getSubTransactionType() == SubTransactionType.COD && t.getTransactionType() == TransactionType.CR
+                        && wallet.getId().equals(t.getWalletId()))
+                .findFirst();
+        if (already.isPresent()) {
+            return already.get();
+        }
+        return creditOwned(companyId, Owner.customer(command.customerId()), amount, SubTransactionType.COD, ReferenceType.SHIPMENT, ref,
+                "COD collected for shipment " + command.shipmentNumber());
+    }
+
     // ------------------------------------------------------ customer wallets (money out)
 
     @Override

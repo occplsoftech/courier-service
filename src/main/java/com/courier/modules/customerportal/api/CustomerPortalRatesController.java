@@ -91,10 +91,12 @@ public class CustomerPortalRatesController {
     public record Package(@NotNull BigDecimal actualWeightKg, @NotNull BigDecimal length, @NotNull BigDecimal breadth,
                           @NotNull BigDecimal height, @Size(max = 2) String dimensionUnit, @NotNull Integer packageCount,
                           @NotNull @Size(min = 1, max = 200) String contents, @NotNull BigDecimal declaredValue,
-                          @Size(max = 10) String paymentMode) {
+                          @Size(max = 10) String paymentMode,
+                          /** COD only: the amount to collect from the receiver (default: the declared value). */
+                          BigDecimal codAmount) {
         PackageInput toInput() {
             return new PackageInput(actualWeightKg, length, breadth, height, dimensionUnit, packageCount, contents,
-                    declaredValue, paymentMode);
+                    declaredValue, paymentMode, codAmount);
         }
     }
 

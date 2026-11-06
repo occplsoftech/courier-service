@@ -47,6 +47,20 @@ public class ShipmentDeliveryWalletListener {
         }
     }
 
+    /** Pays a portal shipment's collected COD amount into the customer's wallet (once; the wallet call is repeat-safe). */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void on(ShipmentEvent.CodCollectedForCustomer event) {
+        try {
+            CompanyContext.runAs(event.companyId(), () -> walletService.creditCodForCustomer(
+                    new com.courier.modules.finance.application.command.CustomerCodCreditCommand(event.customerId(), event.amount(),
+                            event.shipmentId(), event.shipmentNumber())));
+        } catch (RuntimeException e) {
+            log.error("Could not pay the COD amount of shipment {} ({}) into customer {}'s wallet; the shipment stays delivered — "
+                    + "credit it manually", event.shipmentNumber(), event.shipmentId(), event.customerId(), e);
+        }
+    }
+
     /**
      * The in-scan-time sibling of {@link #on(ShipmentEvent.CodCollectedAtDelivery)} — fires
      * once {@code scanOneIn}'s own transaction (not {@code deliver}'s) commits, since a
