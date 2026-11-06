@@ -179,7 +179,8 @@ public class PortalExportService {
                 row.createCell(3).setCellValue(safe(b.providerName()));
                 row.createCell(4).setCellValue(safe(b.serviceName()));
                 row.createCell(5).setCellValue(statusLabel(b.status()));
-                row.createCell(6).setCellValue(b.deliveryStatus() == null ? "" : safe(b.deliveryStatus().text() != null
+                // Only a booked shipment has a delivery status; a booking cancelled or never placed keeps none (not its last check).
+                row.createCell(6).setCellValue(!"BOOKED".equals(b.status()) || b.deliveryStatus() == null ? "" : safe(b.deliveryStatus().text() != null
                         ? b.deliveryStatus().text() : b.deliveryStatus().stage()));
                 row.createCell(7).setCellValue(safe(b.pickupPincode()));
                 row.createCell(8).setCellValue(safe(b.deliveryPincode()));

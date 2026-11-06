@@ -8,6 +8,12 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-06 — Shipments export: no stale delivery status on cancelled bookings
+
+- A booking the customer cancelled kept its last delivery check ("Booked") in the export's Delivery Status column; only booked shipments now show one. Found on the live dev test of 9.4.
+
+---
+
 ## 2026-11-06 — Phase 9.4 (backend): wallet statement and shipments list as Excel
 
 - `GET /customer-portal/wallet/statement?from&to` (default this month, at most 366 days): opening/closing balance, credit and debit totals, every transaction of the period oldest first.
