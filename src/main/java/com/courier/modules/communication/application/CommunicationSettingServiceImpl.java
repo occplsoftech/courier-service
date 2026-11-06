@@ -46,8 +46,9 @@ public class CommunicationSettingServiceImpl implements CommunicationSettingServ
         }
         for (CommunicationChannel channel : CommunicationChannel.values()) {
             if (existing.stream().noneMatch(s -> s.getChannel() == channel)) {
+                // Off until a company admin switches it on: reading the settings page must never start sending.
                 CommunicationSetting fresh = CommunicationSetting.builder()
-                        .channel(channel).enabled(true).build();
+                        .channel(channel).enabled(false).build();
                 fresh.setCompanyId(companyId);
                 repository.save(fresh);
             }
@@ -61,8 +62,9 @@ public class CommunicationSettingServiceImpl implements CommunicationSettingServ
     public CommunicationSetting get(CommunicationChannel channel) {
         UUID companyId = requireCompany();
         return repository.findByCompanyIdAndChannel(companyId, channel).orElseGet(() -> {
+            // Off until a company admin switches it on (see list()).
             CommunicationSetting fresh = CommunicationSetting.builder()
-                    .channel(channel).enabled(true).build();
+                    .channel(channel).enabled(false).build();
             fresh.setCompanyId(companyId);
             return repository.save(fresh);
         });
