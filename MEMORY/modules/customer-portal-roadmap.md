@@ -64,7 +64,7 @@ Scenario: the customer books with OCCPL Network, OCCPL collects the parcel and b
 
 Defaults agreed in the brief: courier collects from the branch/hub; customer price unchanged; bulk forwarding later.
 
-## Phase 9 — Customer quick wins `[ ]`
+## Phase 9 — Customer quick wins `[x]`
 
 | # | Item | Repos | Size |
 |---|---|---|---|

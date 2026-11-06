@@ -348,3 +348,8 @@ Also: New template page + Reset to default (`StarterTemplates`), and a WhatsApp 
 only from rates the company enters (`rateUtility`/`rateMarketing`/`rateAuthentication` in the WhatsApp
 channel config) — see the CHANGELOG entry "New template page, Reset to default, WhatsApp cost estimate".
 
+
+
+## Picked up (Phase 10.1, 2026-11-06)
+
+`SHIPMENT_PICKED_UP` is a default event (sender-facing). Published as `ShipmentEvent.PickedUp` by `PickupServiceImpl.complete` when the pickup already carries its portal shipment. Existing companies get its three templates from `seedMissingDefaults`.

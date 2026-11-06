@@ -10,6 +10,8 @@ package com.courier.modules.communication.domain;
  */
 public enum CommunicationEventType {
     SHIPMENT_BOOKED,
+    /** The parcel was collected from the customer (a portal booking's pickup was completed). */
+    SHIPMENT_PICKED_UP,
     SHIPMENT_DISPATCHED,
     SHIPMENT_RECEIVED,
     OUT_FOR_DELIVERY,
@@ -20,12 +22,12 @@ public enum CommunicationEventType {
     /** The 09:00 IST owner summary — not tied to a shipment; see {@code DailyReportService}. */
     DAILY_BUSINESS_SUMMARY;
 
-    /** The four events the brief seeds a default WhatsApp+SMS+Email template for. */
+    /** The events seeded with a default WhatsApp+SMS+Email template (the brief's four, and picked up). */
     public static final java.util.Set<CommunicationEventType> DEFAULT_ENABLED = java.util.Set.of(
-            SHIPMENT_BOOKED, SHIPMENT_DISPATCHED, OUT_FOR_DELIVERY, SHIPMENT_DELIVERED);
+            SHIPMENT_BOOKED, SHIPMENT_PICKED_UP, SHIPMENT_DISPATCHED, OUT_FOR_DELIVERY, SHIPMENT_DELIVERED);
 
     private static final java.util.Set<CommunicationEventType> SENDER_FACING = java.util.EnumSet.of(
-            SHIPMENT_BOOKED, SHIPMENT_DISPATCHED, SHIPMENT_CANCELLED);
+            SHIPMENT_BOOKED, SHIPMENT_PICKED_UP, SHIPMENT_DISPATCHED, SHIPMENT_CANCELLED);
 
     /** True for events about the sender's own action (they booked/dispatched/cancelled it);
      *  false for events about the shipment arriving at the receiver — see {@code

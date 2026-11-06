@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-06 — Phase 10.1 (part A): "parcel collected" notification
+
+- New `CommunicationEventType.SHIPMENT_PICKED_UP` (sender-facing) with default WhatsApp/SMS/email templates, added to every company by `seedMissingDefaults` (each can switch it off).
+- `ShipmentEvent.PickedUp` is published when a portal booking's pickup is collected (`PickupServiceImpl.complete`); `ShipmentCommunicationListener` queues it like the other events.
+
+---
+
 ## 2026-11-06 — Shipments export: no stale delivery status on cancelled bookings
 
 - A booking the customer cancelled kept its last delivery check ("Booked") in the export's Delivery Status column; only booked shipments now show one. Found on the live dev test of 9.4.
