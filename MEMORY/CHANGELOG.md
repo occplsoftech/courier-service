@@ -8,6 +8,12 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-07 — Fix: the RTO charge was not saved
+
+- Found in the live dev test of 12.1 A: the return worked end to end but the wallet was not charged. `PortalRtoChargeService` ran from an AFTER_COMMIT listener with a REQUIRED transaction, which joins the already-committed transaction, so the debit and the booking update were silently dropped (the same from a customer's read-only tracking view). It now always runs in a transaction of its own (REQUIRES_NEW).
+
+---
+
 ## 2026-11-07 — Phase 12.1 A (backend): return to sender as a tracked trip back, and the RTO charge
 
 - **OCCPL return trip (V161 `shipments.rto`, `rto_started_at`, `rto_delivered_at`, `rto_handed_to`).** `POST /shipments/{id}/return` no longer ends the shipment: it sets `rto`, points `delivery_branch_id`/`next_location_id` at the booking branch and moves it to READY_FOR_MANIFEST at the delivery branch (new edges IN_SCAN/OUT_FOR_DELIVERY → READY_FOR_MANIFEST), so the normal Load Sheet → dispatch → in-scan carries it back (a direct leg). In-scan at the booking branch = IN_SCAN with no delivery-side money (no TO_PAY debit, no commission, no "arrived" message). Delivered from its own booking branch, it waits there. `POST /shipments/{id}/hand-back` {receivedBy, remarks, photoUrl} ends it RETURNED. A return cannot be delivered or put out for delivery. `GET /shipments/returns` = staff queue (`backAtOrigin` when ready to hand back). `ShipmentResponse.rto`, list row `rto`.

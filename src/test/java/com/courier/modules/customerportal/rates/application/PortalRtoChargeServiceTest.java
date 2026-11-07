@@ -13,18 +13,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.transaction.support.TransactionCallback;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -38,13 +34,13 @@ class PortalRtoChargeServiceTest {
     @Mock private PortalBookingRepository bookings;
     @Mock private RateQuoteOptionRepository options;
     @Mock private WalletService wallet;
-    @Mock private TransactionTemplate tx;
+    @Mock private org.springframework.transaction.PlatformTransactionManager txManager;
 
     private PortalRtoChargeService service;
 
     @BeforeEach
     void setUp() {
-        service = new PortalRtoChargeService(bookings, options, wallet, tx);
+        service = new PortalRtoChargeService(bookings, options, wallet, txManager);
     }
 
     private static RateQuoteOption option(String freight, String markupBase, String markup) {
@@ -66,10 +62,25 @@ class PortalRtoChargeServiceTest {
 
     @SuppressWarnings("unchecked")
     @Test
+    @DisplayName("the charge always runs in a transaction of its own (it follows a committed return or a read-only view)")
+    void ownTransaction() {
+        PortalBooking b = PortalBooking.builder().customerId(CUSTOMER).status(PortalBooking.Status.CANCELLED).build();
+        b.setId(UUID.randomUUID());
+        b.setCompanyId(COMPANY);
+        when(bookings.findById(b.getId())).thenReturn(Optional.of(b));
+
+        service.charge(COMPANY, b.getId());
+
+        ArgumentCaptor<org.springframework.transaction.TransactionDefinition> def =
+                ArgumentCaptor.forClass(org.springframework.transaction.TransactionDefinition.class);
+        verify(txManager).getTransaction(def.capture());
+        assertThat(def.getValue().getPropagationBehavior())
+                .isEqualTo(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    }
+
+    @Test
     @DisplayName("charges a booked booking once from the wallet and records it; an already charged booking is left alone")
     void chargesOnce() {
-        doAnswer(i -> { ((Consumer<org.springframework.transaction.TransactionStatus>) i.getArgument(0)).accept(null); return null; })
-                .when(tx).executeWithoutResult(any());
         RateQuoteOption o = option("200.00", "200.00", "20.00");
         PortalBooking b = PortalBooking.builder().customerId(CUSTOMER).quoteOptionId(o.getId()).status(PortalBooking.Status.BOOKED)
                 .awbNumber("AWB9").build();
