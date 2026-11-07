@@ -2145,6 +2145,17 @@ public class ShipmentServiceImpl implements ShipmentService {
     }
 
     @Override
+    @Transactional
+    public void markReturnPickup(UUID companyId, UUID shipmentId) {
+        shipmentRepository.findByIdWithinCompany(shipmentId, companyId).filter(s -> !s.isReturnPickup()).ifPresent(s -> {
+            s.setReturnPickup(true);
+            shipmentRepository.save(s);
+            appendHistory(s, companyId, s.getStatus(), s.getStatus(), "Return pickup: collected from the customer's buyer, delivered to the customer",
+                    s.getCurrentLocationId(), s.getManifestId(), null);
+        });
+    }
+
+    @Override
     @Transactional(readOnly = true)
     @PreAuthorize(READERS)
     public List<Shipment> openReturns() {

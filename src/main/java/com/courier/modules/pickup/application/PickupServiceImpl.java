@@ -307,6 +307,8 @@ public class PickupServiceImpl implements PickupService {
         earningService.recordPickup(saved.getPdpBranchId(), saved.getId(), saved.getPickupNo(), saved.getPincode(),
                 saved.getActualWeightKg(), java.time.LocalDate.now(java.time.ZoneOffset.UTC));
         audit(AuditAction.PICKUP_BOOKED, saved);
+        eventPublisher.publishEvent(new com.courier.modules.pickup.domain.PickupShipmentLinked(saved.getCompanyId(), saved.getId(),
+                saved.getPickupNo(), shipmentId));
         return saved;
     }
 
