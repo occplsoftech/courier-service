@@ -960,6 +960,17 @@ class ShipmentServiceImplTest {
     }
 
     @Test
+    @DisplayName("marking a return pickup flags the shipment once")
+    void markReturnPickup() {
+        Shipment s = existingShipment(ShipmentStatus.BOOKED);
+        when(shipmentRepository.findByIdWithinCompany(s.getId(), COMPANY)).thenReturn(Optional.of(s));
+        service.markReturnPickup(COMPANY, s.getId());
+        service.markReturnPickup(COMPANY, s.getId());
+        assertThat(s.isReturnPickup()).isTrue();
+        verify(shipmentRepository, org.mockito.Mockito.times(1)).save(s);
+    }
+
+    @Test
     @DisplayName("a parcel on its way back cannot be delivered to the receiver")
     void returnCannotBeDelivered() {
         Shipment s = existingShipment(ShipmentStatus.OUT_FOR_DELIVERY);

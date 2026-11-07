@@ -170,6 +170,8 @@ class PickupServiceImplTest {
         assertThat(p.getShipmentId()).isEqualTo(shipment);
         org.mockito.Mockito.verify(earningService).recordPickup(eq(PDP), eq(p.getId()), eq(p.getPickupNo()),
                 eq("411001"), eq(new BigDecimal("11.5")), any());
+        org.mockito.Mockito.verify(eventPublisher).publishEvent(new com.courier.modules.pickup.domain.PickupShipmentLinked(
+                p.getCompanyId(), p.getId(), p.getPickupNo(), shipment));
     }
 
     @Test

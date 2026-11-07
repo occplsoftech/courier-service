@@ -108,6 +108,9 @@ public interface ShipmentService {
      */
     Shipment returnToSender(UUID shipmentId, String reason);
 
+    /** Marks a shipment as a return pickup (a branch booked it by hand for a portal return pickup). Idempotent. */
+    void markReturnPickup(UUID companyId, UUID shipmentId);
+
     /** Returns on their way back to the sender or waiting to be handed back; a branch manager sees the ones at or for their branch. */
     List<Shipment> openReturns();
 
