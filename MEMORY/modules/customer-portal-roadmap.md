@@ -91,12 +91,12 @@ Defaults agreed in the brief: courier collects from the branch/hub; customer pri
 | 11.5 | Per-customer markup screen for external couriers — done (Rate Master → Courier Markup: rules, add, end now, which markup applies) | CS, CW | M |
 | 11.6 | Rate card extras — done: minimum freight and tiered slab pricing (per card, both optional) | CS, CW | M |
 
-## Phase 12 — Returns, reverse pickup, reports `[ ]`
+## Phase 12 — Returns, reverse pickup, reports `[x]`
 
 | # | Item | Repos | Size |
 |---|---|---|---|
 | 12.1 | Return / RTO shipments and reverse pickup from the buyer — done: RTO charge = forward freight; OCCPL return tracked as a trip back (Load Sheet to the booking branch, hand back); reverse pickup on OCCPL Network (outside couriers later) | CS, CW, EC | L |
-| 12.2 | Customer dashboard: spend, shipments by status, delays, courier split | CS, EC | M |
+| 12.2 | Customer dashboard — done: all couriers, period switch (7/30/90 days, this month), spend, on-time %, where the parcels are, courier split, late and failed-delivery lists | CS, EC | M |
 
 ## Phase 13 — Integrations and access control `[ ]`
 

@@ -8,6 +8,12 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-07 — Phase 12.2 (backend): customer dashboard insights
+
+- `GET /customer-portal/dashboard/insights?period=LAST_7_DAYS|LAST_30_DAYS|LAST_90_DAYS|THIS_MONTH` (default 30 days), `PortalDashboardInsightsService`: every BOOKED portal booking of the customer in the period (any courier; by booking day, India). Returns shipments, spend (booking prices + RTO charges), average, on-time % (delivered by the end of booking day + the option's longest ETA, over delivered bookings with an ETA), need-attention (late ∪ failed delivery waiting for the customer's choice, each shipment once), spend per day (per Monday week for 90 days, no gaps), bookings by delivery stage, courier split (shipments, spend, on-time %, biggest spend first), up to ten late shipments (days late, promised date, recipient) and up to ten waiting for an answer. `ShipmentPortalQueries.awaitingDeliveryChoice`.
+
+---
+
 ## 2026-11-07 — Return pickup flag for shipments a branch books by hand
 
 - Found in the live dev test of 12.1 B: when the buyer's pincode has no booking branch, the portal makes a plain pickup and the branch books the shipment later, so it lacked `return_pickup`. `PickupService.linkShipment` now publishes `PickupShipmentLinked`; `ReturnPickupLinkListener` (customer portal) flags the shipment through `ShipmentService.markReturnPickup` when the pickup belongs to a return-pickup booking (own transaction, idempotent).

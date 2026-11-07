@@ -137,6 +137,18 @@ public class ShipmentPortalQueries {
                       String signatureUrl, boolean photoPending) {
     }
 
+    /** Of these shipments, the ones whose last delivery attempt failed and still wait for the customer's choice (12.2 dashboard). */
+    @Transactional(readOnly = true)
+    public java.util.Set<UUID> awaitingDeliveryChoice(UUID companyId, java.util.Collection<UUID> shipmentIds) {
+        if (shipmentIds == null || shipmentIds.isEmpty()) {
+            return java.util.Set.of();
+        }
+        return repository.findAllById(shipmentIds).stream()
+                .filter(s -> companyId.equals(s.getCompanyId()) && s.isUndeliveredOpen() && s.getUndeliveredChoice() == null)
+                .map(com.courier.modules.shipment.domain.Shipment::getId)
+                .collect(java.util.stream.Collectors.toSet());
+    }
+
     /** When a portal shipment's COD amount was collected (and paid into the customer's wallet); empty until then. */
     @Transactional(readOnly = true)
     public Optional<Instant> codCollectedAt(UUID companyId, UUID shipmentId) {
