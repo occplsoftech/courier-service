@@ -8,6 +8,15 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-07 — Phase 11.6 (backend): minimum freight and tiered slabs on customer rate cards
+
+- `customer_zone_rates.min_freight` (V160, default 0 = none): freight = max(slab freight, minimum), before fuel %. `Quote.minFreightApplied`; the portal's OCCPL quote notes "Minimum freight applies".
+- `customer_zone_rates.slab_mode` (`WHOLE` default = as before; `TIERED` = each slab prices only its own kilos: 0-5 @ 40, 5-10 @ 30 → 7 kg = 260; a fixed slab adds its flat price once entered). `Quote.tiered`; `ratePerKg` is then the average.
+- `PUT /customer-rates/zone/{id}` takes `minFreight` and `slabMode`; the rate response and `/calculate` return them (`tiered`, `minFreightApplied`). Excel import: optional `Min Freight` and `Slab Pricing (WHOLE/TIERED)` columns (old sheets still import; blank = none / WHOLE).
+- Applies to counter booking (business customer) and portal OCCPL Network quotes alike; outside couriers unchanged.
+
+---
+
 ## 2026-11-06 — Phase 11.5 (backend): end a markup rule now, and check which markup applies
 
 - `POST /pricing-markup-rules/{id}/end` ends a rule now (a rule that has not started yet ends at its start, so it never applies); an already-ended rule is refused. Audited as `PRICING_MARKUP_RULE_CLOSED`.

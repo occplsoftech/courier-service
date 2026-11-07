@@ -195,6 +195,22 @@ class CustomerRateImportServiceTest {
     }
 
     @Test
+    @DisplayName("optional Min Freight and Slab Pricing columns: TIERED and a minimum show in the summary; an unknown mode is refused")
+    void minFreightAndTiered() throws Exception {
+        Map<String, String> tiered = row("A", "Pune", "AIR", "5", "40", "", "30");
+        tiered.put("Min Freight", "60");
+        tiered.put("Slab Pricing (WHOLE/TIERED)", "tiered");
+        Map<String, String> plain = row("B", "Mumbai", "AIR", "5", "40");
+        Map<String, String> bad = row("A", "", "SURFACE", "5", "40");
+        bad.put("Slab Pricing (WHOLE/TIERED)", "PROGRESSIVE");
+        ImportPreview p = service.preview(CUSTOMER, new ByteArrayInputStream(sheet(List.of(tiered, plain, bad))));
+        assertThat(p.rows().get(0).ok()).isTrue();
+        assertThat(p.rows().get(0).slabsSummary()).isEqualTo("0-5 kg @ 40, 5+ kg @ 30; min freight 60; tiered");
+        assertThat(p.rows().get(1).slabsSummary()).isEqualTo("0-5 kg @ 40");
+        assertThat(p.rows().get(2).error()).contains("WHOLE or TIERED");
+    }
+
+    @Test
     @DisplayName("a district in two zones of the same customer is refused")
     void districtInTwoZones() throws Exception {
         ImportPreview p = service.preview(CUSTOMER, new ByteArrayInputStream(sheet(List.of(

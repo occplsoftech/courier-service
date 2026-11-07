@@ -3,6 +3,7 @@ package com.courier.modules.customerpricing.application;
 import com.courier.modules.customer.application.CustomerService;
 import com.courier.modules.customerpricing.domain.PricingZone;
 import com.courier.modules.customerpricing.domain.PricingZoneRepository;
+import com.courier.modules.customerpricing.domain.SlabMode;
 import com.courier.modules.customerpricing.domain.ZoneRate;
 import com.courier.modules.customerpricing.domain.ZoneRateRepository;
 import com.courier.modules.customerpricing.domain.ZoneRateSlab;
@@ -75,6 +76,8 @@ public class ZoneRateServiceImpl implements ZoneRateService {
             throw new ObjectOptimisticLockingFailureException(ZoneRate.class, rate.getId());
         }
         rate.setMinChargeableWeight(orZero(c.minChargeableWeight()));
+        rate.setMinFreight(orZero(c.minFreight()));
+        rate.setSlabMode(c.slabMode() == null ? SlabMode.WHOLE : c.slabMode());
         rate.setDocketCharge(orZero(c.docketCharge()));
         rate.setMathadiCharge(orZero(c.mathadiCharge()));
         rate.setPackCharge(orZero(c.packCharge()));
@@ -261,9 +264,16 @@ public class ZoneRateServiceImpl implements ZoneRateService {
             }
             return null;
         }
-        // A fixed slab is one flat price however much the parcel weighs inside it; otherwise weight x rate per kg.
-        BigDecimal freight = slab.isFixedRate() ? money(slab.getRatePerKg()) : money(chargeable.multiply(slab.getRatePerKg()));
-        BigDecimal effectivePerKg = slab.isFixedRate() ? freight.divide(chargeable, 2, RoundingMode.HALF_UP) : slab.getRatePerKg();
+        boolean tiered = rate.getSlabMode() == SlabMode.TIERED;
+        // WHOLE: a fixed slab is one flat price however much the parcel weighs inside it; otherwise weight x rate per kg.
+        // TIERED: every slab the weight reaches prices only its own kilos (a fixed slab adds its flat price once entered).
+        BigDecimal slabFreight = tiered ? tieredFreight(slabs.findByRate(companyId, rate.getId()), chargeable)
+                : slab.isFixedRate() ? money(slab.getRatePerKg()) : money(chargeable.multiply(slab.getRatePerKg()));
+        BigDecimal minFreight = rate.getMinFreight() == null ? BigDecimal.ZERO : rate.getMinFreight();
+        boolean minFreightApplied = minFreight.compareTo(slabFreight) > 0;
+        BigDecimal freight = minFreightApplied ? money(minFreight) : slabFreight;
+        BigDecimal effectivePerKg = !tiered && !slab.isFixedRate() && !minFreightApplied ? slab.getRatePerKg()
+                : freight.divide(chargeable, 2, RoundingMode.HALF_UP);
         BigDecimal oda = q.odaApplicable() ? rate.getOdaCharge() : BigDecimal.ZERO;
         BigDecimal fuel = money(freight.multiply(rate.getFuelSurchargePercent()).divide(HUNDRED, 6, RoundingMode.HALF_UP));
         BigDecimal declared = q.declaredValue() == null ? BigDecimal.ZERO : q.declaredValue();
@@ -272,7 +282,24 @@ public class ZoneRateServiceImpl implements ZoneRateService {
                 .add(rate.getPackCharge()).add(oda).add(fuel).add(fov);
         return new Quote(zone.getId(), zone.getZoneName(), q.actualWeight(), chargeable, effectivePerKg,
                 freight, rate.getDocketCharge(), rate.getMathadiCharge(), rate.getPackCharge(), oda, fuel, fov,
-                money(total), slab.isFixedRate(), rate.getMinChargeableWeight());
+                money(total), !tiered && slab.isFixedRate(), rate.getMinChargeableWeight(), tiered, minFreightApplied);
+    }
+
+    /** Tiered freight: each slab below the weight prices the kilos inside it, at its own rate (or its flat price). */
+    static BigDecimal tieredFreight(List<ZoneRateSlab> all, BigDecimal weight) {
+        BigDecimal total = BigDecimal.ZERO;
+        for (ZoneRateSlab s : all.stream().sorted(Comparator.comparing(ZoneRateSlab::getMinWeight)).toList()) {
+            if (weight.compareTo(s.getMinWeight()) <= 0 && s.getMinWeight().signum() > 0) {
+                break; // the weight does not reach this slab
+            }
+            BigDecimal top = s.getMaxWeight() == null ? weight : weight.min(s.getMaxWeight());
+            BigDecimal kilos = top.subtract(s.getMinWeight());
+            if (kilos.signum() <= 0) {
+                continue;
+            }
+            total = total.add(s.isFixedRate() ? s.getRatePerKg() : kilos.multiply(s.getRatePerKg()));
+        }
+        return money(total);
     }
 
     // ------------------------------------------------------------------ helpers

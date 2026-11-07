@@ -53,6 +53,16 @@ public class ZoneRate extends CompanyOwnedEntity {
     @Builder.Default
     private BigDecimal minChargeableWeight = BigDecimal.ZERO;
 
+    /** The least freight a parcel is charged on this card; 0 = no minimum. */
+    @Column(name = "min_freight", nullable = false, precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal minFreight = BigDecimal.ZERO;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "slab_mode", nullable = false, length = 10)
+    @Builder.Default
+    private SlabMode slabMode = SlabMode.WHOLE;
+
     @Column(name = "docket_charge", nullable = false, precision = 12, scale = 2)
     @Builder.Default
     private BigDecimal docketCharge = BigDecimal.ZERO;
@@ -107,6 +117,7 @@ public class ZoneRate extends CompanyOwnedEntity {
 
     public void applyInvariants() {
         requireNonNegative(minChargeableWeight, "Minimum chargeable weight");
+        requireNonNegative(minFreight, "Minimum freight");
         requireNonNegative(docketCharge, "Docket charge");
         requireNonNegative(mathadiCharge, "Mathadi charge");
         requireNonNegative(packCharge, "Pack charge");

@@ -46,6 +46,8 @@ transaction. **Quote** (`POST /customer-rates/calculate`): resolve the customer'
 (district, city) — a city match beats a whole-district match — then chargeable = max(actual, min),
 freight = chargeable x slab rate, + docket + mathadi + pack + ODA (only if `odaApplicable`) +
 fuel% x freight + FOV% x declared value. No GST (the pricing engine owns that).
+Since V160 (11.6) a card also has `min_freight` (freight = max(slab freight, it), before fuel %) and `slab_mode`
+WHOLE (above) or TIERED (each slab prices only its own kilos; a fixed slab adds its flat price once entered).
 `GET /pricing-zones/resolve` returns the zone alone.
 
 ## Endpoints

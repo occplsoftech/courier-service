@@ -38,7 +38,9 @@ public final class CustomerRateDtos {
             LocalDate effectiveFrom,
             LocalDate effectiveTo,
             @NotNull @Valid List<SlabRequest> slabs,
-            @PositiveOrZero Long version) {
+            @PositiveOrZero Long version,
+            @DecimalMin("0") BigDecimal minFreight,
+            com.courier.modules.customerpricing.domain.SlabMode slabMode) {
     }
 
     public record SlabResponse(UUID id, BigDecimal minWeight, BigDecimal maxWeight, BigDecimal ratePerKg, boolean fixedRate) {
@@ -50,7 +52,8 @@ public final class CustomerRateDtos {
             BigDecimal packCharge, BigDecimal odaCharge, BigDecimal fuelSurchargePercent, BigDecimal fovPercent,
             LocalDate effectiveFrom, LocalDate effectiveTo, ZoneStatus status,
             UUID serviceTypeId, String serviceTypeCode, String serviceTypeName,
-            List<SlabResponse> slabs, Instant createdDate, Instant updatedDate, Long version) {
+            List<SlabResponse> slabs, Instant createdDate, Instant updatedDate, Long version,
+            BigDecimal minFreight, com.courier.modules.customerpricing.domain.SlabMode slabMode) {
     }
 
     public record CalculateRequest(
@@ -68,6 +71,6 @@ public final class CustomerRateDtos {
             UUID zoneId, String zoneName, BigDecimal actualWeight, BigDecimal chargeableWeight,
             BigDecimal ratePerKg, BigDecimal freight, BigDecimal docketCharge, BigDecimal mathadiCharge,
             BigDecimal packCharge, BigDecimal odaCharge, BigDecimal fuelSurcharge, BigDecimal fovCharge,
-            BigDecimal total, boolean fixedRate) {
+            BigDecimal total, boolean fixedRate, boolean tiered, boolean minFreightApplied) {
     }
 }

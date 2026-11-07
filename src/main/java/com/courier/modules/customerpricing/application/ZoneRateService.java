@@ -47,7 +47,17 @@ public interface ZoneRateService {
     record SaveCommand(BigDecimal minChargeableWeight, BigDecimal docketCharge, BigDecimal mathadiCharge,
                        BigDecimal packCharge, BigDecimal odaCharge, BigDecimal fuelSurchargePercent,
                        BigDecimal fovPercent, LocalDate effectiveFrom, LocalDate effectiveTo,
-                       List<SlabInput> slabs, Long expectedVersion) {
+                       List<SlabInput> slabs, Long expectedVersion, BigDecimal minFreight,
+                       com.courier.modules.customerpricing.domain.SlabMode slabMode) {
+
+        /** Without a minimum freight, pricing the whole weight at one slab (as before 11.6). */
+        public SaveCommand(BigDecimal minChargeableWeight, BigDecimal docketCharge, BigDecimal mathadiCharge,
+                           BigDecimal packCharge, BigDecimal odaCharge, BigDecimal fuelSurchargePercent,
+                           BigDecimal fovPercent, LocalDate effectiveFrom, LocalDate effectiveTo,
+                           List<SlabInput> slabs, Long expectedVersion) {
+            this(minChargeableWeight, docketCharge, mathadiCharge, packCharge, odaCharge, fuelSurchargePercent, fovPercent,
+                    effectiveFrom, effectiveTo, slabs, expectedVersion, null, null);
+        }
     }
 
     /** {@code ratePerKg} is the price per kg, or the flat price of the whole slab when {@code fixedRate}. */
@@ -71,7 +81,16 @@ public interface ZoneRateService {
     record Quote(UUID zoneId, String zoneName, BigDecimal actualWeight, BigDecimal chargeableWeight,
                  BigDecimal ratePerKg, BigDecimal freight, BigDecimal docketCharge, BigDecimal mathadiCharge,
                  BigDecimal packCharge, BigDecimal odaCharge, BigDecimal fuelSurcharge, BigDecimal fovCharge,
-                 BigDecimal total, boolean fixedRate, BigDecimal minChargeableWeight) {
+                 BigDecimal total, boolean fixedRate, BigDecimal minChargeableWeight, boolean tiered,
+                 boolean minFreightApplied) {
+
+        /** Whole-weight pricing, no minimum freight applied. */
+        public Quote(UUID zoneId, String zoneName, BigDecimal actualWeight, BigDecimal chargeableWeight, BigDecimal ratePerKg,
+                     BigDecimal freight, BigDecimal docketCharge, BigDecimal mathadiCharge, BigDecimal packCharge, BigDecimal odaCharge,
+                     BigDecimal fuelSurcharge, BigDecimal fovCharge, BigDecimal total, boolean fixedRate, BigDecimal minChargeableWeight) {
+            this(zoneId, zoneName, actualWeight, chargeableWeight, ratePerKg, freight, docketCharge, mathadiCharge, packCharge,
+                    odaCharge, fuelSurcharge, fovCharge, total, fixedRate, minChargeableWeight, false, false);
+        }
 
         /** Without the card's minimum chargeable weight. */
         public Quote(UUID zoneId, String zoneName, BigDecimal actualWeight, BigDecimal chargeableWeight, BigDecimal ratePerKg,
