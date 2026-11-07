@@ -49,6 +49,7 @@ public record ShipmentSummaryResponse(
         ShipmentResponse.UndeliveredInfo undelivered,
         /** Portal COD: the amount to collect from the receiver for the customer; null otherwise. */
         java.math.BigDecimal codAmount,
-        @io.swagger.v3.oas.annotations.media.Schema(description = "Being (or was) returned to the sender") boolean rto
+        @io.swagger.v3.oas.annotations.media.Schema(description = "Being (or was) returned to the sender") boolean rto,
+        @io.swagger.v3.oas.annotations.media.Schema(description = "A return pickup booked by a portal customer") boolean returnPickup
 ) {
 }

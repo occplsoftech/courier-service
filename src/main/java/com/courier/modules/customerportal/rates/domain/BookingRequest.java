@@ -21,7 +21,17 @@ public record BookingRequest(UUID companyId,
                              BigDecimal customerTotal,
                              List<ChargeLine> charges,
                              BigDecimal chargeableWeightKg,
-                             String pickupLocation) {
+                             String pickupLocation,
+                             /** The delivered booking this return pickup brings back (Phase 12.1 B); null for a normal booking. */
+                             UUID returnOf) {
+
+    /** Not a return pickup. */
+    public BookingRequest(UUID companyId, UUID customerId, String reference, String serviceCode, RateRequest rate, Party pickup,
+                          Party delivery, String contents, BigDecimal customerTotal, List<ChargeLine> charges,
+                          BigDecimal chargeableWeightKg, String pickupLocation) {
+        this(companyId, customerId, reference, serviceCode, rate, pickup, delivery, contents, customerTotal, charges, chargeableWeightKg,
+                pickupLocation, null);
+    }
 
     /** Without a courier pickup location name (the company's own is used). */
     public BookingRequest(UUID companyId, UUID customerId, String reference, String serviceCode, RateRequest rate, Party pickup,

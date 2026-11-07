@@ -151,7 +151,7 @@ public class ShipmentMapper {
                 items.stream().map(this::toResponse).toList(),
                 s.getForwardState() == null ? null : new ShipmentResponse.ForwardInfo(s.getForwardProvider(), s.getForwardService(),
                         s.getForwardState(), s.getForwardAwb(), s.getForwardLabelUrl(), s.getForwardCost(), s.getForwardedAt(), s.getForwardNote()),
-                undelivered(s), s.getCodAmount(), s.getCodCollectedAt(), rto(s));
+                undelivered(s), s.getCodAmount(), s.getCodCollectedAt(), rto(s), s.isReturnPickup());
     }
 
     static ShipmentResponse.RtoInfo rto(Shipment s) {
@@ -238,7 +238,7 @@ public class ShipmentMapper {
                 charge == null ? null : charge.getBranchCommissionOnOtherAmount(),
                 charge == null ? null : charge.getCompanyCommissionOnBasicFreight(),
                 s.getStatus(), deliveredAt, s.getCreatedAt(), s.getVersion(), invoiceNumber, receivedAt,
-                ewayBillNumber, s.getNumberOfPackages(), undelivered(s), s.getCodAmount(), s.isRto());
+                ewayBillNumber, s.getNumberOfPackages(), undelivered(s), s.getCodAmount(), s.isRto(), s.isReturnPickup());
     }
 
     public ShipmentItemResponse toResponse(ShipmentItem i) {

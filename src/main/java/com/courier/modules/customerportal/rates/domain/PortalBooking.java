@@ -88,6 +88,11 @@ public class PortalBooking extends CompanyOwnedEntity {
     @Column(name = "booked_at") private Instant bookedAt;
 
     /** The courier's latest delivery status (V135), kept by {@code TrackingSyncService}. */
+    /** The delivered booking this return pickup brings back to the customer (Phase 12.1 B); null for a normal booking. */
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.BINARY)
+    @Column(name = "return_of_booking_id", columnDefinition = "BINARY(16)", updatable = false)
+    private UUID returnOfBookingId;
+
     /** The return-to-sender charge debited from the customer's wallet (Phase 12.1), and when; null until a return. */
     @Column(name = "rto_charge", precision = 14, scale = 2) private BigDecimal rtoCharge;
     @Column(name = "rto_charged_at") private Instant rtoChargedAt;

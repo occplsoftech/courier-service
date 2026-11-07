@@ -353,7 +353,7 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
                 b.delivery().city() == null || b.delivery().city().isBlank() ? null : b.delivery().city(), kind, b.serviceCode(), b.contents(), b.rate().declaredValue(),
                 b.rate().packageCount(), b.rate().actualWeightKg(), b.chargeableWeightKg(), b.rate().lengthCm(), b.rate().breadthCm(), b.rate().heightCm(),
                 freight, fuel, handling, oda, insurance, gst, other, b.customerTotal(),
-                b.rate().cod() ? b.rate().collectAmount() : null);
+                b.rate().cod() ? b.rate().collectAmount() : null, b.returnOf() != null);
     }
 
     /**
@@ -452,7 +452,8 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
     }
 
     static String remarks(BookingRequest b) {
-        String text = "Portal booking " + b.reference() + (b.serviceCode() == null ? "" : ", service " + b.serviceCode())
+        String text = (b.returnOf() == null ? "" : "RETURN PICKUP: collect from the buyer and bring back to the customer. ")
+                + "Portal booking " + b.reference() + (b.serviceCode() == null ? "" : ", service " + b.serviceCode())
                 + ". Deliver to " + b.delivery().name() + ", " + b.delivery().phone()
                 + ", " + b.delivery().address() + ", " + b.delivery().city() + " " + b.delivery().pincode()
                 + ". Contents: " + b.contents() + ". Value " + b.rate().declaredValue().toPlainString()
