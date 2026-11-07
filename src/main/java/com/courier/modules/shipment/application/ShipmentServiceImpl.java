@@ -1771,6 +1771,18 @@ public class ShipmentServiceImpl implements ShipmentService {
         ShipmentStatus previous = shipment.getStatus();
         shipment.setCurrentLocationId(receivingBranchId);
 
+        if (finalDestination && shipment.isRto()) {
+            // Back at its booking branch: no delivery-side money moves (nothing was delivered); it waits to be handed back.
+            shipment.transitionTo(ShipmentStatus.IN_SCAN);
+            Shipment saved = shipmentRepository.save(shipment);
+            appendHistory(saved, companyId, previous, ShipmentStatus.IN_SCAN,
+                    remarks == null || remarks.isBlank() ? "Back at the booking branch, to be handed to the sender" : remarks.trim(),
+                    receivingBranchId, saved.getManifestId(), null);
+            recordAsset(saved.getId(), companyId, ShipmentAssetType.IN_SCAN, "PHOTO", photoUrl);
+            auditService.record(AuditAction.SHIPMENT_IN_SCANNED, ENTITY, saved.getId(),
+                    Map.of("shipmentNumber", saved.getShipmentNumber(), "rto", true));
+            return new MovementOutcome(trackingNumber, true, null);
+        }
         if (finalDestination) {
             shipment.transitionTo(ShipmentStatus.IN_SCAN);
             Shipment saved = shipmentRepository.save(shipment);
@@ -1856,6 +1868,10 @@ public class ShipmentServiceImpl implements ShipmentService {
         if (shipment.getStatus() != ShipmentStatus.IN_SCAN && !atHubUnassigned) {
             return new MovementOutcome(shipment.getShipmentNumber(), false,
                     "Cannot be assigned — currently " + shipment.getStatus() + ".");
+        }
+        if (shipment.isRto()) {
+            return new MovementOutcome(shipment.getShipmentNumber(), false,
+                    "Being returned to the sender: hand it back at the booking branch instead.");
         }
 
         DeliveryAssignment assignment = deliveryAssignmentRepository
@@ -2086,19 +2102,88 @@ public class ShipmentServiceImpl implements ShipmentService {
     public Shipment returnToSender(UUID shipmentId, String reason) {
         UUID companyId = requireCompany();
         Shipment shipment = loadOrThrow(shipmentId, companyId);
+        if (shipment.isRto()) {
+            throw new BusinessRuleException("Shipment %s is already on its way back to the sender.".formatted(shipment.getShipmentNumber()));
+        }
         if (shipment.getStatus() != ShipmentStatus.IN_SCAN && shipment.getStatus() != ShipmentStatus.OUT_FOR_DELIVERY) {
             throw new BusinessRuleException("Shipment %s is %s — only a shipment at the delivery branch or out for delivery can be returned."
                     .formatted(shipment.getShipmentNumber(), shipment.getStatus()));
         }
         String why = reason == null || reason.isBlank() ? null : reason.trim();
         ShipmentStatus previous = shipment.getStatus();
-        shipment.transitionTo(ShipmentStatus.RETURNED);
+        UUID origin = shipment.getBookingBranchId();
+        UUID here = shipment.getCurrentLocationId() != null ? shipment.getCurrentLocationId() : shipment.getDeliveryBranchId();
+        shipment.setRto(true);
+        shipment.setRtoStartedAt(Instant.now());
         shipment.setUndeliveredOpen(false);
+        String note = why == null ? "Return to sender started" : "Return to sender started: " + why;
+        ShipmentStatus next;
+        if (Objects.equals(here, origin)) {
+            // Delivered from its own booking branch: it is already back, waiting to be handed to the sender.
+            next = ShipmentStatus.IN_SCAN;
+            if (previous != ShipmentStatus.IN_SCAN) {
+                shipment.transitionTo(ShipmentStatus.IN_SCAN);
+            }
+            note = note + " (at the booking branch; hand it back to the sender)";
+        } else {
+            // The way back is a normal leg: the Load Sheet at this branch offers the booking branch as its next stop.
+            next = ShipmentStatus.READY_FOR_MANIFEST;
+            shipment.setDeliveryBranchId(origin);
+            shipment.setNextLocationId(origin);
+            shipment.setManifestId(null);
+            shipment.setCurrentLocationId(here);
+            shipment.transitionTo(ShipmentStatus.READY_FOR_MANIFEST);
+        }
         Shipment saved = shipmentRepository.save(shipment);
-        appendHistory(saved, companyId, previous, ShipmentStatus.RETURNED, why == null ? "Returned to sender" : "Returned to sender: " + why,
-                saved.getCurrentLocationId(), saved.getManifestId(), null);
+        appendHistory(saved, companyId, previous, next, note, here, null, null);
         auditService.record(AuditAction.SHIPMENT_RETURNED, ENTITY, saved.getId(),
-                Map.of("shipmentNumber", saved.getShipmentNumber(), "reason", String.valueOf(why)));
+                Map.of("shipmentNumber", saved.getShipmentNumber(), "reason", String.valueOf(why), "step", "RTO_STARTED"));
+        eventPublisher.publishEvent(new ShipmentEvent.RtoStarted(saved.getId(), companyId, saved.getShipmentNumber(), Instant.now()));
+        return saved;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize(READERS)
+    public List<Shipment> openReturns() {
+        UUID companyId = requireCompany();
+        List<Shipment> open = shipmentRepository.findOpenReturns(companyId);
+        com.courier.shared.security.AuthenticatedUser caller = SecurityUtils.requireCurrentUser();
+        if (caller.isPlatformTier() || caller.hasRole(Roles.COMPANY_ADMIN)) {
+            return open;
+        }
+        UUID own = userService.getById(caller.userId()).getBranchId();
+        return own == null ? List.of() : open.stream()
+                .filter(s -> own.equals(s.getCurrentLocationId()) || own.equals(s.getBookingBranchId())).toList();
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(WRITERS)
+    public Shipment handBackToSender(UUID shipmentId, String receivedBy, String remarks, String photoUrl) {
+        UUID companyId = requireCompany();
+        Shipment shipment = loadOrThrow(shipmentId, companyId);
+        if (!shipment.isRto()) {
+            throw new BusinessRuleException("Shipment %s is not being returned to its sender.".formatted(shipment.getShipmentNumber()));
+        }
+        if (shipment.getStatus() != ShipmentStatus.IN_SCAN || !Objects.equals(shipment.getCurrentLocationId(), shipment.getBookingBranchId())) {
+            throw new BusinessRuleException("Shipment %s is not back at its booking branch yet (currently %s).".formatted(
+                    shipment.getShipmentNumber(), shipment.getStatus()));
+        }
+        if (receivedBy == null || receivedBy.isBlank()) {
+            throw new BusinessRuleException("Enter who received the parcel back.");
+        }
+        String who = receivedBy.trim().length() > 120 ? receivedBy.trim().substring(0, 120) : receivedBy.trim();
+        ShipmentStatus previous = shipment.getStatus();
+        shipment.transitionTo(ShipmentStatus.RETURNED);
+        shipment.setRtoDeliveredAt(Instant.now());
+        shipment.setRtoHandedTo(who);
+        Shipment saved = shipmentRepository.save(shipment);
+        String note = "Returned to sender, received by " + who + (remarks == null || remarks.isBlank() ? "" : " — " + remarks.trim());
+        appendHistory(saved, companyId, previous, ShipmentStatus.RETURNED, note, saved.getCurrentLocationId(), null, null);
+        recordAsset(saved.getId(), companyId, ShipmentAssetType.POD, "PHOTO", photoUrl);
+        auditService.record(AuditAction.SHIPMENT_RETURNED, ENTITY, saved.getId(),
+                Map.of("shipmentNumber", saved.getShipmentNumber(), "receivedBy", who, "step", "RTO_DELIVERED"));
         eventPublisher.publishEvent(new ShipmentEvent.Returned(saved.getId(), companyId, Instant.now()));
         return saved;
     }
@@ -2110,6 +2195,10 @@ public class ShipmentServiceImpl implements ShipmentService {
         UUID companyId = requireCompany();
         Shipment shipment = loadOrThrow(shipmentId, companyId);
 
+        if (shipment.isRto()) {
+            throw new BusinessRuleException("Shipment %s is being returned to its sender: hand it back at the booking branch instead."
+                    .formatted(shipment.getShipmentNumber()));
+        }
         if (shipment.getStatus() != ShipmentStatus.OUT_FOR_DELIVERY) {
             throw new BusinessRuleException("Shipment %s is %s — only an OUT_FOR_DELIVERY shipment "
                     .formatted(shipment.getShipmentNumber(), shipment.getStatus())

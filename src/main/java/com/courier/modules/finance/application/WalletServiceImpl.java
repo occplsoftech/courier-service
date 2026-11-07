@@ -706,6 +706,32 @@ public class WalletServiceImpl implements WalletService {
                 "COD collected for shipment " + command.shipmentNumber());
     }
 
+    @Override
+    @Transactional
+    public WalletTransaction debitRtoForCustomer(com.courier.modules.finance.application.command.CustomerRtoChargeCommand command) {
+        UUID companyId = requireCompany();
+        BigDecimal amount = requirePositiveAmount(command.amount());
+        String ref = command.bookingId().toString();
+        customerWallets.getForCustomer(command.customerId());
+        // Locked first so two return signals for one booking serialise and the second sees the first's debit.
+        Wallet wallet = lockOwned(Owner.customer(command.customerId()), companyId);
+        Optional<WalletTransaction> already = transactionRepository
+                .findSettledByReferenceWithinCompany(ReferenceType.PORTAL_BOOKING, ref, companyId).stream()
+                .filter(t -> t.getSubTransactionType() == SubTransactionType.RTO && wallet.getId().equals(t.getWalletId()))
+                .findFirst();
+        if (already.isPresent()) {
+            return already.get();
+        }
+        WalletTransaction entry = post(wallet, companyId, TransactionType.DR, SubTransactionType.RTO, amount,
+                ReferenceType.PORTAL_BOOKING, ref, "Return to sender charge for " + command.reference(), null, null);
+        log.info("Wallet {} debited {} {} RTO charge for portal booking {}", wallet.getWalletNumber(), wallet.getCurrency(),
+                amount.toPlainString(), ref);
+        auditService.record(AuditAction.WALLET_DEBITED, ENTITY, wallet.getId(), ledgerDetails(wallet, entry));
+        eventPublisher.publishEvent(new WalletEvent.WalletDebited(wallet.getId(), companyId, null, entry.getId(),
+                SubTransactionType.RTO, amount, entry.getBalanceAfter(), Instant.now()));
+        return entry;
+    }
+
     // ------------------------------------------------------ customer wallets (money out)
 
     @Override
@@ -1186,7 +1212,7 @@ public class WalletServiceImpl implements WalletService {
         // see Wallet.applyDebitAllowingOverdraft's own doc. Every other debit type still
         // enforces no-overdraft.
         BigDecimal after = type.isCredit() ? wallet.applyCredit(amount)
-                : reason == SubTransactionType.TPY ? wallet.applyDebitAllowingOverdraft(amount)
+                : reason == SubTransactionType.TPY || reason == SubTransactionType.RTO ? wallet.applyDebitAllowingOverdraft(amount)
                 : wallet.applyDebit(amount);
 
         WalletTransaction entry = WalletTransaction.builder()

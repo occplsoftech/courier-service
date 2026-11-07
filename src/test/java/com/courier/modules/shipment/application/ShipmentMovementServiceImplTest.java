@@ -335,6 +335,25 @@ class ShipmentMovementServiceImplTest {
     // -------------------------------------------------------------------- inScan
 
     @Test
+    @DisplayName("a return in-scanned back at its booking branch waits to be handed back; no delivery-side money moves")
+    void inScanOfAReturnAtTheBookingBranch() {
+        Shipment shipment = shipment(ShipmentStatus.DISPATCHED);
+        shipment.setRto(true);
+        shipment.setDeliveryBranchId(BOOKING_BRANCH);
+        shipment.setNextLocationId(BOOKING_BRANCH);
+        when(shipmentRepository.findByCompanyIdAndTrackingNumber(COMPANY, shipment.getTrackingNumber()))
+                .thenReturn(Optional.of(shipment));
+        when(shipmentRepository.save(any(Shipment.class))).thenAnswer(i -> i.getArgument(0));
+
+        var result = service.inScan(BOOKING_BRANCH, List.of(shipment.getTrackingNumber()), null, null, null, null);
+
+        assertThat(result.failureCount()).isZero();
+        assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.IN_SCAN);
+        assertThat(shipment.getCurrentLocationId()).isEqualTo(BOOKING_BRANCH);
+        org.mockito.Mockito.verify(eventPublisher, org.mockito.Mockito.never()).publishEvent(any(Object.class));
+    }
+
+    @Test
     @DisplayName("inScan refuses a shipment that is not DISPATCHED")
     void inScanRefusesWrongStatus() {
         Shipment shipment = shipment(ShipmentStatus.MANIFEST_CREATED);

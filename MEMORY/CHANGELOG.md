@@ -8,6 +8,15 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-07 — Phase 12.1 A (backend): return to sender as a tracked trip back, and the RTO charge
+
+- **OCCPL return trip (V161 `shipments.rto`, `rto_started_at`, `rto_delivered_at`, `rto_handed_to`).** `POST /shipments/{id}/return` no longer ends the shipment: it sets `rto`, points `delivery_branch_id`/`next_location_id` at the booking branch and moves it to READY_FOR_MANIFEST at the delivery branch (new edges IN_SCAN/OUT_FOR_DELIVERY → READY_FOR_MANIFEST), so the normal Load Sheet → dispatch → in-scan carries it back (a direct leg). In-scan at the booking branch = IN_SCAN with no delivery-side money (no TO_PAY debit, no commission, no "arrived" message). Delivered from its own booking branch, it waits there. `POST /shipments/{id}/hand-back` {receivedBy, remarks, photoUrl} ends it RETURNED. A return cannot be delivered or put out for delivery. `GET /shipments/returns` = staff queue (`backAtOrigin` when ready to hand back). `ShipmentResponse.rto`, list row `rto`.
+- **Events:** `ShipmentEvent.RtoStarted` → RTO_INITIATED message; `Returned` (now at hand-back) → RTO_DELIVERED.
+- **RTO charge = forward freight** (the quoted freight + its share of OCCPL's service charge, no GST), debited once per portal booking: new wallet type `RTO` (may take the wallet below zero, like TPY; never refunded with the booking). OCCPL bookings on RtoStarted (`PortalRtoListener`), outside couriers when tracking first reads a RETURNED stage. Stored on `portal_bookings.rto_charge`/`rto_charged_at` (V161); `BookingDetail.rtoCharge`/`rtoChargedAt`. Counter shipments are not charged.
+- Portal OCCPL tracking text: "Returning to you (RTO)" / "Returned to you (RTO delivered)".
+
+---
+
 ## 2026-11-07 — Phase 11.6 (backend): minimum freight and tiered slabs on customer rate cards
 
 - `customer_zone_rates.min_freight` (V160, default 0 = none): freight = max(slab freight, minimum), before fuel %. `Quote.minFreightApplied`; the portal's OCCPL quote notes "Minimum freight applies".

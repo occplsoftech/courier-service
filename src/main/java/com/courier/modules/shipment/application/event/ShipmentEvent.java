@@ -207,8 +207,12 @@ public sealed interface ShipmentEvent {
     record DeliveryFailed(UUID shipmentId, UUID companyId, Instant occurredAt) implements ShipmentEvent {
     }
 
-    /** The shipment was returned to the sender after failed delivery attempts (Phase 10.2). */
+    /** The booking branch handed the shipment back to its sender (RTO delivered, Phase 12.1). */
     record Returned(UUID shipmentId, UUID companyId, Instant occurredAt) implements ShipmentEvent {
+    }
+
+    /** Return to sender started: the parcel is on its way back to the booking branch (Phase 12.1). */
+    record RtoStarted(UUID shipmentId, UUID companyId, String shipmentNumber, Instant occurredAt) implements ShipmentEvent {
     }
 
     record Dispatched(UUID shipmentId, UUID companyId, Instant occurredAt) implements ShipmentEvent {

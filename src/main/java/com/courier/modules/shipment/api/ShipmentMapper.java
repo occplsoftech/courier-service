@@ -151,7 +151,16 @@ public class ShipmentMapper {
                 items.stream().map(this::toResponse).toList(),
                 s.getForwardState() == null ? null : new ShipmentResponse.ForwardInfo(s.getForwardProvider(), s.getForwardService(),
                         s.getForwardState(), s.getForwardAwb(), s.getForwardLabelUrl(), s.getForwardCost(), s.getForwardedAt(), s.getForwardNote()),
-                undelivered(s), s.getCodAmount(), s.getCodCollectedAt());
+                undelivered(s), s.getCodAmount(), s.getCodCollectedAt(), rto(s));
+    }
+
+    static ShipmentResponse.RtoInfo rto(Shipment s) {
+        if (!s.isRto()) {
+            return null;
+        }
+        boolean back = s.getStatus() == com.courier.modules.shipment.domain.ShipmentStatus.IN_SCAN
+                && java.util.Objects.equals(s.getCurrentLocationId(), s.getBookingBranchId());
+        return new ShipmentResponse.RtoInfo(s.getRtoStartedAt(), back, s.getRtoDeliveredAt(), s.getRtoHandedTo());
     }
 
     /** The last failed delivery attempt, or null when none failed. */
@@ -229,7 +238,7 @@ public class ShipmentMapper {
                 charge == null ? null : charge.getBranchCommissionOnOtherAmount(),
                 charge == null ? null : charge.getCompanyCommissionOnBasicFreight(),
                 s.getStatus(), deliveredAt, s.getCreatedAt(), s.getVersion(), invoiceNumber, receivedAt,
-                ewayBillNumber, s.getNumberOfPackages(), undelivered(s), s.getCodAmount());
+                ewayBillNumber, s.getNumberOfPackages(), undelivered(s), s.getCodAmount(), s.isRto());
     }
 
     public ShipmentItemResponse toResponse(ShipmentItem i) {

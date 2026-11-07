@@ -48,6 +48,7 @@ public record ShipmentSummaryResponse(
         /** Set once a delivery attempt failed (Phase 10.2), so the Delivery list can show it. */
         ShipmentResponse.UndeliveredInfo undelivered,
         /** Portal COD: the amount to collect from the receiver for the customer; null otherwise. */
-        java.math.BigDecimal codAmount
+        java.math.BigDecimal codAmount,
+        @io.swagger.v3.oas.annotations.media.Schema(description = "Being (or was) returned to the sender") boolean rto
 ) {
 }

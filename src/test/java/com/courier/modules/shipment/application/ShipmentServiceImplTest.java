@@ -893,19 +893,80 @@ class ShipmentServiceImplTest {
     }
 
     @Test
-    @DisplayName("return to sender ends the shipment as Returned, closes the case and tells the customer")
+    @DisplayName("return to sender starts the trip back: next stop and delivery branch become the booking branch, ready for a Load Sheet")
     void returnsToSender() {
         Shipment s = openCase();
 
         Shipment r = service.returnToSender(s.getId(), "3 attempts");
 
-        assertThat(r.getStatus()).isEqualTo(ShipmentStatus.RETURNED);
+        assertThat(r.getStatus()).isEqualTo(ShipmentStatus.READY_FOR_MANIFEST);
+        assertThat(r.isRto()).isTrue();
+        assertThat(r.getRtoStartedAt()).isNotNull();
+        assertThat(r.getDeliveryBranchId()).isEqualTo(BOOKING_BRANCH);
+        assertThat(r.getNextLocationId()).isEqualTo(BOOKING_BRANCH);
+        assertThat(r.getCurrentLocationId()).isEqualTo(DELIVERY_BRANCH);
+        assertThat(r.getManifestId()).isNull();
         assertThat(r.isUndeliveredOpen()).isFalse();
-        verify(eventPublisher).publishEvent(org.mockito.ArgumentMatchers.isA(ShipmentEvent.Returned.class));
+        verify(eventPublisher).publishEvent(org.mockito.ArgumentMatchers.isA(ShipmentEvent.RtoStarted.class));
+        verify(eventPublisher, never()).publishEvent(org.mockito.ArgumentMatchers.isA(ShipmentEvent.Returned.class));
+
+        assertThatThrownBy(() -> service.returnToSender(s.getId(), null)).isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("already on its way back");
 
         Shipment booked = existingShipment(ShipmentStatus.BOOKED);
         when(shipmentRepository.findByIdWithinCompany(booked.getId(), COMPANY)).thenReturn(Optional.of(booked));
         assertThatThrownBy(() -> service.returnToSender(booked.getId(), null)).isInstanceOf(BusinessRuleException.class);
+    }
+
+    @Test
+    @DisplayName("delivered from its own booking branch, a return waits there to be handed back (no trip)")
+    void returnAtTheBookingBranch() {
+        Shipment s = existingShipment(ShipmentStatus.OUT_FOR_DELIVERY);
+        s.setDeliveryBranchId(BOOKING_BRANCH);
+        s.setCurrentLocationId(BOOKING_BRANCH);
+        when(shipmentRepository.findByIdWithinCompany(s.getId(), COMPANY)).thenReturn(Optional.of(s));
+
+        Shipment r = service.returnToSender(s.getId(), null);
+
+        assertThat(r.getStatus()).isEqualTo(ShipmentStatus.IN_SCAN);
+        assertThat(r.isRto()).isTrue();
+    }
+
+    @Test
+    @DisplayName("hand back: only once back at the booking branch, with who received it; ends as Returned and tells the customer")
+    void handBack() {
+        Shipment s = existingShipment(ShipmentStatus.READY_FOR_MANIFEST);
+        s.setRto(true);
+        s.setCurrentLocationId(DELIVERY_BRANCH);
+        when(shipmentRepository.findByIdWithinCompany(s.getId(), COMPANY)).thenReturn(Optional.of(s));
+        assertThatThrownBy(() -> service.handBackToSender(s.getId(), "Asha", null, null)).isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("not back at its booking branch");
+
+        s.setStatus(ShipmentStatus.IN_SCAN);
+        s.setCurrentLocationId(BOOKING_BRANCH);
+        assertThatThrownBy(() -> service.handBackToSender(s.getId(), " ", null, null)).isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("who received");
+
+        Shipment r = service.handBackToSender(s.getId(), "Asha Shah", "sealed", null);
+        assertThat(r.getStatus()).isEqualTo(ShipmentStatus.RETURNED);
+        assertThat(r.getRtoHandedTo()).isEqualTo("Asha Shah");
+        assertThat(r.getRtoDeliveredAt()).isNotNull();
+        verify(eventPublisher).publishEvent(org.mockito.ArgumentMatchers.isA(ShipmentEvent.Returned.class));
+
+        Shipment normal = existingShipment(ShipmentStatus.IN_SCAN);
+        when(shipmentRepository.findByIdWithinCompany(normal.getId(), COMPANY)).thenReturn(Optional.of(normal));
+        assertThatThrownBy(() -> service.handBackToSender(normal.getId(), "x", null, null)).isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("not being returned");
+    }
+
+    @Test
+    @DisplayName("a parcel on its way back cannot be delivered to the receiver")
+    void returnCannotBeDelivered() {
+        Shipment s = existingShipment(ShipmentStatus.OUT_FOR_DELIVERY);
+        s.setRto(true);
+        when(shipmentRepository.findByIdWithinCompany(s.getId(), COMPANY)).thenReturn(Optional.of(s));
+        assertThatThrownBy(() -> service.deliver(s.getId(), null)).isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("hand it back");
     }
 
     @Test

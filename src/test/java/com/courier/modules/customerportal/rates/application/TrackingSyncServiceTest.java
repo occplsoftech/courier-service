@@ -168,6 +168,24 @@ class TrackingSyncServiceTest {
     }
 
     @Test
+    @DisplayName("a courier sending the parcel back charges the return to the customer (Phase 12.1); other stages do not")
+    void returnIsCharged() {
+        PortalRtoChargeService rto = mock(PortalRtoChargeService.class);
+        service.setRtoCharges(rto);
+        PortalBooking b = booked(NOW.minus(Duration.ofDays(1)));
+        when(bookings.findDueForTrackingSyncAcrossCompanies(eq(NOW), any())).thenReturn(List.of(b));
+        courierSays(TrackingResult.of("RTO Initiated", "AWB1", "Delhi", List.of()));
+
+        service.syncDue(NOW);
+        verify(rto).charge(COMPANY, b.getId());
+
+        org.mockito.Mockito.clearInvocations(rto);
+        courierSays(TrackingResult.of("In Transit", "AWB1", "Delhi", List.of()));
+        service.syncDue(NOW);
+        verify(rto, never()).charge(any(), any());
+    }
+
+    @Test
     @DisplayName("stages other than cancelled never touch the wallet")
     void otherStagesDoNotRefund() {
         PortalBooking b = booked(NOW.minus(Duration.ofDays(1)));

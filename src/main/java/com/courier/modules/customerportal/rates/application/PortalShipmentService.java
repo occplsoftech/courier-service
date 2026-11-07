@@ -282,7 +282,7 @@ public class PortalShipmentService {
                 BookingRequest.Party.of(snapshot.get("pickup")), BookingRequest.Party.of(snapshot.get("delivery")), parcel,
                 o == null ? List.of() : RateComparisonService.lines(o), b.getTotalAmount(), b.getCurrency(),
                 b.getSubmittedAt(), b.getBookedAt(), b.getCreatedAt(), delivery(b), cancellable(b), sched.date(), sched.slot(), PortalBookingService.PICKUP_SLOTS, deliveryIssue(b), proofOfDelivery(b),
-                codAmount(q, pkg), codAmount(q, pkg) == null ? null : codCollectedAt(b));
+                codAmount(q, pkg), codAmount(q, pkg) == null ? null : codCollectedAt(b), b.getRtoCharge(), b.getRtoChargedAt());
     }
 
     private static Set<PortalBooking.Status> statuses(String raw) {
@@ -385,7 +385,9 @@ public class PortalShipmentService {
                                 /** Who received it and when (and the photo and signature once approved); null until delivered. */
                                 com.courier.modules.customerportal.rates.domain.ProofOfDelivery proofOfDelivery,
                                 /** COD: the amount the courier collects from the receiver, and when it was paid into the wallet (OCCPL). */
-                                BigDecimal codAmount, Instant codCollectedAt) {
+                                BigDecimal codAmount, Instant codCollectedAt,
+                                /** Returned to the sender: what the wallet was charged for the return, and when; null when not returned. */
+                                BigDecimal rtoCharge, Instant rtoChargedAt) {
     }
 
     public record Parcel(BigDecimal actualWeightKg, BigDecimal volumetricWeightKg, BigDecimal chargeableWeightKg,

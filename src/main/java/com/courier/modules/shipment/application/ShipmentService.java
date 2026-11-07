@@ -101,8 +101,18 @@ public interface ShipmentService {
     /** Open failed-delivery cases, oldest first: every one for the company admin, the ones at or for their branch otherwise. */
     List<Shipment> openUndelivered();
 
-    /** Ends the shipment as RETURNED (to the sender), from the branch or out for delivery; closes any open failed-attempt case. */
+    /**
+     * Starts the return to the sender (RTO), from the delivery branch or out for delivery; closes any open failed-attempt case.
+     * The shipment then travels back to its booking branch on a normal Load Sheet (or, delivered from its own booking branch,
+     * waits there) and ends with {@link #handBackToSender}.
+     */
     Shipment returnToSender(UUID shipmentId, String reason);
+
+    /** Returns on their way back to the sender or waiting to be handed back; a branch manager sees the ones at or for their branch. */
+    List<Shipment> openReturns();
+
+    /** The booking branch hands a returned parcel to its sender: RETURNED, recording who received it (and a photo). */
+    Shipment handBackToSender(UUID shipmentId, String receivedBy, String remarks, String photoUrl);
 
     Shipment create(CreateShipmentCommand command);
 

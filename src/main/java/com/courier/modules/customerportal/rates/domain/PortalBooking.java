@@ -88,6 +88,10 @@ public class PortalBooking extends CompanyOwnedEntity {
     @Column(name = "booked_at") private Instant bookedAt;
 
     /** The courier's latest delivery status (V135), kept by {@code TrackingSyncService}. */
+    /** The return-to-sender charge debited from the customer's wallet (Phase 12.1), and when; null until a return. */
+    @Column(name = "rto_charge", precision = 14, scale = 2) private BigDecimal rtoCharge;
+    @Column(name = "rto_charged_at") private Instant rtoChargedAt;
+
     @Column(name = "delivery_status", length = 30)
     @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
     private DeliveryStage deliveryStatus;

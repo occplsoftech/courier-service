@@ -249,15 +249,52 @@ public class ShipmentMovementController {
     }
 
     @PostMapping("/{shipmentId}/return")
-    @Operation(summary = "Return the shipment to the sender",
-            description = "From the delivery branch (IN_SCAN) or out for delivery. The shipment ends as RETURNED; the physical trip back is arranged by "
-                    + "the branch. The customer is told (return-to-origin message, when that template is active).")
+    @Operation(summary = "Start the return to the sender (RTO)",
+            description = "From the delivery branch (IN_SCAN) or out for delivery. The shipment goes back to its booking branch on a normal "
+                    + "Load Sheet (it is offered there with the booking branch as the next stop), is in-scanned there and handed back with "
+                    + "POST /{id}/hand-back. Delivered from its own booking branch, it waits there to be handed back. A portal customer is "
+                    + "charged the forward freight once; the customer is told (return-to-origin message, when that template is active).")
     public ApiResponse<ShipmentResponse> returnToSender(@PathVariable UUID shipmentId,
                                                         @org.springframework.web.bind.annotation.RequestBody(required = false) ReturnRequest request) {
         Shipment s = shipmentService.returnToSender(shipmentId, request == null ? null : request.reason());
-        return ApiResponse.success(shipmentMapper.toResponse(s, shipmentService.getItems(s.getId()),
-                shipmentService.getDeliveryAssignment(s.getId()), shipmentService.getAssets(s.getId()),
-                shipmentService.getEwayBill(s.getId()).orElse(null)), "Shipment returned to sender");
+        return ApiResponse.success(full(s), "Return to sender started");
+    }
+
+    public record HandBackRequest(@jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max = 120) String receivedBy,
+                                  @jakarta.validation.constraints.Size(max = 200) String remarks,
+                                  @jakarta.validation.constraints.Size(max = 1024) String photoUrl) {
+    }
+
+    @PostMapping("/{shipmentId}/hand-back")
+    @Operation(summary = "Hand a returned parcel back to its sender",
+            description = "At the booking branch, once the return is in-scanned there (or right away when it was delivered from that branch). "
+                    + "Ends the shipment as RETURNED and records who received it.")
+    public ApiResponse<ShipmentResponse> handBack(@PathVariable UUID shipmentId, @Valid @org.springframework.web.bind.annotation.RequestBody HandBackRequest r) {
+        Shipment s = shipmentService.handBackToSender(shipmentId, r.receivedBy(), r.remarks(), r.photoUrl());
+        return ApiResponse.success(full(s), "Returned to sender");
+    }
+
+    public record ReturnCase(UUID id, String shipmentNumber, String trackingNumber, String senderName, String senderContact,
+                             String receiverName, String toCity, ShipmentStatus status, UUID currentLocationId, UUID bookingBranchId,
+                             boolean backAtOrigin, java.time.Instant rtoStartedAt, long daysOnTheWay) {
+    }
+
+    @GetMapping("/returns")
+    @Operation(summary = "Returns on their way back to the sender (staff queue)",
+            description = "Return to sender started and not handed back yet, oldest first. `backAtOrigin`: in-scanned at the booking branch, "
+                    + "ready to hand back. A branch manager sees the ones at or for their branch.")
+    public ApiResponse<java.util.List<ReturnCase>> returnsQueue() {
+        java.time.Instant now = java.time.Instant.now();
+        return ApiResponse.success(shipmentService.openReturns().stream().map(s -> new ReturnCase(s.getId(), s.getShipmentNumber(),
+                s.getTrackingNumber(), s.getSenderName(), s.getSenderContact(), s.getReceiverName(), s.getToCity(), s.getStatus(),
+                s.getCurrentLocationId(), s.getBookingBranchId(),
+                s.getStatus() == ShipmentStatus.IN_SCAN && java.util.Objects.equals(s.getCurrentLocationId(), s.getBookingBranchId()),
+                s.getRtoStartedAt(), s.getRtoStartedAt() == null ? 0 : java.time.Duration.between(s.getRtoStartedAt(), now).toDays())).toList());
+    }
+
+    private ShipmentResponse full(Shipment s) {
+        return shipmentMapper.toResponse(s, shipmentService.getItems(s.getId()), shipmentService.getDeliveryAssignment(s.getId()),
+                shipmentService.getAssets(s.getId()), shipmentService.getEwayBill(s.getId()).orElse(null));
     }
 
     @PostMapping("/{shipmentId}/override-status")
