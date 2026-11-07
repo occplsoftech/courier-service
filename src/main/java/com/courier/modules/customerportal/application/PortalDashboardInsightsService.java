@@ -90,7 +90,11 @@ public class PortalDashboardInsightsService {
         Instant now = clock.instant();
 
         List<PortalBooking> booked = bookings.findPage(acting.companyId(), acting.customerId(), EnumSet.of(PortalBooking.Status.BOOKED), "",
-                start, end, true, EnumSet.allOf(DeliveryStage.class), true, PageRequest.of(0, MAX_BOOKINGS)).getContent();
+                start, end, true, EnumSet.allOf(DeliveryStage.class), true, PageRequest.of(0, MAX_BOOKINGS)).getContent()
+                .stream()
+                // cancelled by the courier (the booking stays BOOKED but the money went back): not a shipment, not spend
+                .filter(b -> b.getDeliveryStatus() != DeliveryStage.CANCELLED)
+                .toList();
         Map<UUID, RateQuoteOption> optionById = booked.isEmpty() ? Map.of()
                 : options.findAllWithin(booked.stream().map(PortalBooking::getQuoteOptionId).distinct().toList(), acting.companyId())
                         .stream().collect(Collectors.toMap(RateQuoteOption::getId, Function.identity(), (a, b) -> a));

@@ -94,6 +94,8 @@ class PortalDashboardInsightsServiceTest {
         rto.setRtoCharge(new BigDecimal("50.00"));
         // just booked, no news yet, no estimate
         booking("OCCPL_NETWORK", "60.00", "2026-11-07T04:00:00Z", null, null, null);
+        // cancelled by the courier and refunded: left out of everything
+        booking("SHIPROCKET", "999.00", "2026-11-03T05:00:00Z", 2, DeliveryStage.CANCELLED, "2026-11-03T08:00:00Z");
         when(quotes.findOwned(late.getQuoteId(), COMPANY, CUSTOMER)).thenReturn(Optional.of(
                 RateQuote.builder().request(Map.of("delivery", Map.of("name", "Ravi"))).build()));
 

@@ -8,6 +8,12 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-07 — Fix: dashboard counted courier-cancelled bookings
+
+- Found on dev right after 12.2 deployed: 24 shipments / ₹2,725 spend, but only 6 in the stage chart. A booking cancelled by the courier stays BOOKED (delivery stage CANCELLED, money refunded), so it was counted in shipments, spend and the courier split. `PortalDashboardInsightsService` now leaves bookings with delivery stage CANCELLED out of every figure.
+
+---
+
 ## 2026-11-07 — Phase 12.2 (backend): customer dashboard insights
 
 - `GET /customer-portal/dashboard/insights?period=LAST_7_DAYS|LAST_30_DAYS|LAST_90_DAYS|THIS_MONTH` (default 30 days), `PortalDashboardInsightsService`: every BOOKED portal booking of the customer in the period (any courier; by booking day, India). Returns shipments, spend (booking prices + RTO charges), average, on-time % (delivered by the end of booking day + the option's longest ETA, over delivered bookings with an ETA), need-attention (late ∪ failed delivery waiting for the customer's choice, each shipment once), spend per day (per Monday week for 90 days, no gaps), bookings by delivery stage, courier split (shipments, spend, on-time %, biggest spend first), up to ten late shipments (days late, promised date, recipient) and up to ten waiting for an answer. `ShipmentPortalQueries.awaitingDeliveryChoice`.
