@@ -189,7 +189,7 @@ public class PortalShipmentService {
                 o == null ? null : o.getServiceName(), o == null ? null : o.getTransportMode(), b.getProviderOrderRef(),
                 b.getAwbNumber(), pickup.city(), pickup.pincode(), delivery.name(), delivery.city(), delivery.pincode(),
                 row.quote() == null ? null : row.quote().getPackageCount(), b.getTotalAmount(), b.getCurrency(),
-                b.getCreatedAt(), b.getBookedAt(), delivery(b));
+                b.getCreatedAt(), b.getBookedAt(), delivery(b), b.getReturnOfBookingId() != null);
     }
 
     private static Delivery delivery(PortalBooking b) {
@@ -255,6 +255,10 @@ public class PortalShipmentService {
         if (b.getStatus() != PortalBooking.Status.BOOKED) {
             return false;
         }
+        // Once the parcel is on its way (or delivered, or returned) there is no pickup left to cancel.
+        if (b.getDeliveryStatus() != null && b.getDeliveryStatus() != com.courier.modules.customerportal.rates.domain.DeliveryStage.AWAITING_PICKUP) {
+            return false;
+        }
         try {
             return adapter(b.getProviderCode()).canCancelBooking(b.getCompanyId(), b.getCustomerId(), b.getProviderOrderRef());
         } catch (RuntimeException e) {
@@ -282,7 +286,7 @@ public class PortalShipmentService {
                 BookingRequest.Party.of(snapshot.get("pickup")), BookingRequest.Party.of(snapshot.get("delivery")), parcel,
                 o == null ? List.of() : RateComparisonService.lines(o), b.getTotalAmount(), b.getCurrency(),
                 b.getSubmittedAt(), b.getBookedAt(), b.getCreatedAt(), delivery(b), cancellable(b), sched.date(), sched.slot(), PortalBookingService.PICKUP_SLOTS, deliveryIssue(b), proofOfDelivery(b),
-                codAmount(q, pkg), codAmount(q, pkg) == null ? null : codCollectedAt(b), b.getRtoCharge(), b.getRtoChargedAt());
+                codAmount(q, pkg), codAmount(q, pkg) == null ? null : codCollectedAt(b), b.getRtoCharge(), b.getRtoChargedAt(), b.getReturnOfBookingId());
     }
 
     private static Set<PortalBooking.Status> statuses(String raw) {
@@ -359,7 +363,19 @@ public class PortalShipmentService {
                                  String serviceName, String transportMode, String bookingReference, String trackingNumber,
                                  String pickupCity, String pickupPincode, String deliveryName, String deliveryCity,
                                  String deliveryPincode, Integer packageCount, BigDecimal totalAmount, String currency,
-                                 Instant createdAt, Instant bookedAt, Delivery deliveryStatus) {
+                                 Instant createdAt, Instant bookedAt, Delivery deliveryStatus,
+                                 /** A return pickup (collected from the buyer, brought back to the customer). */
+                                 boolean returnPickup) {
+
+        public BookingSummary(UUID bookingId, String status, String providerCode, String providerName, String serviceName,
+                              String transportMode, String bookingReference, String trackingNumber, String pickupCity,
+                              String pickupPincode, String deliveryName, String deliveryCity, String deliveryPincode,
+                              Integer packageCount, BigDecimal totalAmount, String currency, Instant createdAt, Instant bookedAt,
+                              Delivery deliveryStatus) {
+            this(bookingId, status, providerCode, providerName, serviceName, transportMode, bookingReference, trackingNumber,
+                    pickupCity, pickupPincode, deliveryName, deliveryCity, deliveryPincode, packageCount, totalAmount, currency,
+                    createdAt, bookedAt, deliveryStatus, false);
+        }
     }
 
     /**
@@ -387,7 +403,9 @@ public class PortalShipmentService {
                                 /** COD: the amount the courier collects from the receiver, and when it was paid into the wallet (OCCPL). */
                                 BigDecimal codAmount, Instant codCollectedAt,
                                 /** Returned to the sender: what the wallet was charged for the return, and when; null when not returned. */
-                                BigDecimal rtoCharge, Instant rtoChargedAt) {
+                                BigDecimal rtoCharge, Instant rtoChargedAt,
+                                /** A return pickup: the delivered booking it brings back (Phase 12.1 B); null for a normal booking. */
+                                UUID returnOfBookingId) {
     }
 
     public record Parcel(BigDecimal actualWeightKg, BigDecimal volumetricWeightKg, BigDecimal chargeableWeightKg,

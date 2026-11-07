@@ -33,5 +33,20 @@ public record PortalShipmentCommand(
         BigDecimal other,
         BigDecimal total,
         /** COD only: the amount to collect from the receiver (the customer's money); null otherwise. */
-        BigDecimal codAmount) {
+        BigDecimal codAmount,
+        /** A return pickup: collected from the customer's buyer, delivered to the customer (Phase 12.1 B). */
+        boolean returnPickup) {
+
+    /** A normal (outbound) portal shipment. */
+    public PortalShipmentCommand(UUID bookingBranchId, UUID businessCustomerId, String reference, String pickupPincode, String deliveryPincode,
+                                 String senderName, String senderAddress, String senderContact, String receiverName, String receiverAddress,
+                                 String receiverContact, String fromCity, String toCity, String paymentKind, String serviceCode, String contents,
+                                 BigDecimal declaredValue, int numberOfPackages, BigDecimal actualWeight, BigDecimal chargeableWeight,
+                                 BigDecimal length, BigDecimal breadth, BigDecimal height, BigDecimal freight, BigDecimal fuel, BigDecimal handling,
+                                 BigDecimal oda, BigDecimal insurance, BigDecimal gst, BigDecimal other, BigDecimal total, BigDecimal codAmount) {
+        this(bookingBranchId, businessCustomerId, reference, pickupPincode, deliveryPincode, senderName, senderAddress, senderContact,
+                receiverName, receiverAddress, receiverContact, fromCity, toCity, paymentKind, serviceCode, contents, declaredValue,
+                numberOfPackages, actualWeight, chargeableWeight, length, breadth, height, freight, fuel, handling, oda, insurance, gst,
+                other, total, codAmount, false);
+    }
 }

@@ -320,6 +320,11 @@ public class Shipment extends CompanyOwnedEntity {
     @Column(name = "undelivered_at")
     private java.time.Instant undeliveredAt;
 
+    /** A return pickup booked by a portal customer: collected from their buyer and delivered to them (V162, Phase 12.1 B). */
+    @Builder.Default
+    @Column(name = "return_pickup", nullable = false)
+    private boolean returnPickup = false;
+
     // ---- return to sender (V161, Phase 12.1) ------------------------------------------------------------------------------
 
     /** On its way back (or back) to the sender: its delivery branch is now the booking branch. */

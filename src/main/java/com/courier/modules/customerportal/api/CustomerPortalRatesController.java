@@ -43,7 +43,7 @@ public class CustomerPortalRatesController {
                     + "stored as a quote valid for `app.customer-portal.quote-validity` (30 minutes by default).")
     public ApiResponse<QuoteView> compare(@Valid @RequestBody CompareRequest request) {
         return ApiResponse.success(service.compare(new CompareCommand(request.pickup().toInput(),
-                request.delivery().toInput(), request.pkg().toInput())));
+                request.delivery().toInput(), request.pkg().toInput(), request.returnOfBookingId())));
     }
 
     @PostMapping("/rates/estimate")
@@ -113,6 +113,8 @@ public class CustomerPortalRatesController {
     }
 
     public record CompareRequest(@NotNull @Valid Party pickup, @NotNull @Valid Party delivery,
-                                 @NotNull @Valid Package pkg) {
+                                 @NotNull @Valid Package pkg,
+                                 /** A return pickup of this delivered booking (OCCPL Network, prepaid); omit for a normal booking. */
+                                 UUID returnOfBookingId) {
     }
 }

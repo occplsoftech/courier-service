@@ -226,6 +226,17 @@ class OccplNetworkAdapterTest {
     }
 
     @Test
+    @DisplayName("a return pickup tells the pickup team to collect from the buyer and bring it back")
+    void returnPickupRemarks() {
+        var b = booking();
+        var ret = new com.courier.modules.customerportal.rates.domain.BookingRequest(b.companyId(), b.customerId(), b.reference(),
+                b.serviceCode(), b.rate(), b.pickup(), b.delivery(), b.contents(), b.customerTotal(), b.charges(), b.chargeableWeightKg(),
+                null, UUID.randomUUID());
+        assertThat(OccplNetworkAdapter.remarks(ret)).startsWith("RETURN PICKUP: collect from the buyer and bring back to the customer.");
+        assertThat(OccplNetworkAdapter.remarks(b)).doesNotContain("RETURN PICKUP");
+    }
+
+    @Test
     @DisplayName("a refused pickup is a definite failure (nothing was created)")
     void pickupRefused() {
         served();

@@ -76,6 +76,7 @@ public class PortalBookingStore {
                 .totalAmount(option.getTotalAmount())
                 .currency(option.getCurrency())
                 .submittedAt(now)
+                .returnOfBookingId(PortalBookingService.returnOf(quote.getRequest()))
                 .build());
         return new Start(booking, quote, option, true);
     }

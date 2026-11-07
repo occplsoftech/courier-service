@@ -546,6 +546,7 @@ public class ShipmentServiceImpl implements ShipmentService {
                 .chargeableWeight(c.chargeableWeight() == null ? weight.chargeableWeight() : c.chargeableWeight())
                 .declaredValue(c.declaredValue())
                 .codAmount(c.codAmount() != null && c.codAmount().signum() > 0 ? c.codAmount() : null)
+                .returnPickup(c.returnPickup())
                 .numberOfPackages(Math.max(1, c.numberOfPackages()))
                 .status(ShipmentStatus.BOOKED)
                 .remarks(("Customer portal booking " + c.reference() + (c.contents() == null ? "" : ". Contents: " + c.contents())))
@@ -575,7 +576,8 @@ public class ShipmentServiceImpl implements ShipmentService {
         applyPortalCommission(charge, branchLookup.findCommissionRates(branch.branchId(), companyId).orElse(null));
         chargeRepository.save(charge);
 
-        appendHistory(saved, companyId, null, ShipmentStatus.BOOKED, "Booked from the customer portal; awaiting pickup");
+        appendHistory(saved, companyId, null, ShipmentStatus.BOOKED, c.returnPickup()
+                ? "Return pickup booked from the customer portal; collect from the buyer" : "Booked from the customer portal; awaiting pickup");
         auditService.record(AuditAction.SHIPMENT_BOOKED, ENTITY, saved.getId(),
                 Map.of("shipmentNumber", saved.getShipmentNumber(), "trackingNumber", saved.getTrackingNumber(),
                         "netAmount", c.total().toPlainString(), "source", "CUSTOMER_PORTAL"));

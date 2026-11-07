@@ -56,6 +56,8 @@ public class RateComparisonService {
     private final CustomerPortalProperties properties;
     private final ExecutorService executor;
     private final CustomerCourierAccessService access;
+    /** Checks the delivered booking a return pickup brings back (Phase 12.1 B); absent in tests that build the service by hand. */
+    private com.courier.modules.customerportal.rates.domain.PortalBookingRepository bookings;
 
     public RateComparisonService(CurrentCustomerResolver resolver, List<CourierProviderAdapter> adapters,
                                  MarkupRuleService markups, RateQuoteStore store, CompareRateLimiter limiter,
@@ -71,6 +73,13 @@ public class RateComparisonService {
         this.executor = executor;
         this.access = access;
     }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setBookings(com.courier.modules.customerportal.rates.domain.PortalBookingRepository bookings) {
+        this.bookings = bookings;
+    }
+
+    static final String OCCPL_NETWORK = "OCCPL_NETWORK";
 
     public QuoteView compare(CompareCommand c) {
         return compareInternal(c, true).view();
@@ -112,11 +121,17 @@ public class RateComparisonService {
             limiter.check(acting.userId());
         }
         RateRequest request = toRequest(acting, c);
+        Set<String> allowed = access.allowedCodes(request.companyId(), request.customerId());
+        if (c.returnOf() != null) {
+            requireReturnable(acting, c.returnOf(), request);
+            // A return pickup is collected by our own network only (outside couriers come later).
+            allowed = Set.of(OCCPL_NETWORK);
+        }
         BigDecimal volumetric = request.lengthCm().multiply(request.breadthCm()).multiply(request.heightCm())
                 .multiply(BigDecimal.valueOf(request.packageCount()))
                 .divide(BigDecimal.valueOf(properties.getVolumetricDivisor()), 3, RoundingMode.HALF_UP);
 
-        List<ProviderResult> results = askProviders(request, access.allowedCodes(request.companyId(), request.customerId()), true);
+        List<ProviderResult> results = askProviders(request, allowed, true);
         Instant now = Instant.now();
         Instant expires = now.plus(properties.getQuoteValidity());
 
@@ -416,6 +431,9 @@ public class RateComparisonService {
             pkg.put("codAmount", p.codAmount());
         }
         m.put("package", pkg);
+        if (c.returnOf() != null) {
+            m.put("returnOf", c.returnOf().toString());
+        }
         return m;
     }
 
@@ -512,7 +530,28 @@ public class RateComparisonService {
                                                BigDecimal maxLengthCm) {
     }
 
-    public record CompareCommand(PartyInput pickup, PartyInput delivery, PackageInput pkg) {
+    /** {@code returnOf}: the customer's delivered booking this return pickup brings back (Phase 12.1 B); null for a normal booking. */
+    public record CompareCommand(PartyInput pickup, PartyInput delivery, PackageInput pkg, UUID returnOf) {
+
+        public CompareCommand(PartyInput pickup, PartyInput delivery, PackageInput pkg) {
+            this(pickup, delivery, pkg, null);
+        }
+    }
+
+    /** A return pickup brings back one of this customer's delivered bookings, prepaid. */
+    private void requireReturnable(ActingCustomer acting, UUID returnOf, RateRequest request) {
+        if (request.paymentMode() != RateRequest.PaymentMode.PREPAID) {
+            throw new BusinessRuleException("A return pickup is prepaid from your wallet: choose Prepaid.");
+        }
+        if (bookings == null) {
+            return;
+        }
+        com.courier.modules.customerportal.rates.domain.PortalBooking original = bookings.findOwned(returnOf, acting.companyId(), acting.customerId())
+                .orElseThrow(() -> new com.courier.shared.exception.ResourceNotFoundException("Booking", returnOf));
+        if (original.getStatus() != com.courier.modules.customerportal.rates.domain.PortalBooking.Status.BOOKED
+                || original.getDeliveryStatus() != com.courier.modules.customerportal.rates.domain.DeliveryStage.DELIVERED) {
+            throw new BusinessRuleException("Only a delivered shipment can be picked up back from the buyer.");
+        }
     }
 
     public record BreakdownLine(String label, String component, BigDecimal amount) {

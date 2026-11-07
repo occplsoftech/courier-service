@@ -123,6 +123,58 @@ class RateComparisonServiceTest {
         verify(markups).resolve(eq(ACTING.companyId()), eq("SHIPROCKET"), eq(ACTING.customerId()), any());
     }
 
+    private static CompareCommand returnOf(UUID original, String payment) {
+        CompareCommand c = command("411016", "1");
+        PartyInput buyer = new PartyInput("Ravi", "9876543211", "12 Connaught Place", "110001", "New Delhi", "Delhi");
+        return new CompareCommand(buyer, c.pickup(), new PackageInput(new BigDecimal("1"), new BigDecimal("30"), new BigDecimal("20"),
+                new BigDecimal("10"), "CM", 1, "Garments", new BigDecimal("1500"), payment), original);
+    }
+
+    private com.courier.modules.customerportal.rates.domain.PortalBookingRepository bookingsWith(
+            com.courier.modules.customerportal.rates.domain.PortalBooking b) {
+        var repo = org.mockito.Mockito.mock(com.courier.modules.customerportal.rates.domain.PortalBookingRepository.class);
+        when(repo.findOwned(b.getId(), ACTING.companyId(), ACTING.customerId())).thenReturn(java.util.Optional.of(b));
+        return repo;
+    }
+
+    private static com.courier.modules.customerportal.rates.domain.PortalBooking original(
+            com.courier.modules.customerportal.rates.domain.DeliveryStage stage) {
+        var b = com.courier.modules.customerportal.rates.domain.PortalBooking.builder()
+                .status(com.courier.modules.customerportal.rates.domain.PortalBooking.Status.BOOKED).deliveryStatus(stage).build();
+        b.setId(UUID.randomUUID());
+        return b;
+    }
+
+    @Test
+    @DisplayName("a return pickup of a delivered booking is quoted on OCCPL Network only and remembers the booking it brings back")
+    void returnPickupIsOccplOnly() {
+        var delivered = original(com.courier.modules.customerportal.rates.domain.DeliveryStage.DELIVERED);
+        RateComparisonService svc = service(
+                adapter("OCCPL_NETWORK", false, true, r -> priced("OCCPL_NETWORK", "100")),
+                adapter("SHIPROCKET", true, true, r -> priced("SHIPROCKET", "90")));
+        svc.setBookings(bookingsWith(delivered));
+
+        QuoteView q = svc.compare(returnOf(delivered.getId(), "PREPAID"));
+
+        assertThat(q.options()).extracting(RateComparisonService.OptionView::providerCode).containsExactly("OCCPL_NETWORK");
+        org.mockito.ArgumentCaptor<RateQuote> saved = org.mockito.ArgumentCaptor.forClass(RateQuote.class);
+        verify(store).save(saved.capture(), anyList());
+        assertThat(saved.getValue().getRequest()).containsEntry("returnOf", delivered.getId().toString());
+    }
+
+    @Test
+    @DisplayName("a return pickup must be prepaid and of a delivered booking")
+    void returnPickupRules() {
+        var inTransit = original(com.courier.modules.customerportal.rates.domain.DeliveryStage.IN_TRANSIT);
+        RateComparisonService svc = service(adapter("OCCPL_NETWORK", false, true, r -> priced("OCCPL_NETWORK", "100")));
+        svc.setBookings(bookingsWith(inTransit));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> svc.compare(returnOf(inTransit.getId(), "COD")))
+                .hasMessageContaining("prepaid");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> svc.compare(returnOf(inTransit.getId(), "PREPAID")))
+                .hasMessageContaining("Only a delivered shipment");
+    }
+
     @Test
     @DisplayName("a customer given only one courier sees only that courier, and the others are not even listed as unavailable")
     void onlyAssignedCouriers() {

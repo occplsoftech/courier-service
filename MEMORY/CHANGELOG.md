@@ -8,6 +8,15 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-07 — Phase 12.1 B (backend): reverse pickup on OCCPL Network
+
+- `POST /customer-portal/rates/compare` takes optional `returnOfBookingId`: a return pickup of one of the customer's own **delivered** bookings. It must be PREPAID and is offered on **OCCPL Network only** (outside couriers later). The quote snapshot keeps `returnOf`; the booking stores `portal_bookings.return_of_booking_id` (V162).
+- The OCCPL booking flags the shipment `shipments.return_pickup` (V162), its first history line says "Return pickup ... collect from the buyer", and the pickup remarks start "RETURN PICKUP: collect from the buyer and bring back to the customer." The pickup lands at the branch serving the buyer's pincode as any pickup does.
+- `BookingDetail.returnOfBookingId`, `BookingSummary.returnPickup`; staff `ShipmentResponse.returnPickup` and list `returnPickup`.
+- A booking whose parcel is on its way (any stage after awaiting pickup) is no longer `cancellable`, which also hides the portal's Cancel booking / Change pickup time.
+
+---
+
 ## 2026-11-07 — Fix: RTO charge and COD credit refused for non-finance callers
 
 - Still found in the live dev test after the transaction fix: `WalletServiceImpl.debitRtoForCustomer` (12.1) and `creditCodForCustomer` (11.3) looked the wallet up through `CustomerWalletService.getForCustomer`, which is `@PreAuthorize` company admin / finance only. The RTO charge runs as the customer viewing the booking, branch staff or the background tracking job, and the COD credit as whoever delivered the parcel (a branch user or delivery boy), so both were refused and only logged. Both now use `provisionForCustomer(companyId, customerId)` (the customer id comes from our own booking/shipment).

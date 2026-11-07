@@ -321,7 +321,17 @@ public class PortalBookingService {
                 str(pkg.get("contents")), booking.getTotalAmount(),
                 RateComparisonService.lines(option).stream().map(l -> new com.courier.modules.customerportal.rates.domain.ChargeLine(
                         l.label(), l.label(), component(l.component()), l.amount())).toList(),
-                option.getChargeableWeightKg());
+                option.getChargeableWeightKg(), null, returnOf(snapshot));
+    }
+
+    /** The delivered booking a return pickup brings back, as stored on its quote (Phase 12.1 B). */
+    static UUID returnOf(Map<String, Object> snapshot) {
+        Object v = snapshot == null ? null : snapshot.get("returnOf");
+        try {
+            return v == null ? null : UUID.fromString(v.toString());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private static com.courier.modules.customerportal.rates.domain.ChargeComponent component(String name) {
