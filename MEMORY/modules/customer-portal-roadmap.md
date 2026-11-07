@@ -96,7 +96,7 @@ Defaults agreed in the brief: courier collects from the branch/hub; customer pri
 | # | Item | Repos | Size |
 |---|---|---|---|
 | 12.1 | Return / RTO shipments and reverse pickup from the buyer — chosen: RTO charge = forward freight; OCCPL return tracked as a trip back (Load Sheet to the booking branch, hand back); reverse pickup on OCCPL Network first. A done (return trip, hand back, RTO charge, portal steps); B backend done, screens next | CS, CW, EC | L |
-| 12.2 | Customer dashboard: spend, shipments by status, delays, courier split | CS, EC | M |
+| 12.2 | Customer dashboard: spend, shipments by status, delays, courier split — backend done (all couriers, period switch); portal page next | CS, EC | M |
 
 ## Phase 13 — Integrations and access control `[ ]`
 
