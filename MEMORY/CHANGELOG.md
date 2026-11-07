@@ -8,6 +8,12 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-07 — Return pickup flag for shipments a branch books by hand
+
+- Found in the live dev test of 12.1 B: when the buyer's pincode has no booking branch, the portal makes a plain pickup and the branch books the shipment later, so it lacked `return_pickup`. `PickupService.linkShipment` now publishes `PickupShipmentLinked`; `ReturnPickupLinkListener` (customer portal) flags the shipment through `ShipmentService.markReturnPickup` when the pickup belongs to a return-pickup booking (own transaction, idempotent).
+
+---
+
 ## 2026-11-07 — Phase 12.1 B (backend): reverse pickup on OCCPL Network
 
 - `POST /customer-portal/rates/compare` takes optional `returnOfBookingId`: a return pickup of one of the customer's own **delivered** bookings. It must be PREPAID and is offered on **OCCPL Network only** (outside couriers later). The quote snapshot keeps `returnOf`; the booking stores `portal_bookings.return_of_booking_id` (V162).
