@@ -167,6 +167,17 @@ class CustomerWalletMoneyOutTest {
     // ------------------------------------------------------------ return to sender (Phase 12.1)
 
     @Test
+    @DisplayName("the COD credit and the RTO charge never use the staff-only wallet lookup (a branch user, the customer or a job runs them)")
+    void systemPostingsDoNotNeedFinanceRole() {
+        service.creditCodForCustomer(new com.courier.modules.finance.application.command.CustomerCodCreditCommand(CUSTOMER,
+                new BigDecimal("10.00"), UUID.randomUUID(), "PUN-1"));
+        service.debitRtoForCustomer(new com.courier.modules.finance.application.command.CustomerRtoChargeCommand(CUSTOMER,
+                new BigDecimal("10.00"), BOOKING, "AWB1"));
+        org.mockito.Mockito.verify(customerWallets, org.mockito.Mockito.never()).getForCustomer(any());
+        org.mockito.Mockito.verify(customerWallets, org.mockito.Mockito.atLeast(2)).provisionForCustomer(TENANT, CUSTOMER);
+    }
+
+    @Test
     @DisplayName("an RTO charge is an RTO debit referenced to the booking, may take the wallet below zero, and is charged only once")
     void rtoChargeOnce() {
         var cmd = new com.courier.modules.finance.application.command.CustomerRtoChargeCommand(CUSTOMER, new BigDecimal("1200.00"), BOOKING, "AWB1");
