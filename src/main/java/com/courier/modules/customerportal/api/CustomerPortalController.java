@@ -49,6 +49,7 @@ public class CustomerPortalController {
     private final CustomerPortalShipmentTracking shipmentTracking;
     private final com.courier.modules.customerportal.application.CustomerPortalSubCustomerService subCustomers;
     private final com.courier.modules.customerportal.integrations.application.CourierLogoService courierLogos;
+    private final com.courier.modules.customerportal.application.PortalDashboardInsightsService insights;
 
     @GetMapping("/profile")
     @Operation(summary = "The signed-in customer's profile and addresses")
@@ -67,6 +68,17 @@ public class CustomerPortalController {
     @Operation(summary = "Shipment counts by stage and the most recent shipments")
     public ApiResponse<Dashboard> dashboard() {
         return ApiResponse.success(dashboardService.dashboard());
+    }
+
+    @GetMapping("/dashboard/insights")
+    @Operation(summary = "Dashboard for a period: spend, where the parcels are, on-time, courier split, late and failed shipments",
+            description = "Every booking the customer made in the period (any courier), by the day it was booked (India). `period`: "
+                    + "LAST_7_DAYS, LAST_30_DAYS (default), LAST_90_DAYS or THIS_MONTH. Spend = booking prices + return charges. "
+                    + "On-time = delivered within the courier's longest estimate, over delivered bookings that had one.")
+    public ApiResponse<com.courier.modules.customerportal.application.PortalDashboardInsightsService.Insights> insights(
+            @org.springframework.web.bind.annotation.RequestParam(required = false)
+            com.courier.modules.customerportal.application.PortalDashboardInsightsService.Period period) {
+        return ApiResponse.success(insights.insights(period));
     }
 
     @GetMapping("/pincodes/{pincode}")
