@@ -7,9 +7,10 @@ import com.courier.modules.customerportal.rates.domain.RateQuoteOptionRepository
 import com.courier.modules.finance.application.WalletService;
 import com.courier.modules.finance.application.command.CustomerRtoChargeCommand;
 import com.courier.shared.company.CompanyContext;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
@@ -26,13 +27,25 @@ import java.util.UUID;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class PortalRtoChargeService {
 
     private final PortalBookingRepository bookings;
     private final RateQuoteOptionRepository options;
     private final WalletService walletService;
+    /**
+     * Always a transaction of its own: the charge runs right after the return was committed (an AFTER_COMMIT listener, where joining
+     * the finished transaction would silently drop the write) or from a customer's read-only tracking view.
+     */
     private final TransactionTemplate tx;
+
+    public PortalRtoChargeService(PortalBookingRepository bookings, RateQuoteOptionRepository options, WalletService walletService,
+                                  PlatformTransactionManager transactionManager) {
+        this.bookings = bookings;
+        this.options = options;
+        this.walletService = walletService;
+        this.tx = new TransactionTemplate(transactionManager);
+        this.tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    }
 
     /** Charges the booking an OCCPL Network shipment was issued for (none for a counter shipment). */
     public void chargeForShipment(UUID companyId, UUID shipmentId) {
