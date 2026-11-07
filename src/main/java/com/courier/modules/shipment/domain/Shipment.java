@@ -320,6 +320,24 @@ public class Shipment extends CompanyOwnedEntity {
     @Column(name = "undelivered_at")
     private java.time.Instant undeliveredAt;
 
+    // ---- return to sender (V161, Phase 12.1) ------------------------------------------------------------------------------
+
+    /** On its way back (or back) to the sender: its delivery branch is now the booking branch. */
+    @Builder.Default
+    @Column(name = "rto", nullable = false)
+    private boolean rto = false;
+
+    @Column(name = "rto_started_at")
+    private java.time.Instant rtoStartedAt;
+
+    /** When the booking branch handed it back to the sender (status RETURNED). */
+    @Column(name = "rto_delivered_at")
+    private java.time.Instant rtoDeliveredAt;
+
+    /** Who received it back. */
+    @Column(name = "rto_handed_to", length = 120)
+    private String rtoHandedTo;
+
     /** An attempt failed and nobody has acted yet (sent it out again, delivered or returned it). */
     @Builder.Default
     @Column(name = "undelivered_open", nullable = false)

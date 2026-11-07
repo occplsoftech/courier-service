@@ -390,6 +390,11 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
                 trackingNumber = t.shipment().trackingNumber() != null ? t.shipment().trackingNumber()
                         : t.shipment().shipmentNumber();
                 status = ProviderTimes.label(t.shipment().status().name());
+                if (t.shipment().rto()) {
+                    // Being sent back: the customer sees one plain step, not the hub-by-hub return legs.
+                    status = t.shipment().status() == com.courier.modules.shipment.domain.ShipmentStatus.RETURNED
+                            ? "Returned to you (RTO delivered)" : "Returning to you (RTO)";
+                }
                 for (ShipmentPortalQueries.PortalStep step : t.steps()) {
                     event(events, step.at(), ProviderTimes.label(step.status().name()), step.branchName(), null);
                     if (step.branchName() != null) {

@@ -32,7 +32,9 @@ public enum SubTransactionType {
     ADJ(Direction.BOTH, "Adjustment"),
     PNL(Direction.DEBIT, "Penalty"),
     DRS(Direction.CREDIT, "DRS Commission"),
-    DWC(Direction.CREDIT, "Delivery Weight Commission");
+    DWC(Direction.CREDIT, "Delivery Weight Commission"),
+    /** A customer's return-to-sender charge (Phase 12.1); may take the wallet below zero, like TPY. */
+    RTO(Direction.DEBIT, "RTO Charge");
 
     /** Which {@link TransactionType} a reason may be filed under. */
     public enum Direction {

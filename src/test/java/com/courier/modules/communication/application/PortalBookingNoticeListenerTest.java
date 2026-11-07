@@ -36,10 +36,12 @@ class PortalBookingNoticeListenerTest {
     }
 
     @Test
-    @DisplayName("a shipment returned to the sender sends the return-to-origin message")
+    @DisplayName("return to sender started sends the return-to-origin message; handed back sends the returned message")
     void returnedSendsRto() {
-        listener.on(new com.courier.modules.shipment.application.event.ShipmentEvent.Returned(booking, company, java.time.Instant.now()));
+        listener.on(new com.courier.modules.shipment.application.event.ShipmentEvent.RtoStarted(booking, company, "SH-1", java.time.Instant.now()));
         verify(orchestrator).handle(company, booking, CommunicationEventType.RTO_INITIATED);
+        listener.on(new com.courier.modules.shipment.application.event.ShipmentEvent.Returned(booking, company, java.time.Instant.now()));
+        verify(orchestrator).handle(company, booking, CommunicationEventType.RTO_DELIVERED);
     }
 
     @Test

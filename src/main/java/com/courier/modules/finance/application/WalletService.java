@@ -223,6 +223,13 @@ public interface WalletService {
     WalletTransaction creditCodForCustomer(com.courier.modules.finance.application.command.CustomerCodCreditCommand command);
 
     /**
+     * Debits a customer's wallet for the return to sender of one portal booking (Phase 12.1). It is owed whatever the balance, so it
+     * may take the wallet below zero. No {@code @PreAuthorize}: it runs after the return starts. Safe to repeat: a second call for
+     * the same booking returns the first entry.
+     */
+    WalletTransaction debitRtoForCustomer(com.courier.modules.finance.application.command.CustomerRtoChargeCommand command);
+
+    /**
      * Debits the delivery branch's wallet for a {@code TO_PAY} shipment the moment it is
      * in-scanned off its incoming Trip Hire Challan at its own final delivery branch
      * ({@code TPY}, referencing the shipment number) — not a crossing hub's in-scan, and not

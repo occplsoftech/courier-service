@@ -48,8 +48,14 @@ public record ShipmentResponse(
         @Schema(description = "Set when the shipment was handed to a courier partner from the hub") ForwardInfo forward,
         @Schema(description = "Set once a delivery attempt failed") UndeliveredInfo undelivered,
         @Schema(description = "Portal COD: the amount to collect from the receiver for the customer") BigDecimal codAmount,
-        @Schema(description = "When the COD amount was collected (and paid into the customer's wallet)") Instant codCollectedAt
+        @Schema(description = "When the COD amount was collected (and paid into the customer's wallet)") Instant codCollectedAt,
+        @Schema(description = "Set once a return to the sender started") RtoInfo rto
 ) {
+    /** Return to the sender: when it started, whether it is back at the booking branch, and when / to whom it was handed back. */
+    @Schema(name = "ShipmentRtoInfo")
+    public record RtoInfo(Instant startedAt, boolean backAtOrigin, Instant deliveredAt, String handedTo) {
+    }
+
     /** The last failed delivery attempt: why, when, how many so far, and whether it still waits for someone to act. */
     @Schema(name = "ShipmentUndeliveredInfo")
     public record UndeliveredInfo(int attempts, String reason, String reasonLabel, String note, Instant at, boolean open,

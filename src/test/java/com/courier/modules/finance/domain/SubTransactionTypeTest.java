@@ -62,13 +62,13 @@ class SubTransactionTypeTest {
                 .containsExactlyInAnyOrder(SubTransactionType.SBK, SubTransactionType.COD,
                         SubTransactionType.TPY, SubTransactionType.COM, SubTransactionType.BST,
                         SubTransactionType.MDB, SubTransactionType.TRO, SubTransactionType.ADJ,
-                        SubTransactionType.PNL);
+                        SubTransactionType.PNL, SubTransactionType.RTO);
     }
 
     @Test
-    @DisplayName("all fifteen codes exist and every one is labelled")
+    @DisplayName("all sixteen codes exist and every one is labelled")
     void catalogueIsComplete() {
-        assertThat(SubTransactionType.values()).hasSize(15);
+        assertThat(SubTransactionType.values()).hasSize(16);
         for (SubTransactionType type : SubTransactionType.values()) {
             assertThat(type.getLabel()).as(type.name()).isNotBlank();
             assertThat(type.name()).as("code is three letters").hasSize(3);

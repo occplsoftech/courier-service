@@ -64,6 +64,10 @@ public interface PortalBookingRepository extends JpaRepository<PortalBooking, UU
                                                                  @Param("unchecked") boolean includeUnchecked,
                                                                  org.springframework.data.domain.Pageable page);
 
+    /** The portal booking an OCCPL Network shipment was issued for, if any. */
+    @Query("select b from PortalBooking b where b.companyId = :companyId and b.shipmentId = :shipmentId")
+    List<PortalBooking> findByShipment(@Param("companyId") UUID companyId, @Param("shipmentId") UUID shipmentId);
+
     /** The providers this customer has booked with, for the history's courier filter. */
     @Query("select distinct b.providerCode from PortalBooking b where b.companyId = :companyId and b.customerId = :customerId")
     List<String> findProviderCodes(@Param("companyId") UUID companyId, @Param("customerId") UUID customerId);

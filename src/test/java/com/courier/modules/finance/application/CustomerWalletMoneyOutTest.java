@@ -164,6 +164,35 @@ class CustomerWalletMoneyOutTest {
         assertThat(wallet.getAvailableBalance()).isEqualByComparingTo("2250.00");
     }
 
+    // ------------------------------------------------------------ return to sender (Phase 12.1)
+
+    @Test
+    @DisplayName("an RTO charge is an RTO debit referenced to the booking, may take the wallet below zero, and is charged only once")
+    void rtoChargeOnce() {
+        var cmd = new com.courier.modules.finance.application.command.CustomerRtoChargeCommand(CUSTOMER, new BigDecimal("1200.00"), BOOKING, "AWB1");
+
+        WalletTransaction first = service.debitRtoForCustomer(cmd);
+
+        assertThat(first.getTransactionType()).isEqualTo(TransactionType.DR);
+        assertThat(first.getSubTransactionType()).isEqualTo(SubTransactionType.RTO);
+        assertThat(first.getReferenceType()).isEqualTo(ReferenceType.PORTAL_BOOKING);
+        assertThat(first.getReferenceId()).isEqualTo(BOOKING.toString());
+        assertThat(wallet.getAvailableBalance()).isEqualByComparingTo("-200.00");
+
+        ledgerHolds(first);
+        assertThat(service.debitRtoForCustomer(cmd)).isSameAs(first);
+        assertThat(wallet.getAvailableBalance()).isEqualByComparingTo("-200.00");
+    }
+
+    @Test
+    @DisplayName("a booking refund never gives back the RTO charge")
+    void refundLeavesRtoCharge() {
+        WalletTransaction rto = ledgerEntry(TransactionType.DR, SubTransactionType.RTO, "300.00");
+        ledgerHolds(rto);
+        assertThat(service.refundCustomerBooking(new com.courier.modules.finance.application.command.CustomerBookingRefundCommand(BOOKING, "x")))
+                .isEmpty();
+    }
+
     // ------------------------------------------------------------ paying for a booking
 
     @Test

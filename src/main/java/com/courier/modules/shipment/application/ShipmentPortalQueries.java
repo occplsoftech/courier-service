@@ -166,7 +166,7 @@ public class ShipmentPortalQueries {
     private static PortalShipment view(Shipment s) {
         return new PortalShipment(s.getId(), s.getShipmentNumber(), s.getTrackingNumber(), s.getBookingDate(),
                 s.getStatus(), s.getReceiverName(), s.getNumberOfPackages(), s.getChargeableWeight(),
-                s.getExpectedDeliveryDate(), s.getCreatedAt());
+                s.getExpectedDeliveryDate(), s.getCreatedAt(), s.isRto());
     }
 
     public record PortalTimeline(PortalShipment shipment, List<PortalStep> steps, Forwarded forwarded) {
@@ -186,6 +186,13 @@ public class ShipmentPortalQueries {
     /** What the portal shows of a shipment: no internal ids, charges or staff data. */
     public record PortalShipment(UUID id, String shipmentNumber, String trackingNumber, LocalDate bookingDate,
                                  ShipmentStatus status, String receiverName, Integer packages,
-                                 BigDecimal chargeableWeight, LocalDate expectedDeliveryDate, Instant createdAt) {
+                                 BigDecimal chargeableWeight, LocalDate expectedDeliveryDate, Instant createdAt, boolean rto) {
+
+        public PortalShipment(UUID id, String shipmentNumber, String trackingNumber, LocalDate bookingDate, ShipmentStatus status,
+                              String receiverName, Integer packages, BigDecimal chargeableWeight, LocalDate expectedDeliveryDate,
+                              Instant createdAt) {
+            this(id, shipmentNumber, trackingNumber, bookingDate, status, receiverName, packages, chargeableWeight, expectedDeliveryDate,
+                    createdAt, false);
+        }
     }
 }

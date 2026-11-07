@@ -80,22 +80,22 @@ Defaults agreed in the brief: courier collects from the branch/hub; customer pri
 | 10.1 | SMS / WhatsApp / email to the customer at booked, picked up, out for delivery, delivered (reuse Communication Center) | CS | M |
 | 10.2 | Delivery failed / undelivered: reason, the customer's choice (re-attempt, change address, return), staff queue — part a (failed attempt, reason, message) built; part b (choice + queue) next. Return = mark Returned; return due after 3 attempts / 7 days | CS, CW, EC | L |
 
-## Phase 11 — Money `[ ]`
+## Phase 11 — Money `[x]`
 
 | # | Item | Repos | Size |
 |---|---|---|---|
 | 11.1 | Proof of delivery download for the customer — done (name/time always, photo/signature once approved; printable POD) | CS, EC | S |
 | 11.2 | Credit customers: ledger, invoices and statement in the portal — done (read-only; approved invoices) | CS, EC | M |
-| 11.3 | **COD remittance** — chosen: separate amount to collect; collected COD paid straight into the customer's wallet on delivery (no remittance batches). Backend done; screens next | CS, CW, EC | L |
+| 11.3 | **COD remittance** — done: separate amount to collect; collected COD paid straight into the customer's wallet on delivery (no remittance batches) | CS, CW, EC | L |
 | 11.4 | **Commission** for portal shipments — done: same % as a counter booking, credited at in-scan/delivery; invoices match portal shipments by customer id | CS | M |
 | 11.5 | Per-customer markup screen for external couriers — done (Rate Master → Courier Markup: rules, add, end now, which markup applies) | CS, CW | M |
-| 11.6 | Rate card extras: minimum freight and tiered slab pricing (per card, both optional) — backend done; rate card screen next | CS, CW | M |
+| 11.6 | Rate card extras — done: minimum freight and tiered slab pricing (per card, both optional) | CS, CW | M |
 
 ## Phase 12 — Returns, reverse pickup, reports `[ ]`
 
 | # | Item | Repos | Size |
 |---|---|---|---|
-| 12.1 | Return / RTO shipments and reverse pickup from the buyer | CS, CW, EC | L |
+| 12.1 | Return / RTO shipments and reverse pickup from the buyer — chosen: RTO charge = forward freight; OCCPL return tracked as a trip back (Load Sheet to the booking branch, hand back); reverse pickup on OCCPL Network first. A backend done; screens, then B (reverse pickup) | CS, CW, EC | L |
 | 12.2 | Customer dashboard: spend, shipments by status, delays, courier split | CS, EC | M |
 
 ## Phase 13 — Integrations and access control `[ ]`

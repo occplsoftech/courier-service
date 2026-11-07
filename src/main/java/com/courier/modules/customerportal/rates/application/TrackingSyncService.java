@@ -45,6 +45,8 @@ public class TrackingSyncService {
     private final TransactionTemplate tx;
     private final WalletService walletService;
     private final org.springframework.context.ApplicationEventPublisher events;
+    /** Charges a return to the customer (Phase 12.1); absent in tests that build the service by hand. */
+    private PortalRtoChargeService rtoCharges;
 
     /** Without notifications (tests). */
     public TrackingSyncService(PortalBookingRepository bookings, List<CourierProviderAdapter> adapters,
@@ -63,6 +65,11 @@ public class TrackingSyncService {
         this.adapters = adapters;
         this.properties = properties;
         this.tx = tx;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setRtoCharges(PortalRtoChargeService rtoCharges) {
+        this.rtoCharges = rtoCharges;
     }
 
     /** One run of the background sync. Returns how many shipments were looked at. */
@@ -165,6 +172,10 @@ public class TrackingSyncService {
         tx.executeWithoutResult(s -> bookings.recordDelivery(id, companyId, stage, trim(text, 150), trim(location, 150), at, now, next));
         if (stage == DeliveryStage.CANCELLED) {
             refundCancelled(id, companyId);
+        }
+        if (stage == DeliveryStage.RETURNED && rtoCharges != null) {
+            // The courier is sending it back: the customer pays the forward freight once (Phase 12.1).
+            rtoCharges.charge(companyId, id);
         }
         // The Communication Center decides whether to tell anyone (outside couriers only) and never repeats a message.
         events.publishEvent(new com.courier.modules.customerportal.rates.domain.PortalBookingNotice(id, companyId, stage.name()));

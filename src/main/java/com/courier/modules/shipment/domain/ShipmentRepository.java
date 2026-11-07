@@ -42,6 +42,12 @@ public interface ShipmentRepository extends JpaRepository<Shipment, UUID>,
             + "and s.status = com.courier.modules.shipment.domain.ShipmentStatus.IN_SCAN order by s.undeliveredAt asc")
     List<Shipment> findOpenUndelivered(@Param("companyId") UUID companyId);
 
+    /** Returns still on their way back to the sender (or waiting to be handed back), oldest first (Phase 12.1). */
+    @Query("select s from Shipment s where s.companyId = :companyId and s.rto = true "
+            + "and s.status <> com.courier.modules.shipment.domain.ShipmentStatus.RETURNED "
+            + "and s.status <> com.courier.modules.shipment.domain.ShipmentStatus.CANCELLED order by s.rtoStartedAt asc")
+    List<Shipment> findOpenReturns(@Param("companyId") UUID companyId);
+
     @Query("select s from Shipment s where s.id = :id and s.companyId = :companyId")
     Optional<Shipment> findByIdWithinCompany(@Param("id") UUID id, @Param("companyId") UUID companyId);
 

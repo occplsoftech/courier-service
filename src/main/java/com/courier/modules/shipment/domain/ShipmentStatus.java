@@ -72,9 +72,10 @@ public enum ShipmentStatus {
             Map.entry(READY_FOR_MANIFEST, EnumSet.of(MANIFEST_CREATED, OUT_FOR_DELIVERY, CANCELLED, FORWARDED)),
             Map.entry(MANIFEST_CREATED, EnumSet.of(DISPATCHED, CANCELLED, BOOKED, READY_FOR_MANIFEST)),
             Map.entry(DISPATCHED, EnumSet.of(IN_SCAN, READY_FOR_MANIFEST)),
-            Map.entry(IN_SCAN, EnumSet.of(OUT_FOR_DELIVERY, RETURNED, FORWARDED)),
+            // READY_FOR_MANIFEST: return to sender started; it goes back to the booking branch on a Load Sheet (Phase 12.1)
+            Map.entry(IN_SCAN, EnumSet.of(OUT_FOR_DELIVERY, RETURNED, FORWARDED, READY_FOR_MANIFEST)),
             // IN_SCAN: the delivery attempt failed and the parcel is back at the delivery branch (Phase 10.2)
-            Map.entry(OUT_FOR_DELIVERY, EnumSet.of(DELIVERED, RETURNED, IN_SCAN)),
+            Map.entry(OUT_FOR_DELIVERY, EnumSet.of(DELIVERED, RETURNED, IN_SCAN, READY_FOR_MANIFEST)),
             Map.entry(DELIVERED, EnumSet.noneOf(ShipmentStatus.class)),
             Map.entry(RETURNED, EnumSet.noneOf(ShipmentStatus.class)),
             Map.entry(CANCELLED, EnumSet.noneOf(ShipmentStatus.class)),
