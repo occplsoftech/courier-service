@@ -691,7 +691,8 @@ public class WalletServiceImpl implements WalletService {
         UUID companyId = requireCompany();
         BigDecimal amount = requirePositiveAmount(command.amount());
         String ref = command.shipmentId().toString();
-        customerWallets.getForCustomer(command.customerId());
+        // Runs as whoever delivered the parcel (a branch user, a delivery boy): the staff-only getForCustomer would refuse them.
+        customerWallets.provisionForCustomer(companyId, command.customerId());
         // Locked first so two deliveries of one shipment serialise and the second sees the first's credit.
         Wallet wallet = lockOwned(Owner.customer(command.customerId()), companyId);
         Optional<WalletTransaction> already = transactionRepository
@@ -712,7 +713,8 @@ public class WalletServiceImpl implements WalletService {
         UUID companyId = requireCompany();
         BigDecimal amount = requirePositiveAmount(command.amount());
         String ref = command.bookingId().toString();
-        customerWallets.getForCustomer(command.customerId());
+        // Runs as the customer viewing the booking, branch staff, or the background tracking job: not the staff-only getForCustomer.
+        customerWallets.provisionForCustomer(companyId, command.customerId());
         // Locked first so two return signals for one booking serialise and the second sees the first's debit.
         Wallet wallet = lockOwned(Owner.customer(command.customerId()), companyId);
         Optional<WalletTransaction> already = transactionRepository

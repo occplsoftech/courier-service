@@ -8,6 +8,12 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-07 — Fix: RTO charge and COD credit refused for non-finance callers
+
+- Still found in the live dev test after the transaction fix: `WalletServiceImpl.debitRtoForCustomer` (12.1) and `creditCodForCustomer` (11.3) looked the wallet up through `CustomerWalletService.getForCustomer`, which is `@PreAuthorize` company admin / finance only. The RTO charge runs as the customer viewing the booking, branch staff or the background tracking job, and the COD credit as whoever delivered the parcel (a branch user or delivery boy), so both were refused and only logged. Both now use `provisionForCustomer(companyId, customerId)` (the customer id comes from our own booking/shipment).
+
+---
+
 ## 2026-11-07 — Fix: the RTO charge was not saved
 
 - Found in the live dev test of 12.1 A: the return worked end to end but the wallet was not charged. `PortalRtoChargeService` ran from an AFTER_COMMIT listener with a REQUIRED transaction, which joins the already-committed transaction, so the debit and the booking update were silently dropped (the same from a customer's read-only tracking view). It now always runs in a transaction of its own (REQUIRES_NEW).
