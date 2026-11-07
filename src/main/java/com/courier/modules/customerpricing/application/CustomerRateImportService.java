@@ -1,6 +1,7 @@
 package com.courier.modules.customerpricing.application;
 
 import com.courier.modules.customerpricing.application.PricingZoneService.LocationInput;
+import com.courier.modules.customerpricing.domain.SlabMode;
 import com.courier.modules.customerpricing.application.ZoneRateService.SaveCommand;
 import com.courier.modules.customerpricing.application.ZoneRateService.SlabInput;
 import com.courier.modules.districtfreight.domain.DistrictLookupPort;
@@ -65,6 +66,8 @@ public class CustomerRateImportService {
     static final String ODA = "ODA Charge";
     static final String FUEL = "Fuel Surcharge %";
     static final String FOV = "FOV %";
+    static final String MIN_FREIGHT = "Min Freight";
+    static final String SLAB_MODE = "Slab Pricing (WHOLE/TIERED)";
 
     private static String upTo(int i) { return "Slab " + i + " Up To (kg)"; }
 
@@ -72,7 +75,8 @@ public class CustomerRateImportService {
 
     private static String pricingOf(int i) { return "Slab " + i + " Pricing (PER_KG/FIXED)"; }
 
-    private static final List<String> FIXED = List.of(ZONE, DISTRICTS, SERVICE, MIN_WEIGHT, DOCKET, MATHADI, PACK, ODA, FUEL, FOV);
+    private static final List<String> FIXED = List.of(ZONE, DISTRICTS, SERVICE, MIN_WEIGHT, MIN_FREIGHT, SLAB_MODE, DOCKET, MATHADI, PACK, ODA, FUEL,
+            FOV);
 
     private final PricingZoneService zoneService;
     private final ZoneRateService rateService;
@@ -157,7 +161,9 @@ public class CustomerRateImportService {
                     "Slabs: 'Up To' is the heaviest weight the slab covers, 'Rate/kg' its price. Slab 1 starts above 0, the next above the previous Up To. Leave the last Up To blank for no limit.",
                     "Pricing: PER_KG (or blank) charges weight x the slab's rate. FIXED makes the rate a flat price for the whole slab: slab 0-10 kg at 100 FIXED costs 100 for 1 kg and 100 for 10 kg.",
                     "Min Chargeable Weight: the lightest weight a parcel is charged for (e.g. 20 for Cargo): a 5 kg parcel is then priced as 20 kg.",
-                    "With slabs 5 and 10: a 5 kg parcel is charged on slab 1, 5.3 kg on slab 2. The whole weight is charged at its slab's rate.",
+                    "Min Freight (optional): the least freight a parcel is charged: with 60, a parcel whose slab freight is 20 is charged 60. Blank = no minimum.",
+                    "Slab Pricing (optional): WHOLE (or blank) prices the whole weight at the slab it falls in. TIERED prices each slab's own kilos at its rate: slabs 0-5 @ 40 and 5-10 @ 30 make 7 kg = 5 x 40 + 2 x 30 = 260.",
+                    "With slabs 5 and 10: a 5 kg parcel is charged on slab 1, 5.3 kg on slab 2. The whole weight is charged at its slab's rate (unless Slab Pricing is TIERED).",
                     "A rate that already exists for the zone and service type is replaced. Nothing is saved until every row is correct and you confirm."};
             for (int i = 0; i < lines.length; i++) {
                 help.createRow(i).createCell(0).setCellValue(lines[i]);
@@ -358,7 +364,14 @@ public class CustomerRateImportService {
                 }
                 SaveCommand cmd = new SaveCommand(orZero(v.get(MIN_WEIGHT), "Min chargeable weight"), orZero(v.get(DOCKET), "Docket"),
                         orZero(v.get(MATHADI), "Mathadi"), orZero(v.get(PACK), "Pack"), orZero(v.get(ODA), "ODA"),
-                        percent(v.get(FUEL), "Fuel surcharge %"), percent(v.get(FOV), "FOV %"), null, null, slabs, null);
+                        percent(v.get(FUEL), "Fuel surcharge %"), percent(v.get(FOV), "FOV %"), null, null, slabs, null,
+                        orZero(v.get(MIN_FREIGHT), "Min freight"), slabMode(v.get(SLAB_MODE)));
+                if (cmd.minFreight().signum() > 0) {
+                    summary.append("; min freight ").append(plain(cmd.minFreight()));
+                }
+                if (cmd.slabMode() == SlabMode.TIERED) {
+                    summary.append("; tiered");
+                }
                 claimed.forEach(districtOwner::putIfAbsent); // only a fully valid row claims its districts
                 parsed.add(new Parsed(rowNo, zone, locations, names, type == null ? null : type.getId(),
                         type == null ? "All services" : type.getName(), cmd, summary.toString()));
@@ -368,6 +381,16 @@ public class CustomerRateImportService {
             }
         }
         return new Checked(rows, parsed);
+    }
+
+    private static SlabMode slabMode(String v) {
+        if (blank(v) || "WHOLE".equalsIgnoreCase(v.trim())) {
+            return SlabMode.WHOLE;
+        }
+        if ("TIERED".equalsIgnoreCase(v.trim())) {
+            return SlabMode.TIERED;
+        }
+        throw new BusinessRuleException("Slab pricing must be WHOLE or TIERED.");
     }
 
     private List<ServiceType> activeTypes(UUID companyId) {

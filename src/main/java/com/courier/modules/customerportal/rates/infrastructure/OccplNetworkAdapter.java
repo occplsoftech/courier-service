@@ -127,6 +127,10 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
         // A card with a minimum chargeable weight above 1 kg says so (e.g. Cargo: 20 kg), whatever the parcel weighs.
         String note = q.minChargeableWeight() != null && q.minChargeableWeight().compareTo(BigDecimal.ONE) > 0
                 ? "Minimum chargeable weight " + q.minChargeableWeight().stripTrailingZeros().toPlainString() + " kg" : null;
+        // A parcel charged the card's minimum freight says so, so a light parcel's price is not a surprise.
+        if (q.minFreightApplied()) {
+            note = note == null ? "Minimum freight applies" : note + " · minimum freight applies";
+        }
         if (c.serviceTypeId() == null) {
             return new ProviderRate(BUSINESS_SERVICE_CODE, "OCCPL Standard", "SURFACE", null, null, q.chargeableWeight(), lines,
                     BUSINESS_REFERENCE, null, note);

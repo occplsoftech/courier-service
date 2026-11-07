@@ -88,8 +88,8 @@ Defaults agreed in the brief: courier collects from the branch/hub; customer pri
 | 11.2 | Credit customers: ledger, invoices and statement in the portal — done (read-only; approved invoices) | CS, EC | M |
 | 11.3 | **COD remittance** — chosen: separate amount to collect; collected COD paid straight into the customer's wallet on delivery (no remittance batches). Backend done; screens next | CS, CW, EC | L |
 | 11.4 | **Commission** for portal shipments — done: same % as a counter booking, credited at in-scan/delivery; invoices match portal shipments by customer id | CS | M |
-| 11.5 | Per-customer markup screen for external couriers (backend rules exist) | CW | M |
-| 11.6 | Rate card extras: minimum freight field, tiered slab pricing (optional) | CS, CW | M |
+| 11.5 | Per-customer markup screen for external couriers — done (Rate Master → Courier Markup: rules, add, end now, which markup applies) | CS, CW | M |
+| 11.6 | Rate card extras: minimum freight and tiered slab pricing (per card, both optional) — backend done; rate card screen next | CS, CW | M |
 
 ## Phase 12 — Returns, reverse pickup, reports `[ ]`
 

@@ -87,7 +87,7 @@ public class CustomerRateController {
                 .map(s -> new SlabInput(s.minWeight(), s.maxWeight(), s.ratePerKg(), Boolean.TRUE.equals(s.fixedRate()))).toList();
         SaveCommand command = new SaveCommand(r.minChargeableWeight(), r.docketCharge(), r.mathadiCharge(),
                 r.packCharge(), r.odaCharge(), r.fuelSurchargePercent(), r.fovPercent(),
-                r.effectiveFrom(), r.effectiveTo(), slabs, r.version());
+                r.effectiveFrom(), r.effectiveTo(), slabs, r.version(), r.minFreight(), r.slabMode());
         return ApiResponse.success(toResponse(service.save(zoneId, serviceTypeId, command)), "Rate saved");
     }
 
@@ -118,7 +118,7 @@ public class CustomerRateController {
                 r.actualWeight(), r.declaredValue(), r.odaApplicable(), r.bookingDate(), r.serviceTypeId()));
         return ApiResponse.success(new CalculateResponse(q.zoneId(), q.zoneName(), q.actualWeight(),
                 q.chargeableWeight(), q.ratePerKg(), q.freight(), q.docketCharge(), q.mathadiCharge(),
-                q.packCharge(), q.odaCharge(), q.fuelSurcharge(), q.fovCharge(), q.total(), q.fixedRate()), "Rate calculated");
+                q.packCharge(), q.odaCharge(), q.fuelSurcharge(), q.fovCharge(), q.total(), q.fixedRate(), q.tiered(), q.minFreightApplied()), "Rate calculated");
     }
 
     private RateResponse toResponse(ZoneRateView v) {
@@ -130,6 +130,6 @@ public class CustomerRateController {
                 r.getServiceTypeId(), v.serviceTypeCode(), v.serviceTypeName(),
                 v.slabs().stream().map(s -> new SlabResponse(s.getId(), s.getMinWeight(), s.getMaxWeight(),
                         s.getRatePerKg(), s.isFixedRate())).toList(),
-                r.getCreatedAt(), r.getUpdatedAt(), r.getVersion());
+                r.getCreatedAt(), r.getUpdatedAt(), r.getVersion(), r.getMinFreight(), r.getSlabMode());
     }
 }

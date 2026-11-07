@@ -5,6 +5,7 @@ import com.courier.modules.customerpricing.application.ZoneRateService.QuoteComm
 import com.courier.modules.customerpricing.application.ZoneRateService.ServiceQuote;
 import com.courier.modules.customerpricing.domain.PricingZone;
 import com.courier.modules.customerpricing.domain.PricingZoneRepository;
+import com.courier.modules.customerpricing.domain.SlabMode;
 import com.courier.modules.customerpricing.domain.ZoneRate;
 import com.courier.modules.customerpricing.domain.ZoneRateRepository;
 import com.courier.modules.customerpricing.domain.ZoneRateSlab;
@@ -135,6 +136,93 @@ class ZoneRateServiceImplTest {
 
         assertThat(q.chargeableWeight()).isEqualByComparingTo("20");
         assertThat(q.freight()).isEqualByComparingTo("500");
+    }
+
+    private ZoneRateService.Quote priceCargo(ZoneRate card, List<ZoneRateSlab> cardSlabs, String kg) {
+        card.setId(UUID.randomUUID());
+        when(slabs.findByRate(COMPANY, card.getId())).thenReturn(cardSlabs);
+        when(rates.findByZoneAndServiceType(COMPANY, zone.getId(), CARGO)).thenReturn(Optional.of(card));
+        return service.calculate(new QuoteCommand(CUSTOMER, DISTRICT, null, new BigDecimal(kg), BigDecimal.ZERO, false, LocalDate.now(), CARGO));
+    }
+
+    private static List<ZoneRateSlab> fortyThenThirty() {
+        return List.of(
+                ZoneRateSlab.builder().minWeight(BigDecimal.ZERO).maxWeight(new BigDecimal("5")).ratePerKg(new BigDecimal("40")).build(),
+                ZoneRateSlab.builder().minWeight(new BigDecimal("5")).maxWeight(new BigDecimal("10")).ratePerKg(new BigDecimal("30")).build(),
+                ZoneRateSlab.builder().minWeight(BigDecimal.TEN).maxWeight(null).ratePerKg(new BigDecimal("20")).build());
+    }
+
+    @Test
+    @DisplayName("minimum freight: a parcel whose slab freight is below it is charged the minimum, and fuel % is on the minimum")
+    void minimumFreight() {
+        ZoneRate card = ZoneRate.builder().zoneId(zone.getId()).customerId(CUSTOMER).serviceTypeId(CARGO)
+                .minFreight(new BigDecimal("60")).fuelSurchargePercent(BigDecimal.TEN).build();
+        ZoneRateService.Quote light = priceCargo(card, fortyThenThirty(), "0.5");
+        assertThat(light.freight()).isEqualByComparingTo("60");
+        assertThat(light.minFreightApplied()).isTrue();
+        assertThat(light.fuelSurcharge()).isEqualByComparingTo("6");
+        assertThat(light.total()).isEqualByComparingTo("66");
+
+        ZoneRateService.Quote heavy = service.calculate(new QuoteCommand(CUSTOMER, DISTRICT, null, new BigDecimal("3"), BigDecimal.ZERO, false, LocalDate.now(), CARGO));
+        assertThat(heavy.freight()).isEqualByComparingTo("120");
+        assertThat(heavy.minFreightApplied()).isFalse();
+        assertThat(heavy.ratePerKg()).isEqualByComparingTo("40");
+    }
+
+    @Test
+    @DisplayName("whole-weight pricing (default) charges every kg at the slab the weight falls in: 7 kg = 7 x 30")
+    void wholeWeightIsTheDefault() {
+        ZoneRate card = ZoneRate.builder().zoneId(zone.getId()).customerId(CUSTOMER).serviceTypeId(CARGO).build();
+        ZoneRateService.Quote q = priceCargo(card, fortyThenThirty(), "7");
+        assertThat(q.freight()).isEqualByComparingTo("210");
+        assertThat(q.tiered()).isFalse();
+    }
+
+    @Test
+    @DisplayName("tiered pricing charges each slab's own kilos: 7 kg = 5 x 40 + 2 x 30; 12 kg = 200 + 150 + 2 x 20; 5 kg = 5 x 40")
+    void tieredSlabs() {
+        ZoneRate card = ZoneRate.builder().zoneId(zone.getId()).customerId(CUSTOMER).serviceTypeId(CARGO).slabMode(SlabMode.TIERED).build();
+        ZoneRateService.Quote seven = priceCargo(card, fortyThenThirty(), "7");
+        assertThat(seven.freight()).isEqualByComparingTo("260");
+        assertThat(seven.tiered()).isTrue();
+        assertThat(seven.ratePerKg()).isEqualByComparingTo("37.14");
+        assertThat(ZoneRateServiceImpl.tieredFreight(fortyThenThirty(), new BigDecimal("12"))).isEqualByComparingTo("390");
+        assertThat(ZoneRateServiceImpl.tieredFreight(fortyThenThirty(), new BigDecimal("5"))).isEqualByComparingTo("200");
+        assertThat(ZoneRateServiceImpl.tieredFreight(fortyThenThirty(), new BigDecimal("0.5"))).isEqualByComparingTo("20");
+    }
+
+    @Test
+    @DisplayName("tiered with a fixed first slab: the flat price, then the next slab's kilos per kg")
+    void tieredWithFixedSlab() {
+        List<ZoneRateSlab> fixedFirst = List.of(
+                ZoneRateSlab.builder().minWeight(BigDecimal.ZERO).maxWeight(BigDecimal.TEN).ratePerKg(new BigDecimal("100")).fixedRate(true).build(),
+                ZoneRateSlab.builder().minWeight(BigDecimal.TEN).maxWeight(null).ratePerKg(new BigDecimal("9")).build());
+        assertThat(ZoneRateServiceImpl.tieredFreight(fixedFirst, new BigDecimal("3"))).isEqualByComparingTo("100");
+        assertThat(ZoneRateServiceImpl.tieredFreight(fixedFirst, new BigDecimal("12"))).isEqualByComparingTo("118");
+    }
+
+    @Test
+    @DisplayName("save keeps the minimum freight and slab pricing; a negative minimum freight is refused")
+    void saveExtras() {
+        when(zones.findByIdWithinCompany(zone.getId(), COMPANY)).thenReturn(Optional.of(zone));
+        when(rates.findByZoneAndServiceType(COMPANY, zone.getId(), null)).thenReturn(Optional.empty());
+        org.mockito.ArgumentCaptor<ZoneRate> saved = org.mockito.ArgumentCaptor.forClass(ZoneRate.class);
+        // stop once the card is handed to the repository: only what is stored matters here
+        when(rates.save(saved.capture())).thenThrow(new IllegalStateException("stored"));
+        ZoneRateService.SaveCommand ok = new ZoneRateService.SaveCommand(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, null, null, List.of(slab("0", null, "40")), null, new BigDecimal("60"), SlabMode.TIERED);
+        assertThatThrownBy(() -> service.save(zone.getId(), null, ok)).hasMessage("stored");
+        assertThat(saved.getValue().getMinFreight()).isEqualByComparingTo("60");
+        assertThat(saved.getValue().getSlabMode()).isEqualTo(SlabMode.TIERED);
+
+        ZoneRateService.SaveCommand old = save(BigDecimal.ZERO, slab("0", null, "40"));
+        assertThatThrownBy(() -> service.save(zone.getId(), null, old)).hasMessage("stored");
+        assertThat(saved.getValue().getMinFreight()).isEqualByComparingTo("0");
+        assertThat(saved.getValue().getSlabMode()).isEqualTo(SlabMode.WHOLE);
+
+        ZoneRateService.SaveCommand bad = new ZoneRateService.SaveCommand(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, null, null, List.of(slab("0", null, "40")), null, new BigDecimal("-1"), null);
+        assertThatThrownBy(() -> service.save(zone.getId(), null, bad)).isInstanceOf(BusinessRuleException.class).hasMessageContaining("Minimum freight");
     }
 
     private ZoneRateService.SaveCommand save(BigDecimal minChargeable, ZoneRateService.SlabInput... slabs) {
