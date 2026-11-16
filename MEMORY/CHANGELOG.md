@@ -8,6 +8,12 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-16 — Phase 13.1: courier access enforced at booking
+
+- A quote is priced only with the customer's couriers but stays bookable for 30 minutes. The booking step now checks again, inside `PortalBookingStore.start` before the booking row exists and before any money moves (`PortalBookingService.requireBookable`): the courier is still in `CustomerCourierAccessService.allowedCodes` for the customer, it is still connected for the company (`adapter.configured(companyId)`), and a return pickup is OCCPL Network only. Refused: "<Courier> is no longer available to you. Compare rates again…" / "… is not connected right now…", nothing booked or charged, audit `PORTAL_BOOKING_REFUSED` (failure). Single, bulk (the row shows the message, other rows go on) and return-pickup booking all pass through it. Staff forwarding and estimates are unchanged.
+
+---
+
 ## 2026-11-07 — Fix: dashboard counted courier-cancelled bookings
 
 - Found on dev right after 12.2 deployed: 24 shipments / ₹2,725 spend, but only 6 in the stage chart. A booking cancelled by the courier stays BOOKED (delivery stage CANCELLED, money refunded), so it was counted in shipments, spend and the courier split. `PortalDashboardInsightsService` now leaves bookings with delivery stage CANCELLED out of every figure.
