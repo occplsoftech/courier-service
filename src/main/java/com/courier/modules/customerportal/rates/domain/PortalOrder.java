@@ -51,6 +51,13 @@ public class PortalOrder extends CompanyOwnedEntity {
     @Column(name = "external_ref", nullable = false, length = 80, updatable = false)
     private String externalRef;
 
+    /** The store connection it was imported from (13.3b), and the store's own id for the order (to send tracking back). */
+    @JdbcTypeCode(SqlTypes.BINARY)
+    @Column(name = "connection_id", columnDefinition = "BINARY(16)", updatable = false)
+    private UUID connectionId;
+
+    @Column(name = "external_id", length = 40, updatable = false) private String externalId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
@@ -86,4 +93,8 @@ public class PortalOrder extends CompanyOwnedEntity {
     private UUID bookingId;
 
     @Column(name = "booked_at") private Instant bookedAt;
+
+    /** SENT or FAILED: the tracking number sent back to the store after booking (13.3b). */
+    @Column(name = "shop_sync", length = 20) private String shopSync;
+    @Column(name = "shop_sync_error", length = 300) private String shopSyncError;
 }

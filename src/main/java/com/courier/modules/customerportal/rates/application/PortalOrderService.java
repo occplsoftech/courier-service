@@ -66,6 +66,18 @@ public class PortalOrderService {
     private final PortalBulkBookingService bulk;
     private final AuditService auditService;
 
+    /** Tells the store connection an order was booked (13.3b). Absent in tests that build the service by hand. */
+    private org.springframework.context.ApplicationEventPublisher events;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setEvents(org.springframework.context.ApplicationEventPublisher events) {
+        this.events = events;
+    }
+
+    /** Published after an order from a store is booked, so the tracking number can be sent back. */
+    public record OrderBooked(UUID companyId, UUID orderId) {
+    }
+
     // ------------------------------------------------------------------ input
 
     public record Buyer(String name, String phone, String address, String pincode, String city, String state) {
@@ -89,7 +101,7 @@ public class PortalOrderService {
 
     public record OrderView(UUID id, String source, String orderNumber, String status, Buyer buyer, Parcel parcel, Payment payment,
                             List<Map<String, Object>> items, String notes, Instant receivedAt, UUID bookingId, Instant bookedAt,
-                            String trackingNumber, String courier) {
+                            String trackingNumber, String courier, String shopSync, String shopSyncError) {
     }
 
     /** What the customer's system gets back. */
@@ -144,6 +156,46 @@ public class PortalOrderService {
             return new Status(ref, o.getStatus().name(), o.getCreatedAt(), o.getBookedAt(), b.map(PortalBooking::getAwbNumber).orElse(null),
                     b.map(PortalBooking::getProviderCode).orElse(null), b.map(PortalBooking::getProviderOrderRef).orElse(null));
         });
+    }
+
+    // ------------------------------------------------------------------ a connected store (13.3b)
+
+    /**
+     * Saves an order imported from a connected store, in its own transaction (one bad order never stops the rest). An order already
+     * imported is left alone. Throws {@link BusinessRuleException} when the order cannot be used (e.g. no valid phone or pincode).
+     *
+     * @return true when it is new
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean importFromShop(UUID companyId, UUID customerId, PortalOrder.Source source, UUID connectionId, String externalId,
+                                  OrderInput in) {
+        return CompanyContext.runAs(companyId, () -> {
+            String ref = ref(in.orderNumber());
+            if (orders.findByRef(companyId, customerId, source, ref).isPresent()) {
+                return false;
+            }
+            PortalOrder o = PortalOrder.builder().customerId(customerId).source(source).externalRef(ref).connectionId(connectionId)
+                    .externalId(externalId).build();
+            apply(o, in);
+            try {
+                PortalOrder saved = orders.saveAndFlush(o);
+                auditService.record(AuditAction.PORTAL_ORDER_RECEIVED, "PortalOrder", saved.getId(),
+                        Map.of("customerId", customerId.toString(), "orderNumber", ref, "source", source.name()));
+                return true;
+            } catch (DataIntegrityViolationException raced) {
+                return false;
+            }
+        });
+    }
+
+    /** Records whether the tracking number reached the store. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordShopSync(UUID companyId, UUID orderId, String result, String error) {
+        CompanyContext.runAs(companyId, () -> orders.findById(orderId).filter(o -> companyId.equals(o.getCompanyId())).ifPresent(o -> {
+            o.setShopSync(result);
+            o.setShopSyncError(error == null ? null : (error.length() > 300 ? error.substring(0, 300) : error));
+            orders.save(o);
+        }));
     }
 
     // ------------------------------------------------------------------ the portal (signed-in customer)
@@ -267,6 +319,9 @@ public class PortalOrderService {
                     orders.save(o);
                     auditService.record(AuditAction.PORTAL_ORDER_BOOKED, "PortalOrder", o.getId(),
                             Map.of("orderNumber", o.getExternalRef(), "bookingId", bookingId.toString()));
+                    if (events != null && o.getConnectionId() != null) {
+                        events.publishEvent(new OrderBooked(companyId, o.getId()));
+                    }
                 }));
     }
 
@@ -300,7 +355,8 @@ public class PortalOrderService {
                 new Parcel(o.getWeightKg(), o.getLengthCm(), o.getBreadthCm(), o.getHeightCm(), o.getPackageCount(), o.getContents(),
                         o.getDeclaredValue()),
                 new Payment(o.getPaymentMode(), o.getCodAmount()), o.getItems(), o.getNotes(), o.getCreatedAt(), o.getBookingId(),
-                o.getBookedAt(), b.map(PortalBooking::getAwbNumber).orElse(null), b.map(PortalBooking::getProviderCode).orElse(null));
+                o.getBookedAt(), b.map(PortalBooking::getAwbNumber).orElse(null), b.map(PortalBooking::getProviderCode).orElse(null),
+                o.getShopSync(), o.getShopSyncError());
     }
 
     private static PortalOrder.Status parseStatus(String raw) {
