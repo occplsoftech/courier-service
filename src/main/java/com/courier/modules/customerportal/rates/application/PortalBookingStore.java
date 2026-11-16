@@ -46,6 +46,16 @@ public class PortalBookingStore {
 
     @Transactional
     public Start start(ActingCustomer acting, UUID quoteId, UUID optionId, String key, String hash, Instant now) {
+        return start(acting, quoteId, optionId, key, hash, now, (q, o) -> { });
+    }
+
+    /**
+     * As above; {@code bookable} checks the chosen option once more (courier still allowed and connected) and throws to refuse it, before
+     * the booking row exists and before any money moves.
+     */
+    @Transactional
+    public Start start(ActingCustomer acting, UUID quoteId, UUID optionId, String key, String hash, Instant now,
+                       java.util.function.BiConsumer<RateQuote, RateQuoteOption> bookable) {
         Optional<PortalBooking> existing = bookings.findByKey(acting.companyId(), acting.customerId(), key);
         if (existing.isPresent()) {
             return new Start(existing.get(), null, null, false);
@@ -65,6 +75,7 @@ public class PortalBookingStore {
         if (bookings.existsForQuote(quoteId, acting.companyId(), PortalBooking.Status.ACTIVE)) {
             throw new BusinessRuleException(ErrorCode.QUOTE_ALREADY_BOOKED, ErrorCode.QUOTE_ALREADY_BOOKED.getDefaultMessage());
         }
+        bookable.accept(quote, option);
         PortalBooking booking = bookings.saveAndFlush(PortalBooking.builder()
                 .customerId(acting.customerId())
                 .quoteId(quoteId)

@@ -100,9 +100,67 @@ class PortalBookingServiceTest {
     }
 
     private void startsNew(PortalBooking b) {
-        RateQuoteOption option = RateQuoteOption.builder().serviceCode("42").availability("AVAILABLE").build();
-        when(store.start(eq(ACTING), eq(quoteId), eq(optionId), eq(KEY), any(), any()))
-                .thenReturn(new PortalBookingStore.Start(b, quote(), option, true));
+        startsNew(b, quote(), null);
+    }
+
+    /** The store runs the booking step's last check before it creates anything, as the real one does. */
+    @SuppressWarnings("unchecked")
+    private void startsNew(PortalBooking b, RateQuote q, String provider) {
+        when(store.start(eq(ACTING), eq(quoteId), eq(optionId), eq(KEY), any(), any(), any())).thenAnswer(i -> {
+            // null: the booking's own courier, read when the booking runs (a test may change it after this stub)
+            RateQuoteOption option = RateQuoteOption.builder().serviceCode("42").availability("AVAILABLE")
+                    .providerCode(provider == null ? b.getProviderCode() : provider).build();
+            ((java.util.function.BiConsumer<RateQuote, RateQuoteOption>) i.getArgument(6)).accept(q, option);
+            return new PortalBookingStore.Start(b, q, option, true);
+        });
+    }
+
+    // ------------------------------------------------------------------ 13.1: courier access at booking
+
+    private void refusedWith(PortalBookingService svc, String message) {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> svc.book(quoteId, optionId, KEY))
+                .isInstanceOf(com.courier.shared.exception.BusinessRuleException.class).hasMessageContaining(message);
+        org.mockito.Mockito.verifyNoInteractions(walletService);
+        assertThat(calls.get()).isZero();
+    }
+
+    @Test
+    @DisplayName("a courier taken away from the customer since the quote cannot be booked: nothing is charged or sent")
+    void courierNoLongerAllowed() {
+        properties.getWalletPayment().setEnabled(true);
+        startsNew(booking(PortalBooking.Status.SUBMITTING, PortalBookingService.hash(quoteId + ":" + optionId)));
+        PortalBookingService svc = service(adapter(true, r -> { calls.incrementAndGet(); return BookingOutcome.booked("SR", "A", null, "ok"); }));
+        CustomerCourierAccessService access = mock(CustomerCourierAccessService.class);
+        when(access.allowedCodes(ACTING.companyId(), ACTING.customerId())).thenReturn(java.util.Set.of("OCCPL_NETWORK"));
+        svc.setAccess(access);
+
+        refusedWith(svc, "Shiprocket is no longer available to you");
+    }
+
+    @Test
+    @DisplayName("a courier disconnected since the quote cannot be booked")
+    void courierDisconnected() {
+        startsNew(booking(PortalBooking.Status.SUBMITTING, PortalBookingService.hash(quoteId + ":" + optionId)));
+        CourierProviderAdapter off = new CourierProviderAdapter() {
+            @Override public String code() { return "SHIPROCKET"; }
+            @Override public String displayName() { return "Shiprocket"; }
+            @Override public boolean external() { return true; }
+            @Override public boolean configured() { return false; }
+            @Override public ProviderResult getRates(RateRequest r) { return null; }
+            @Override public BookingOutcome book(BookingRequest r) { calls.incrementAndGet(); return null; }
+        };
+        refusedWith(service(off), "Shiprocket is not connected right now");
+    }
+
+    @Test
+    @DisplayName("a return pickup is booked on OCCPL Network only, whatever the quote says")
+    void returnPickupOnOccplOnly() {
+        RateQuote q = quote();
+        Map<String, Object> request = new LinkedHashMap<>(q.getRequest());
+        request.put("returnOf", UUID.randomUUID().toString());
+        q.setRequest(request);
+        startsNew(booking(PortalBooking.Status.SUBMITTING, PortalBookingService.hash(quoteId + ":" + optionId)), q, "SHIPROCKET");
+        refusedWith(service(adapter(true, r -> { calls.incrementAndGet(); return null; })), "OCCPL Network only");
     }
 
     @Test
@@ -160,7 +218,7 @@ class PortalBookingServiceTest {
     @DisplayName("a repeat with the same key returns the first booking and never calls the provider again")
     void repeatSameKey() {
         PortalBooking existing = booking(PortalBooking.Status.BOOKED, PortalBookingService.hash(quoteId + ":" + optionId));
-        when(store.start(any(), any(), any(), any(), any(), any())).thenReturn(new PortalBookingStore.Start(existing, null, null, false));
+        when(store.start(any(), any(), any(), any(), any(), any(), any())).thenReturn(new PortalBookingStore.Start(existing, null, null, false));
 
         var view = service(adapter(true, r -> { throw new AssertionError("provider called twice"); })).book(quoteId, optionId, KEY);
 
@@ -172,7 +230,7 @@ class PortalBookingServiceTest {
     @DisplayName("the same key for a different option is refused")
     void keyReused() {
         PortalBooking existing = booking(PortalBooking.Status.BOOKED, PortalBookingService.hash("other"));
-        when(store.start(any(), any(), any(), any(), any(), any())).thenReturn(new PortalBookingStore.Start(existing, null, null, false));
+        when(store.start(any(), any(), any(), any(), any(), any(), any())).thenReturn(new PortalBookingStore.Start(existing, null, null, false));
 
         assertThatThrownBy(() -> service(adapter(true, r -> null)).book(quoteId, optionId, KEY))
                 .isInstanceOf(ApiException.class)

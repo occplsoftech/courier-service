@@ -175,6 +175,8 @@ public enum AuditAction {
     PORTAL_BOOKING_SUBMITTED,
     PORTAL_BOOKING_BOOKED,
     PORTAL_BOOKING_FAILED,
+    /** A booking refused at the booking step: the courier is no longer allowed for the customer or no longer connected (13.1). */
+    PORTAL_BOOKING_REFUSED,
     PORTAL_BOOKING_OUTCOME_UNKNOWN,
     PORTAL_BOOKING_CANCELLED,
     CUSTOMER_RATE_SAVED,

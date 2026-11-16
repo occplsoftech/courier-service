@@ -81,6 +81,38 @@ public class PortalBookingService {
         this.customers = customers;
     }
 
+    /** The couriers each customer may use (13.1); absent in tests that build the service by hand. */
+    private CustomerCourierAccessService access;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setAccess(CustomerCourierAccessService access) {
+        this.access = access;
+    }
+
+    /**
+     * The quote was priced only with the customer's couriers, but it stays bookable for a while: refuse it if, since then, the courier
+     * was taken away from the customer or disconnected, or if a return pickup somehow names a courier other than OCCPL Network (13.1).
+     */
+    void requireBookable(ActingCustomer acting, RateQuote quote, com.courier.modules.customerportal.rates.domain.RateQuoteOption option) {
+        String code = option.getProviderCode();
+        CourierProviderAdapter adapter = adapters.stream().filter(a -> a.code().equals(code)).findFirst().orElse(null);
+        String name = adapter == null ? code : adapter.displayName();
+        String reason = null;
+        if (returnOf(quote.getRequest()) != null && !RateComparisonService.OCCPL_NETWORK.equals(code)) {
+            reason = "A return pickup is booked on OCCPL Network only.";
+        } else if (access != null && !access.allowedCodes(acting.companyId(), acting.customerId()).contains(code)) {
+            reason = name + " is no longer available to you. Compare rates again to see your couriers.";
+        } else if (adapter == null || !adapter.configured(acting.companyId())) {
+            reason = name + " is not connected right now. Compare rates again.";
+        }
+        if (reason != null) {
+            auditService.record(AuditAction.PORTAL_BOOKING_REFUSED, "RateQuote", quote.getId(),
+                    Map.of("provider", code, "customerId", acting.customerId().toString(), "reason", reason), false);
+            log.warn("Portal booking of quote {} with {} refused for customer {}: {}", quote.getId(), code, acting.customerId(), reason);
+            throw new BusinessRuleException(reason);
+        }
+    }
+
     public BookingView book(UUID quoteId, UUID optionId, String idempotencyKey) {
         return book(quoteId, optionId, idempotencyKey, Pins.NONE);
     }
@@ -109,7 +141,8 @@ public class PortalBookingService {
 
         PortalBookingStore.Start start;
         try {
-            start = store.start(acting, quoteId, optionId, idempotencyKey, hash, Instant.now());
+            start = store.start(acting, quoteId, optionId, idempotencyKey, hash, Instant.now(),
+                    (q, o) -> requireBookable(acting, q, o));
         } catch (DataIntegrityViolationException raced) {
             // The same key arrived twice at the same moment; the other request created the row.
             start = new PortalBookingStore.Start(store.findByKey(acting, idempotencyKey)

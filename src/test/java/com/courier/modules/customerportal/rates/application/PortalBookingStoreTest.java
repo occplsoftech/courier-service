@@ -74,6 +74,17 @@ class PortalBookingStoreTest {
     }
 
     @Test
+    @DisplayName("a refused last check (13.1) creates no booking")
+    void refusedCreatesNothing() {
+        quote(now.plusSeconds(600), "AVAILABLE");
+
+        assertThatThrownBy(() -> store.start(ACTING, quoteId, optionId, "k", "h", now, (q, o) -> {
+            throw new com.courier.shared.exception.BusinessRuleException("Shiprocket is no longer available to you.");
+        })).hasMessageContaining("no longer available");
+        org.mockito.Mockito.verify(bookings, org.mockito.Mockito.never()).saveAndFlush(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     @DisplayName("an expired quote must be refreshed")
     void expired() {
         quote(now.minusSeconds(1), "AVAILABLE");
