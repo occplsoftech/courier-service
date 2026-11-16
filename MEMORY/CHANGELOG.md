@@ -8,6 +8,15 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-16 — Phase 13.3c (backend): WooCommerce order import
+
+- **One store flow, many platforms:** `StorePlatform` (address check, credentials, check, open orders, shipped) with `ShopifyPlatform` (wraps the 13.3b client) and `WooCommercePlatform`. `ShopConnectionService` and `/customer-portal/connections/{shopify|woocommerce}` (GET/POST/PATCH/DELETE, `/import`) serve both; the import job, skipped list, pause-on-refused-key and tracking back are shared. No migration (shop_connections.platform already allows WOOCOMMERCE; secrets JSON holds key+secret).
+- **WooCommerce** (REST `wc/v3`, key `ck_…` + secret `cs_…` from WooCommerce → Settings → Advanced → REST API, Read/Write): Basic auth over https, retried with the key in the query when the host drops the Authorization header. Imports orders in status *processing* changed since the last import (`modified_after`, pages by `X-WP-TotalPages`). `WooOrderMapper`: shipping address (billing when none), phone shipping→billing, Indian state codes → names, total → value, COD when `payment_method = cod`, weight = product weights (store unit kg/g/lbs/oz) × quantity when every product has one, else the default.
+- **Tracking back:** a customer note "Your order has shipped with <courier>. Tracking number: …" (WooCommerce emails it) and status Completed.
+- **Safety:** the store address must be https on a public host name (no IPs, ports, user-info); every call re-checks that the host resolves to a public address (`PublicHostGuard`: loopback, private, link-local, CGNAT, ULA, mapped IPv4 refused) and redirects are not followed.
+
+---
+
 ## 2026-11-16 — Phase 13.3b (backend): Shopify order import
 
 - **Connection** (V165 `shop_connections`, `ShopConnection`, `ShopConnectionService`): `GET/POST/PATCH/DELETE /customer-portal/connections/shopify`, `POST /import`. The customer pastes the Admin API token of a custom app made in their own Shopify admin; it is checked (`shop.json`) and stored encrypted with `CourierSecretsCodec`. Store address must be `*.myshopify.com` (no other host is ever called). Disconnect forgets the token; imported orders stay.

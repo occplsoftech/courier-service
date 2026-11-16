@@ -16,7 +16,6 @@ import com.courier.shared.company.CompanyContext;
 import com.courier.shared.exception.ApiException;
 import com.courier.shared.exception.BusinessRuleException;
 import com.courier.shared.exception.ResourceNotFoundException;
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -32,17 +31,15 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.regex.Pattern;
 
 /**
- * A business customer's Shopify store (13.3b). The customer creates a custom app in their own Shopify admin and pastes its Admin API
- * access token here; it is checked against the store and kept encrypted. Every {@link #EVERY} the store's open, unfulfilled orders
- * (changed since the last import) come into "Orders to ship" (or at once with "Import now"); one that cannot be used is listed with the
- * reason. When an imported order is booked, its tracking number is sent back and Shopify marks it fulfilled (unless switched off).
+ * A business customer's online store (13.3b Shopify, 13.3c WooCommerce, one {@link StorePlatform} each). The customer pastes the
+ * credentials made in their own store admin; they are checked against the store and kept encrypted. Every {@link #EVERY} the store's
+ * orders waiting to ship (changed since the last import) come into "Orders to ship" (or at once with "Import now"); one that cannot be
+ * used is listed with the reason. When an imported order is booked, its tracking number is sent back to the store (unless switched off).
  */
 @Slf4j
 @Service
@@ -54,21 +51,20 @@ public class ShopConnectionService {
     static final Duration OVERLAP = Duration.ofMinutes(30);
     static final int MAX_ORDERS_PER_IMPORT = 1000;
     static final int SKIPPED_KEPT = 50;
-    private static final Pattern DOMAIN = Pattern.compile("^[a-z0-9][a-z0-9-]{0,60}\\.myshopify\\.com$");
 
     private final ShopConnectionRepository connections;
     private final PortalOrderRepository orders;
     private final PortalBookingRepository bookings;
     private final PortalOrderService orderService;
     private final CurrentCustomerResolver resolver;
-    private final ShopifyClient shopify;
+    private final List<StorePlatform> platforms;
     private final CourierSecretsCodec secrets;
     private final AuditService auditService;
     private final List<CourierProviderAdapter> adapters;
     private final TransactionTemplate tx;
 
     public ShopConnectionService(ShopConnectionRepository connections, PortalOrderRepository orders, PortalBookingRepository bookings,
-                                 PortalOrderService orderService, CurrentCustomerResolver resolver, ShopifyClient shopify,
+                                 PortalOrderService orderService, CurrentCustomerResolver resolver, List<StorePlatform> platforms,
                                  CourierSecretsCodec secrets, AuditService auditService, List<CourierProviderAdapter> adapters,
                                  org.springframework.transaction.PlatformTransactionManager txManager) {
         this.connections = connections;
@@ -76,7 +72,7 @@ public class ShopConnectionService {
         this.bookings = bookings;
         this.orderService = orderService;
         this.resolver = resolver;
-        this.shopify = shopify;
+        this.platforms = platforms;
         this.secrets = secrets;
         this.auditService = auditService;
         this.adapters = adapters;
@@ -97,36 +93,37 @@ public class ShopConnectionService {
     // ------------------------------------------------------------------ the portal
 
     @Transactional(readOnly = true)
-    public Optional<ConnectionView> view() {
+    public Optional<ConnectionView> view(ShopConnection.Platform platform) {
         ActingCustomer a = resolver.require();
-        return connections.findForCustomer(a.companyId(), a.customerId(), ShopConnection.Platform.SHOPIFY).map(ShopConnectionService::view);
+        return connections.findForCustomer(a.companyId(), a.customerId(), platform).map(ShopConnectionService::view);
     }
 
-    /** Checks the token against the store and saves it (replacing an earlier store or token); the first import starts at once. */
-    public ConnectionView connect(String domainInput, String token, Boolean fulfilBack) {
+    /**
+     * Checks the credentials with the store and saves them encrypted (replacing an earlier store or key); the first import starts at
+     * once. {@code pasted}: Shopify accessToken; WooCommerce consumerKey and consumerSecret.
+     */
+    public ConnectionView connect(ShopConnection.Platform platform, String addressInput, Map<String, String> pasted, Boolean fulfilBack) {
         ActingCustomer a = resolver.require();
-        String domain = domain(domainInput);
-        String t = token == null ? "" : token.trim();
-        if (t.length() < 20 || t.length() > 200 || t.contains(" ")) {
-            throw new BusinessRuleException("Paste the Admin API access token from your Shopify app (it starts with shpat_).");
-        }
+        StorePlatform store = platform(platform);
+        String address = store.address(addressInput);
+        Map<String, String> creds = store.credentials(pasted);
         String name;
         try {
-            name = shopify.shopName(domain, t);
-        } catch (ShopifyClient.ShopifyException e) {
+            name = store.check(address, creds);
+        } catch (StorePlatform.StoreException e) {
             throw new BusinessRuleException(e.getMessage());
         }
         ShopConnection saved = tx.execute(s -> {
-            ShopConnection c = connections.findForCustomer(a.companyId(), a.customerId(), ShopConnection.Platform.SHOPIFY)
-                    .orElseGet(() -> ShopConnection.builder().customerId(a.customerId()).platform(ShopConnection.Platform.SHOPIFY).build());
-            if (c.getShopDomain() != null && !c.getShopDomain().equals(domain)) {
+            ShopConnection c = connections.findForCustomer(a.companyId(), a.customerId(), platform)
+                    .orElseGet(() -> ShopConnection.builder().customerId(a.customerId()).platform(platform).build());
+            if (c.getShopDomain() != null && !c.getShopDomain().equals(address)) {
                 c.setLastImportAt(null);
                 c.setImportedCount(0);
                 c.setSkipped(null);
             }
-            c.setShopDomain(domain);
+            c.setShopDomain(address);
             c.setShopName(trim(name, 150));
-            c.setSecretsEnc(secrets.encryptSecrets(Map.of("token", t)));
+            c.setSecretsEnc(secrets.encryptSecrets(creds));
             c.setPaused(false);
             c.setLastError(null);
             if (fulfilBack != null) {
@@ -135,14 +132,14 @@ public class ShopConnectionService {
             return connections.save(c);
         });
         auditService.record(AuditAction.SHOP_CONNECTED, "ShopConnection", saved.getId(),
-                Map.of("customerId", a.customerId().toString(), "platform", "SHOPIFY", "shop", domain));
+                Map.of("customerId", a.customerId().toString(), "platform", platform.name(), "shop", address));
         importNow(saved);
         return view(reload(saved));
     }
 
     @Transactional
-    public ConnectionView settings(Boolean paused, Boolean fulfilBack) {
-        ShopConnection c = owned();
+    public ConnectionView settings(ShopConnection.Platform platform, Boolean paused, Boolean fulfilBack) {
+        ShopConnection c = owned(platform);
         if (paused != null) {
             c.setPaused(paused);
         }
@@ -152,20 +149,20 @@ public class ShopConnectionService {
         return view(connections.save(c));
     }
 
-    /** Forgets the store and its token; orders already imported stay in the inbox. */
+    /** Forgets the store and its credentials; orders already imported stay in the inbox. */
     @Transactional
-    public void disconnect() {
-        ShopConnection c = owned();
+    public void disconnect(ShopConnection.Platform platform) {
+        ShopConnection c = owned(platform);
         c.setSecretsEnc(null);
         c.softDelete(resolver.require().userId());
         connections.save(c);
         auditService.record(AuditAction.SHOP_DISCONNECTED, "ShopConnection", c.getId(), Map.of("shop", c.getShopDomain()));
     }
 
-    public ImportResult importNow() {
-        ShopConnection c = tx.execute(s -> owned());
+    public ImportResult importNow(ShopConnection.Platform platform) {
+        ShopConnection c = tx.execute(s -> owned(platform));
         if (c.getSecretsEnc() == null) {
-            throw new BusinessRuleException("Connect your store again: its token is no longer saved.");
+            throw new BusinessRuleException("Connect your store again: its key is no longer saved.");
         }
         return importNow(c);
     }
@@ -187,52 +184,57 @@ public class ShopConnectionService {
     ImportResult importNow(ShopConnection c) {
         Instant started = Instant.now();
         UUID companyId = c.getCompanyId();
-        String token;
+        StorePlatform store = platform(c.getPlatform());
+        Map<String, String> creds;
         try {
-            token = secrets.decryptSecrets(c.getSecretsEnc()).get("token");
+            creds = secrets.decryptSecrets(c.getSecretsEnc());
         } catch (RuntimeException e) {
-            token = null;
+            creds = Map.of();
         }
-        if (token == null) {
-            finish(c.getId(), companyId, null, 0, List.of(), "The saved token cannot be read any more. Connect your store again.", true);
-            return new ImportResult(0, 0, 0, 0, "The saved token cannot be read any more. Connect your store again.");
+        if (creds.isEmpty()) {
+            String why = "The saved key cannot be read any more. Connect your store again.";
+            finish(c.getId(), companyId, null, 0, List.of(), why, true);
+            return new ImportResult(0, 0, 0, 0, why);
         }
         Instant since = c.getLastImportAt() == null ? started.minus(FIRST_LOOK_BACK) : c.getLastImportAt().minus(OVERLAP);
-        List<JsonNode> found;
+        List<StorePlatform.StoreOrder> found;
         try {
-            String t = token;
-            found = CompanyContext.runAs(companyId, () -> shopify.openOrders(c.getShopDomain(), t, since, MAX_ORDERS_PER_IMPORT));
-        } catch (ShopifyClient.ShopifyException e) {
-            // keep lastImportAt so nothing is missed next time; a refused token pauses the store until it is connected again
+            Map<String, String> k = creds;
+            found = CompanyContext.runAs(companyId, () -> store.openOrders(c.getShopDomain(), k, since, MAX_ORDERS_PER_IMPORT));
+        } catch (StorePlatform.StoreException e) {
+            // keep lastImportAt so nothing is missed next time; refused credentials pause the store until it is connected again
             finish(c.getId(), companyId, null, 0, List.of(), e.getMessage(), e.auth());
             return new ImportResult(0, 0, 0, 0, e.getMessage());
         } catch (RuntimeException e) {
-            log.warn("Shopify import for connection {} failed", c.getId(), e);
-            finish(c.getId(), companyId, null, 0, List.of(), "Shopify could not be reached. It will be tried again.", false);
-            return new ImportResult(0, 0, 0, 0, "Shopify could not be reached. It will be tried again.");
+            log.warn("Import for connection {} failed", c.getId(), e);
+            String why = "The store could not be reached. It will be tried again.";
+            finish(c.getId(), companyId, null, 0, List.of(), why, false);
+            return new ImportResult(0, 0, 0, 0, why);
         }
+        PortalOrder.Source source = c.getPlatform() == ShopConnection.Platform.WOOCOMMERCE ? PortalOrder.Source.WOOCOMMERCE
+                : PortalOrder.Source.SHOPIFY;
         int imported = 0;
         int already = 0;
         List<Skipped> skipped = new ArrayList<>();
-        for (JsonNode o : found) {
-            String number = ShopifyOrderMapper.number(o);
-            String not = ShopifyOrderMapper.notShippable(o);
-            if (not != null) {
+        for (StorePlatform.StoreOrder o : found) {
+            if (o.notShippable() != null) {
+                continue;
+            }
+            if (o.input() == null) {
+                skipped.add(new Skipped(o.number(), o.mappingError() == null ? "Could not be read." : o.mappingError(), started.toString()));
                 continue;
             }
             try {
-                boolean created = orderService.importFromShop(companyId, c.getCustomerId(), PortalOrder.Source.SHOPIFY, c.getId(),
-                        o.path("id").asText(), ShopifyOrderMapper.map(o));
-                if (created) {
+                if (orderService.importFromShop(companyId, c.getCustomerId(), source, c.getId(), o.externalId(), o.input())) {
                     imported++;
                 } else {
                     already++;
                 }
             } catch (ApiException e) {
-                skipped.add(new Skipped(number, e.getMessage(), started.toString()));
+                skipped.add(new Skipped(o.number(), e.getMessage(), started.toString()));
             } catch (RuntimeException e) {
-                log.warn("Shopify order {} of connection {} could not be imported", number, c.getId(), e);
-                skipped.add(new Skipped(number, "Could not be imported.", started.toString()));
+                log.warn("Order {} of connection {} could not be imported", o.number(), c.getId(), e);
+                skipped.add(new Skipped(o.number(), "Could not be imported.", started.toString()));
             }
         }
         finish(c.getId(), companyId, started, imported, skipped, null, false);
@@ -315,10 +317,11 @@ public class ShopConnectionService {
         }
         String courier = courierName(t.booking().getProviderCode());
         try {
-            String token = secrets.decryptSecrets(t.conn().getSecretsEnc()).get("token");
-            CompanyContext.runAs(companyId, () -> shopify.fulfil(t.conn().getShopDomain(), token, t.order().getExternalId(), courier, awb, true));
+            Map<String, String> creds = secrets.decryptSecrets(t.conn().getSecretsEnc());
+            StorePlatform store = platform(t.conn().getPlatform());
+            CompanyContext.runAs(companyId, () -> store.shipped(t.conn().getShopDomain(), creds, t.order().getExternalId(), courier, awb));
             orderService.recordShopSync(companyId, orderId, "SENT", null);
-        } catch (ShopifyClient.ShopifyException e) {
+        } catch (StorePlatform.StoreException e) {
             orderService.recordShopSync(companyId, orderId, "FAILED", e.getMessage());
         }
     }
@@ -332,31 +335,19 @@ public class ShopConnectionService {
 
     // ------------------------------------------------------------------ helpers
 
-    private ShopConnection owned() {
+    private ShopConnection owned(ShopConnection.Platform platform) {
         ActingCustomer a = resolver.require();
-        return connections.findForCustomer(a.companyId(), a.customerId(), ShopConnection.Platform.SHOPIFY)
-                .orElseThrow(() -> new ResourceNotFoundException("Shopify connection", a.customerId()));
+        return connections.findForCustomer(a.companyId(), a.customerId(), platform)
+                .orElseThrow(() -> new ResourceNotFoundException("Store connection", a.customerId()));
+    }
+
+    private StorePlatform platform(ShopConnection.Platform p) {
+        return platforms.stream().filter(x -> x.platform() == p).findFirst()
+                .orElseThrow(() -> new BusinessRuleException(p.name() + " stores cannot be connected yet."));
     }
 
     private ShopConnection reload(ShopConnection c) {
         return tx.execute(s -> CompanyContext.runAs(c.getCompanyId(), () -> connections.findById(c.getId()).orElse(c)));
-    }
-
-    /** "My Shop.myshopify.com", "https://myshop.myshopify.com/admin" or just "myshop" → myshop.myshopify.com; anything else is refused. */
-    static String domain(String raw) {
-        String d = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
-        d = d.replaceFirst("^https?://", "");
-        int slash = d.indexOf('/');
-        if (slash >= 0) {
-            d = d.substring(0, slash);
-        }
-        if (!d.isEmpty() && !d.contains(".")) {
-            d = d + ".myshopify.com";
-        }
-        if (!DOMAIN.matcher(d).matches()) {
-            throw new BusinessRuleException("Enter your store's Shopify address, like yourshop.myshopify.com (Settings → Domains in Shopify).");
-        }
-        return d;
     }
 
     private static String trim(String s, int max) {

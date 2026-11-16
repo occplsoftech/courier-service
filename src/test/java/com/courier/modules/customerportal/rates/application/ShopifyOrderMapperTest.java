@@ -93,11 +93,11 @@ class ShopifyOrderMapperTest {
 
     @Test
     void domainIsNormalisedAndOnlyShopifyIsAllowed() {
-        assertThat(ShopConnectionService.domain("https://My-Shop.myshopify.com/admin")).isEqualTo("my-shop.myshopify.com");
-        assertThat(ShopConnectionService.domain("myshop")).isEqualTo("myshop.myshopify.com");
-        assertThatThrownBy(() -> ShopConnectionService.domain("evil.com")).isInstanceOf(BusinessRuleException.class);
-        assertThatThrownBy(() -> ShopConnectionService.domain("169.254.169.254")).isInstanceOf(BusinessRuleException.class);
-        assertThatThrownBy(() -> ShopConnectionService.domain("a.myshopify.com.evil.com")).isInstanceOf(BusinessRuleException.class);
+        assertThat(new ShopifyPlatform(null).address("https://My-Shop.myshopify.com/admin")).isEqualTo("my-shop.myshopify.com");
+        assertThat(new ShopifyPlatform(null).address("myshop")).isEqualTo("myshop.myshopify.com");
+        assertThatThrownBy(() -> new ShopifyPlatform(null).address("evil.com")).isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> new ShopifyPlatform(null).address("169.254.169.254")).isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> new ShopifyPlatform(null).address("a.myshopify.com.evil.com")).isInstanceOf(BusinessRuleException.class);
     }
 
     @Test
