@@ -103,11 +103,32 @@ public class CustomerAddressServiceImpl implements CustomerAddressService {
         }
 
         CustomerAddress saved = repository.save(address);
+        fillHomeBranch(companyId, customer, saved);
         log.info("Address {} created for customer {} in company {} by {}",
                 saved.getId(), customer.getCustomerCode(), companyId, currentActor());
         auditService.record(AuditAction.CUSTOMER_ADDRESS_CREATED, ENTITY, saved.getId(),
                 Map.of("customerId", customer.getId().toString(), "addressType", saved.getAddressType().name()));
         return saved;
+    }
+
+    /** Where a home branch comes from (13.2); absent in tests that build the service by hand. */
+    private com.courier.modules.customer.domain.HomeBranchLookupPort homeBranches;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setHomeBranches(com.courier.modules.customer.domain.HomeBranchLookupPort homeBranches) {
+        this.homeBranches = homeBranches;
+    }
+
+    /** A business customer with no home branch gets the branch serving their default pickup pincode (13.2). Staff may change it later. */
+    private void fillHomeBranch(UUID companyId, Customer customer, CustomerAddress address) {
+        if (homeBranches == null || customer.getHomeBranchId() != null || !address.isDefaultPickup() || address.getPincodeId() == null
+                || customer.getCustomerType() != com.courier.modules.customer.domain.CustomerType.BUSINESS) {
+            return;
+        }
+        homeBranches.branchServingPincode(companyId, address.getPincodeId()).ifPresent(branchId -> {
+            customer.setHomeBranchId(branchId);
+            customerRepository.save(customer);
+        });
     }
 
     // ------------------------------------------------------------------- update
@@ -150,6 +171,7 @@ public class CustomerAddressServiceImpl implements CustomerAddressService {
         }
 
         CustomerAddress saved = repository.save(address);
+        fillHomeBranch(companyId, customer, saved);
         log.info("Address {} updated for customer {} in company {} by {}",
                 saved.getId(), customer.getCustomerCode(), companyId, currentActor());
         auditService.record(AuditAction.CUSTOMER_ADDRESS_UPDATED, ENTITY, saved.getId(),

@@ -79,7 +79,7 @@ public class CustomerMapper {
                 c.getBillingAddressLine1(), c.getBillingAddressLine2(), c.getBillingCity(),
                 c.getBillingState(), c.getBillingPincode(), c.getStatus(),
                 c.getCreatedBy(), c.getCreatedAt(), c.getUpdatedBy(), c.getUpdatedAt(), c.getVersion(),
-                addresses.stream().map(this::toResponse).toList());
+                addresses.stream().map(this::toResponse).toList(), c.getHomeBranchId());
     }
 
     public CustomerSummaryResponse toSummary(Customer c) {

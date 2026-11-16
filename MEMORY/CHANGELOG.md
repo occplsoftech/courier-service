@@ -8,6 +8,15 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-16 — Phase 13.2 (backend): branch-level courier assignment
+
+- **Home branch** (V163 `customers.home_branch_id`): filled from the branch serving the default pickup pincode — for existing business customers in the migration, and when a default pickup address with a pincode is saved and none is set (`HomeBranchLookupPort`, `CompanyHomeBranchLookup`). `PATCH /customers/{id}/home-branch {branchId}` (company admin / branch manager; null fills it again from the pickup pincode). `CustomerResponse.homeBranchId`.
+- **Branch couriers** (V163 `branch_courier_access`): `GET/PUT /courier-integrations/customer-access/branch/{branchId}` (`BranchAccessView`: couriers, customised, number of customers).
+- **Rule** (`CustomerCourierAccessService.allowedCodes`, used by rates, calculator and the 13.1 booking check): the customer's own list, else their home branch's, else OCCPL Network only. `AccessView` gains `source` (CUSTOMER / BRANCH / DEFAULT) and the home branch.
+- **Who:** company admin for everything; a branch manager for their own branch's list and the customers whose home branch is theirs (customer access view/save were company admin only).
+
+---
+
 ## 2026-11-16 — Phase 13.1: courier access enforced at booking
 
 - A quote is priced only with the customer's couriers but stays bookable for 30 minutes. The booking step now checks again, inside `PortalBookingStore.start` before the booking row exists and before any money moves (`PortalBookingService.requireBookable`): the courier is still in `CustomerCourierAccessService.allowedCodes` for the customer, it is still connected for the company (`adapter.configured(companyId)`), and a return pickup is OCCPL Network only. Refused: "<Courier> is no longer available to you. Compare rates again…" / "… is not connected right now…", nothing booked or charged, audit `PORTAL_BOOKING_REFUSED` (failure). Single, bulk (the row shows the message, other rows go on) and return-pickup booking all pass through it. Staff forwarding and estimates are unchanged.

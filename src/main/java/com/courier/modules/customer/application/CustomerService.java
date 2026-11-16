@@ -37,6 +37,12 @@ public interface CustomerService {
 
     Customer update(UUID id, UpdateCustomerCommand command);
 
+    /**
+     * Sets a business customer's home branch (13.2); null fills it again from the branch serving the default pickup pincode (or clears it
+     * when there is none). Company admin or branch manager.
+     */
+    Customer setHomeBranch(UUID id, UUID branchId);
+
     Customer getById(UUID id);
 
     Page<Customer> search(CustomerCriteria criteria, Pageable pageable);

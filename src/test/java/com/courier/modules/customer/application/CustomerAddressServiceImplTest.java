@@ -140,6 +140,28 @@ class CustomerAddressServiceImplTest {
     }
 
     @Test
+    @DisplayName("a business customer's first default pickup address sets their home branch from its pincode, once (13.2)")
+    void homeBranchFromPickupPincode() {
+        var homeBranches = org.mockito.Mockito.mock(com.courier.modules.customer.domain.HomeBranchLookupPort.class);
+        service.setHomeBranches(homeBranches);
+        UUID pincode = UUID.randomUUID();
+        UUID branch = UUID.randomUUID();
+        when(homeBranches.branchServingPincode(COMPANY, pincode)).thenReturn(Optional.of(branch));
+        customer.setCustomerType(CustomerType.BUSINESS);
+
+        service.create(customer.getId(), addressCommand("Warehouse", null, false, true));   // not a pickup: nothing
+        assertThat(customer.getHomeBranchId()).isNull();
+
+        service.create(customer.getId(), addressCommand("Office", pincode, true, false));
+        assertThat(customer.getHomeBranchId()).isEqualTo(branch);
+
+        UUID chosen = UUID.randomUUID();
+        customer.setHomeBranchId(chosen);                                                     // staff changed it: kept
+        service.create(customer.getId(), addressCommand("New office", pincode, true, false));
+        assertThat(customer.getHomeBranchId()).isEqualTo(chosen);
+    }
+
+    @Test
     @DisplayName("a second default pickup address clears the flag on the first")
     void defaultPickupIsExclusive() {
         CustomerAddress first = service.create(customer.getId(), addressCommand("Home", null, true, false));
