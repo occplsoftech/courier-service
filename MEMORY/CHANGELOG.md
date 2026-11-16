@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-16 — Phase 13.4 (backend): branch filter for pickups, branch dashboards for admins
+
+- **Dashboard:** `GET /dashboard/summary?branchId=` — a company admin gets that branch's dashboard (branch-scoped figures, branchOverview, its wallet), the same view the branch's own staff get. The branch is checked through `WalletService.getForBranch` (in the company; a branch user may only name their own). Ignored for the cross-tenant super-admin read.
+- **Pickup counts:** `GET /pickups/stats?bookingBranchId=` narrows an admin's counts to one branch, like the list (`bookingBranchId` already there); a branch user always gets their own.
+
+---
+
 ## 2026-11-16 — Phase 13.3c (backend): WooCommerce order import
 
 - **One store flow, many platforms:** `StorePlatform` (address check, credentials, check, open orders, shipped) with `ShopifyPlatform` (wraps the 13.3b client) and `WooCommercePlatform`. `ShopConnectionService` and `/customer-portal/connections/{shopify|woocommerce}` (GET/POST/PATCH/DELETE, `/import`) serve both; the import job, skipped list, pause-on-refused-key and tracking back are shared. No migration (shop_connections.platform already allows WOOCOMMERCE; secrets JSON holds key+secret).

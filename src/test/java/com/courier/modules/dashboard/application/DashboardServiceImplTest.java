@@ -461,6 +461,35 @@ class DashboardServiceImplTest {
         return v;
     }
 
+    @Test
+    @DisplayName("COMPANY_ADMIN naming a branch (13.4): that branch's dashboard, not the company's")
+    void companyAdminSeesANamedBranch() {
+        UUID branch = UUID.randomUUID();
+        CompanyContext.setCompanyId(COMPANY);
+        signedIn(Roles.COMPANY_ADMIN);
+        when(walletService.getForBranch(branch)).thenReturn(Wallet.builder().branchId(branch).availableBalance(new BigDecimal("75")).build());
+        when(shipmentRepository.countByCompanyIdAndBookingBranchIdAndStatusNotAndBookingDateBetween(
+                eq(COMPANY), eq(branch), eq(ShipmentStatus.CANCELLED), any(LocalDate.class), any(LocalDate.class))).thenReturn(4L);
+
+        DashboardSummaryResponse response = service.summary(branch);
+
+        assertThat(response.companyOverview()).isNull();
+        assertThat(response.branchOverview()).isNotNull();
+        assertThat(response.statistics().todayShipments()).isEqualTo(4L);
+        assertThat(response.statistics().walletBalance()).isEqualByComparingTo("75");
+    }
+
+    @Test
+    @DisplayName("A branch user naming another branch is refused (the wallet lookup's own check)")
+    void branchUserCannotNameAnotherBranch() {
+        UUID other = UUID.randomUUID();
+        CompanyContext.setCompanyId(COMPANY);
+        signedIn(Roles.BRANCH_MANAGER);
+        when(walletService.getForBranch(other)).thenThrow(new com.courier.shared.exception.ResourceNotFoundException("Wallet", other));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.summary(other))
+                .isInstanceOf(com.courier.shared.exception.ResourceNotFoundException.class);
+    }
+
     private void signedIn(String role) {
         AuthenticatedUser principal = new AuthenticatedUser(CALLER, COMPANY, "user@test.local", Set.of(role), "jti");
         SecurityContextHolder.getContext().setAuthentication(

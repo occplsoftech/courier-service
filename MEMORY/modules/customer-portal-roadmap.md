@@ -105,7 +105,7 @@ Defaults agreed in the brief: courier collects from the branch/hub; customer pri
 | 13.1 | **Enforce courier access at booking** — done: the booking step re-checks allowed + connected (and OCCPL-only for return pickups) before anything is created or charged | CS | S |
 | 13.2 | Branch-level courier assignment — done: home branch per customer (from pickup pincode, editable) and a courier list per branch as the default for its customers | CS, CW | M |
 | 13.3 | Connect the customer's shop (Shopify / WooCommerce) or an API key so orders arrive without re-typing — chosen: an Orders inbox the customer books from; order: a) API key, b) Shopify (customer pastes a custom-app token), c) WooCommerce. a) done; b) Shopify done; c) WooCommerce built (same flow; note + Completed back) | CS, EC | L |
-| 13.4 | Filter the staff pickup list by branch for admins; branch dashboards | CW | S |
+| 13.4 | Filter the staff pickup list by branch for admins; branch dashboards — built: branch picker on Pickup Requests (list + counts) and View on the Dashboard (an admin sees any branch's dashboard) | CS, CW | S |
 
 ## Decisions and actions waiting on the owner
 

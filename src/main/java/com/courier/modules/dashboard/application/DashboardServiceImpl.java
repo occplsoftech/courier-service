@@ -157,7 +157,7 @@ public class DashboardServiceImpl implements DashboardService {
      * that particular call happens to run on (ISSUE-001).
      */
     @Override
-    public DashboardSummaryResponse summary() {
+    public DashboardSummaryResponse summary(UUID branchId) {
         AuthenticatedUser caller = SecurityUtils.requireCurrentUser();
         boolean crossTenant = caller.isSuperAdmin();
         // A SUPER_ADMIN's own JWT still carries a (sentinel) company id — CompanyContext
@@ -169,7 +169,9 @@ public class DashboardServiceImpl implements DashboardService {
         // Computed up front (was previously computed after the KPI block below) so the
         // KPI/chart/recent-activity queries can branch-scope for a caller with an own
         // branch instead of always running company-wide — see the new branch below.
-        Wallet ownWallet = ownWallet();
+        // A named branch (13.4): the admin sees that branch's dashboard; getForBranch checks the branch is in the company, and refuses
+        // a branch user naming any branch but their own. Never for the cross-tenant read.
+        Wallet ownWallet = branchId != null && !crossTenant ? walletService.getForBranch(branchId) : ownWallet();
         UUID ownBranchId = ownWallet == null ? null : ownWallet.getBranchId();
 
         LocalDate today = LocalDate.now();

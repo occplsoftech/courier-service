@@ -28,7 +28,12 @@ public interface PickupService {
     Page<PickupRequest> search(PickupStatus status, UUID pdpBranchId, UUID bookingBranchId, String search, Pageable pageable);
 
     /** Count per status for the caller's scope (all of the company's, or their own partner's). */
-    Map<PickupStatus, Long> stats();
+    default Map<PickupStatus, Long> stats() {
+        return stats(null);
+    }
+
+    /** Counts per status; {@code bookingBranchId} narrows an admin's counts to one branch (a branch user always sees their own). */
+    Map<PickupStatus, Long> stats(UUID bookingBranchId);
 
     /** Assigns (or reassigns) to a Pickup-Delivery Partner. */
     PickupRequest assign(UUID id, UUID pdpBranchId);

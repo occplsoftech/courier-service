@@ -34,8 +34,10 @@ public class DashboardController {
                     + "the frontend already derives those from the live list endpoints. A "
                     + "caller with no own branch (COMPANY_ADMIN) additionally receives "
                     + "companyOverview: the shipment pipeline, action-required backlog "
-                    + "counts, company-wide wallet total and top routes/customers.")
-    public ApiResponse<DashboardSummaryResponse> summary() {
-        return ApiResponse.success(service.summary());
+                    + "counts, company-wide wallet total and top routes/customers. `branchId` (13.4): a company admin gets "
+                    + "that branch's dashboard (branchOverview instead of companyOverview); branch staff may only name their own.")
+    public ApiResponse<DashboardSummaryResponse> summary(
+            @org.springframework.web.bind.annotation.RequestParam(required = false) java.util.UUID branchId) {
+        return ApiResponse.success(service.summary(branchId));
     }
 }
