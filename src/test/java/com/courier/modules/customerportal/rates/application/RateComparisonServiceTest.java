@@ -176,6 +176,28 @@ class RateComparisonServiceTest {
     }
 
     @Test
+    @DisplayName("a quote for an inbox order remembers it; an order already booked cannot be quoted again (13.3)")
+    void quoteForOrder() {
+        var repo = org.mockito.Mockito.mock(com.courier.modules.customerportal.rates.domain.PortalOrderRepository.class);
+        var open = com.courier.modules.customerportal.rates.domain.PortalOrder.builder().externalRef("WEB-1").build();
+        var booked = com.courier.modules.customerportal.rates.domain.PortalOrder.builder().externalRef("WEB-2")
+                .status(com.courier.modules.customerportal.rates.domain.PortalOrder.Status.BOOKED).build();
+        when(repo.findOwned(open.getId(), ACTING.companyId(), ACTING.customerId())).thenReturn(java.util.Optional.of(open));
+        when(repo.findOwned(booked.getId(), ACTING.companyId(), ACTING.customerId())).thenReturn(java.util.Optional.of(booked));
+        RateComparisonService svc = service(adapter("OCCPL_NETWORK", false, true, r -> priced("OCCPL_NETWORK", "100")));
+        svc.setOrders(repo);
+        CompareCommand c = command("110001", "1");
+
+        svc.compare(new CompareCommand(c.pickup(), c.delivery(), c.pkg(), null, open.getId()));
+        org.mockito.ArgumentCaptor<RateQuote> saved = org.mockito.ArgumentCaptor.forClass(RateQuote.class);
+        verify(store).save(saved.capture(), anyList());
+        assertThat(saved.getValue().getRequest()).containsEntry("orderId", open.getId().toString());
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> svc.compare(new CompareCommand(c.pickup(), c.delivery(), c.pkg(), null, booked.getId())))
+                .hasMessageContaining("WEB-2 is already booked");
+    }
+
+    @Test
     @DisplayName("a customer given only one courier sees only that courier, and the others are not even listed as unavailable")
     void onlyAssignedCouriers() {
         allowed = java.util.Set.of("DELHIVERY");

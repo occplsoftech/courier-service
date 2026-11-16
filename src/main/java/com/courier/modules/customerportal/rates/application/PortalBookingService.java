@@ -81,6 +81,37 @@ public class PortalBookingService {
         this.customers = customers;
     }
 
+    /** The orders inbox (13.3); lazy because the order service books through this one. Absent in tests that build the service by hand. */
+    private PortalOrderService orderService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setOrderService(@org.springframework.context.annotation.Lazy PortalOrderService orderService) {
+        this.orderService = orderService;
+    }
+
+    /** A booking made for an inbox order: the order is now booked. A failure never undoes the booking (it is logged). */
+    private void markOrderBooked(ActingCustomer acting, RateQuote quote, PortalBooking booking) {
+        UUID orderId = quote == null ? null : orderOf(quote.getRequest());
+        if (orderId == null || orderService == null) {
+            return;
+        }
+        try {
+            orderService.markBooked(acting.companyId(), orderId, booking.getId());
+        } catch (RuntimeException e) {
+            log.error("Booking {} was made for order {} but the order could not be marked booked", booking.getId(), orderId, e);
+        }
+    }
+
+    /** The inbox order a quote was made for (13.3), as stored on its quote. */
+    static UUID orderOf(Map<String, Object> snapshot) {
+        Object v = snapshot == null ? null : snapshot.get("orderId");
+        try {
+            return v == null ? null : UUID.fromString(v.toString());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
     /** The couriers each customer may use (13.1); absent in tests that build the service by hand. */
     private CustomerCourierAccessService access;
 
@@ -194,6 +225,7 @@ public class PortalBookingService {
         if (finished.getStatus() == PortalBooking.Status.BOOKED) {
             events.publishEvent(new com.courier.modules.customerportal.rates.domain.PortalBookingNotice(
                     finished.getId(), acting.companyId(), "BOOKED"));
+            markOrderBooked(acting, start.quote(), finished);
         }
         return view(finished, outcome.message());
     }

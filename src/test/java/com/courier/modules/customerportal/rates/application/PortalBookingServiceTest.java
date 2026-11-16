@@ -164,6 +164,26 @@ class PortalBookingServiceTest {
     }
 
     @Test
+    @DisplayName("a booking made for an inbox order marks that order booked (13.3)")
+    void marksOrderBooked() {
+        PortalBooking b = booking(PortalBooking.Status.SUBMITTING, PortalBookingService.hash(quoteId + ":" + optionId));
+        RateQuote q = quote();
+        Map<String, Object> request = new LinkedHashMap<>(q.getRequest());
+        UUID order = UUID.randomUUID();
+        request.put("orderId", order.toString());
+        q.setRequest(request);
+        startsNew(b, q, null);
+        when(store.finish(eq(ACTING), eq(b.getId()), any(), any())).thenAnswer(i -> { b.setStatus(PortalBooking.Status.BOOKED); return b; });
+        PortalBookingService svc = service(adapter(true, r -> BookingOutcome.booked("SR-1", "AWB1", null, "ok")));
+        PortalOrderService orders = mock(PortalOrderService.class);
+        svc.setOrderService(orders);
+
+        svc.book(quoteId, optionId, KEY);
+
+        verify(orders).markBooked(ACTING.companyId(), order, b.getId());
+    }
+
+    @Test
     @DisplayName("books once and records the provider's reference and tracking number")
     void books() {
         PortalBooking b = booking(PortalBooking.Status.SUBMITTING, PortalBookingService.hash(quoteId + ":" + optionId));
