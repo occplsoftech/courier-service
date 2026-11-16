@@ -74,6 +74,14 @@ public class RateComparisonService {
         this.access = access;
     }
 
+    /** The orders inbox (13.3); absent in tests that build the service by hand. */
+    private com.courier.modules.customerportal.rates.domain.PortalOrderRepository orders;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setOrders(com.courier.modules.customerportal.rates.domain.PortalOrderRepository orders) {
+        this.orders = orders;
+    }
+
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     void setBookings(com.courier.modules.customerportal.rates.domain.PortalBookingRepository bookings) {
         this.bookings = bookings;
@@ -122,6 +130,14 @@ public class RateComparisonService {
         }
         RateRequest request = toRequest(acting, c);
         Set<String> allowed = access.allowedCodes(request.companyId(), request.customerId());
+        if (c.orderId() != null && orders != null) {
+            // a quote from the orders inbox (13.3): the order must be the customer's and still waiting to be booked
+            com.courier.modules.customerportal.rates.domain.PortalOrder order = orders.findOwned(c.orderId(), acting.companyId(), acting.customerId())
+                    .orElseThrow(() -> new com.courier.shared.exception.ResourceNotFoundException("Order", c.orderId()));
+            if (order.getStatus() != com.courier.modules.customerportal.rates.domain.PortalOrder.Status.NEW) {
+                throw new BusinessRuleException("Order " + order.getExternalRef() + " is already " + order.getStatus().name().toLowerCase() + ".");
+            }
+        }
         if (c.returnOf() != null) {
             requireReturnable(acting, c.returnOf(), request);
             // A return pickup is collected by our own network only (outside couriers come later).
@@ -434,6 +450,9 @@ public class RateComparisonService {
         if (c.returnOf() != null) {
             m.put("returnOf", c.returnOf().toString());
         }
+        if (c.orderId() != null) {
+            m.put("orderId", c.orderId().toString());
+        }
         return m;
     }
 
@@ -531,10 +550,14 @@ public class RateComparisonService {
     }
 
     /** {@code returnOf}: the customer's delivered booking this return pickup brings back (Phase 12.1 B); null for a normal booking. */
-    public record CompareCommand(PartyInput pickup, PartyInput delivery, PackageInput pkg, UUID returnOf) {
+    public record CompareCommand(PartyInput pickup, PartyInput delivery, PackageInput pkg, UUID returnOf, UUID orderId) {
 
         public CompareCommand(PartyInput pickup, PartyInput delivery, PackageInput pkg) {
-            this(pickup, delivery, pkg, null);
+            this(pickup, delivery, pkg, null, null);
+        }
+
+        public CompareCommand(PartyInput pickup, PartyInput delivery, PackageInput pkg, UUID returnOf) {
+            this(pickup, delivery, pkg, returnOf, null);
         }
     }
 

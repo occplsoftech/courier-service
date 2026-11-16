@@ -75,10 +75,10 @@ public class PortalBulkBookingService {
     private final PincodeService pincodes;
 
     /** Where and by whom the parcels are handed over: the customer's own profile, so the sheet does not repeat it on every row. */
-    private record Contact(String name, String phone, String address, String pincode) {
+    record Contact(String name, String phone, String address, String pincode) {
     }
 
-    private Contact contact() {
+    Contact contact() {
         ActingCustomer acting = resolver.require();
         var c = customers.findActiveBusinessCustomer(acting.companyId(), acting.customerId())
                 .orElseThrow(() -> new BusinessRuleException("Your customer profile could not be found."));
@@ -296,11 +296,11 @@ public class PortalBulkBookingService {
     }
 
     /** City and state of the delivery pincode from the pincode master (couriers such as Delhivery need them; the sheet does not ask). */
-    private String city(String pincode) {
+    String city(String pincode) {
         return geography(pincode).map(g -> !blank(g.cityName()) ? g.cityName() : g.districtName()).orElse(null);
     }
 
-    private String state(String pincode) {
+    String state(String pincode) {
         return geography(pincode).map(com.courier.modules.master.application.PincodeGeography::stateName).orElse(null);
     }
 

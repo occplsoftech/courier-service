@@ -8,6 +8,15 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-16 — Phase 13.3a (backend): orders inbox and the public order API
+
+- **API keys** (V164 `customer_api_keys`, `CustomerApiKeyService`): `GET/POST /customer-portal/api-keys`, `DELETE /{id}` (revoke). Key `occ_` + 40 url-safe characters, shown once; only SHA-256 + first 12 characters stored; up to 5 active; last-used recorded (every 5 min at most).
+- **Public order API** (`PublicOrderController`, `/api/v1/public/orders` added to the public endpoints; header `X-Api-Key`; 120 requests a minute per key): `POST` an order (orderNumber, buyer, parcel, payment PREPAID/COD + amount, items, notes; defaults 0.5 kg, 10×10×10 cm, 1 package, "General goods"; phone normalised to 10 digits; 201 new / 200 same order number again); `GET /{orderNumber}` status, tracking number, courier.
+- **Orders inbox** (V164 `portal_orders`, `PortalOrderService`): `GET /customer-portal/orders?status=NEW|BOOKED|ARCHIVED|ALL`, `/counts`, `GET/PUT /{id}` (correct before booking), `/{id}/archive`, `/{id}/restore`, `POST /quote {orderIds}` (bulk-booking pricing: business rate or cheapest allowed courier, pickup = default pickup address) — the rows book through `POST /customer-portal/bulk-bookings/book`.
+- **Booking ↔ order:** `CompareRequest.orderId` (snapshot `orderId`; an order that is not NEW cannot be quoted); a BOOKED booking marks its order BOOKED with the booking id (`PortalOrderService.markBooked`, own transaction, injected lazily into `PortalBookingService`).
+
+---
+
 ## 2026-11-16 — Phase 13.2 (backend): branch-level courier assignment
 
 - **Home branch** (V163 `customers.home_branch_id`): filled from the branch serving the default pickup pincode — for existing business customers in the migration, and when a default pickup address with a pincode is saved and none is set (`HomeBranchLookupPort`, `CompanyHomeBranchLookup`). `PATCH /customers/{id}/home-branch {branchId}` (company admin / branch manager; null fills it again from the pickup pincode). `CustomerResponse.homeBranchId`.

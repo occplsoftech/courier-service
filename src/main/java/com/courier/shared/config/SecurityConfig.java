@@ -70,6 +70,8 @@ public class SecurityConfig {
                                                  // WhatsAppWebhookController
             "/api/v1/webhooks/courier-tracking/**", // couriers' status pushes; no bearer token — a per-company secret in
                                                  // the address, see CourierTrackingWebhookController
+            "/api/v1/public/orders", "/api/v1/public/orders/**", // a customer's own system sends orders; no bearer token — the
+                                                 // customer's API key (X-Api-Key), see PublicOrderController
             "/actuator/health/**",
             "/actuator/info",
             "/v3/api-docs/**",
