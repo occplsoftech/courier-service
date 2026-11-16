@@ -18,16 +18,9 @@ public interface ShopifyClient {
     void fulfil(String domain, String token, String orderId, String courier, String trackingNumber, boolean notify);
 
     /** Shopify refused or failed; {@code auth} when the token is wrong, revoked or lacks a permission. */
-    class ShopifyException extends RuntimeException {
-        private final boolean auth;
-
+    class ShopifyException extends StorePlatform.StoreException {
         public ShopifyException(String message, boolean auth) {
-            super(message);
-            this.auth = auth;
-        }
-
-        public boolean auth() {
-            return auth;
+            super(message, auth);
         }
     }
 }
