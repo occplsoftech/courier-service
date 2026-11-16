@@ -154,6 +154,19 @@ public class CustomerController {
         return ApiResponse.success(PageResponse.from(page, mapper::toSummary));
     }
 
+    public record HomeBranchRequest(UUID branchId) {
+    }
+
+    @PatchMapping("/{id}/home-branch")
+    @Operation(summary = "Set a business customer's home branch",
+            description = "Its couriers are the customer's default in the portal (13.2). `branchId` null fills it again from the branch "
+                    + "serving the default pickup pincode. `COMPANY_ADMIN` or `BRANCH_MANAGER`.")
+    public ApiResponse<CustomerResponse> setHomeBranch(@PathVariable UUID id,
+                                                       @org.springframework.web.bind.annotation.RequestBody HomeBranchRequest request) {
+        Customer saved = customerService.setHomeBranch(id, request == null ? null : request.branchId());
+        return ApiResponse.success(mapper.toResponse(saved, addressService.listByCustomer(id)), "Home branch saved");
+    }
+
     @PatchMapping("/{id}/activate")
     @Operation(summary = "Activate a customer", description = "`COMPANY_ADMIN` or `BRANCH_MANAGER`. Idempotent.")
     public ApiResponse<CustomerResponse> activate(@PathVariable UUID id) {

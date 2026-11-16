@@ -111,6 +111,11 @@ public class Customer extends CompanyOwnedEntity {
     @Builder.Default
     private BillingFrequency billingFrequency = BillingFrequency.MONTHLY;
 
+    /** The branch this business customer belongs to (13.2): its couriers are the customer's default. Null when none. */
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.BINARY)
+    @Column(name = "home_branch_id", columnDefinition = "BINARY(16)")
+    private java.util.UUID homeBranchId;
+
     /** True: this customer's own rate card (pricing zones) prices their bookings. False: the company's rates apply. */
     @Column(name = "use_business_rates", nullable = false)
     @Builder.Default

@@ -225,6 +225,44 @@ public class CustomerServiceImpl implements CustomerService {
 
     // ---------------------------------------------------------------- lifecycle
 
+    /** Where a home branch comes from (13.2); absent in tests that build the service by hand. */
+    private com.courier.modules.customer.domain.HomeBranchLookupPort homeBranches;
+    /** The default pickup address, to fill the home branch from its pincode. */
+    private com.courier.modules.customer.domain.CustomerAddressRepository addressRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setHomeBranches(com.courier.modules.customer.domain.HomeBranchLookupPort homeBranches,
+                         com.courier.modules.customer.domain.CustomerAddressRepository addressRepository) {
+        this.homeBranches = homeBranches;
+        this.addressRepository = addressRepository;
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(LIFECYCLE)
+    public Customer setHomeBranch(UUID id, UUID branchId) {
+        UUID companyId = requireCompany();
+        Customer customer = loadOrThrow(id, companyId);
+        UUID target = branchId;
+        if (target != null) {
+            if (homeBranches == null || !homeBranches.isActiveBranch(companyId, target)) {
+                throw new BusinessRuleException("Choose an active branch of your company.");
+            }
+        } else if (homeBranches != null && addressRepository != null) {
+            target = addressRepository.findAllByCustomerIdWithinCompany(id, companyId).stream()
+                    .filter(a -> a.isActive() && a.isDefaultPickup() && a.getPincodeId() != null)
+                    .findFirst()
+                    .flatMap(a -> homeBranches.branchServingPincode(companyId, a.getPincodeId()))
+                    .orElse(null);
+        }
+        UUID before = customer.getHomeBranchId();
+        customer.setHomeBranchId(target);
+        Customer saved = repository.save(customer);
+        auditService.record(AuditAction.CUSTOMER_UPDATED, ENTITY, saved.getId(), Map.of("homeBranchId",
+                String.valueOf(target), "previousHomeBranchId", String.valueOf(before)));
+        return saved;
+    }
+
     @Override
     @Transactional
     @PreAuthorize(LIFECYCLE)

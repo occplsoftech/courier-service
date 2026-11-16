@@ -36,6 +36,12 @@ public class CustomerPortalLookup {
                 .filter(Customer::isActive);
     }
 
+    /** How many active business customers have this home branch (13.2). */
+    @Transactional(readOnly = true)
+    public long countBusinessCustomersOfBranch(UUID companyId, UUID branchId) {
+        return customerRepository.countBusinessCustomersOfBranch(companyId, branchId);
+    }
+
     /** Whether the customer is priced from their own rate card (true) or the company's rates (false, also when unknown). */
     @Transactional(readOnly = true)
     public boolean usesBusinessRates(UUID companyId, UUID customerId) {

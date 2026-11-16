@@ -74,4 +74,11 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID>,
     long countByMobile(@Param("companyId") byte[] companyId,
                        @Param("mobile") String mobile,
                        @Param("excludeId") byte[] excludeId);
+
+    /** Active business customers whose home branch this is (13.2). */
+    @org.springframework.data.jpa.repository.Query("select count(c) from Customer c where c.companyId = :companyId and c.homeBranchId = :branchId "
+            + "and c.customerType = com.courier.modules.customer.domain.CustomerType.BUSINESS "
+            + "and c.status = com.courier.modules.customer.domain.CustomerStatus.ACTIVE")
+    long countBusinessCustomersOfBranch(@org.springframework.data.repository.query.Param("companyId") UUID companyId,
+                                        @org.springframework.data.repository.query.Param("branchId") UUID branchId);
 }

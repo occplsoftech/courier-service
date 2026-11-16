@@ -294,6 +294,31 @@ class CustomerServiceImplTest {
                 null, null, null, null, null, null, null, null);
     }
 
+    @org.junit.jupiter.api.Test
+    @org.junit.jupiter.api.DisplayName("home branch: staff choose an active branch; blank fills it from the default pickup pincode (13.2)")
+    void setHomeBranch() {
+        Customer c = existing("CUST9", "9800000009");
+        c.setId(UUID.randomUUID());
+        when(repository.findByIdWithinCompany(c.getId(), COMPANY)).thenReturn(java.util.Optional.of(c));
+        var homeBranches = org.mockito.Mockito.mock(com.courier.modules.customer.domain.HomeBranchLookupPort.class);
+        var addresses = org.mockito.Mockito.mock(com.courier.modules.customer.domain.CustomerAddressRepository.class);
+        service.setHomeBranches(homeBranches, addresses);
+        UUID pune = UUID.randomUUID();
+        UUID mumbai = UUID.randomUUID();
+        when(homeBranches.isActiveBranch(COMPANY, mumbai)).thenReturn(true);
+
+        assertThat(service.setHomeBranch(c.getId(), mumbai).getHomeBranchId()).isEqualTo(mumbai);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.setHomeBranch(c.getId(), UUID.randomUUID()))
+                .hasMessageContaining("active branch");
+
+        UUID pin = UUID.randomUUID();
+        var pickup = com.courier.modules.customer.domain.CustomerAddress.builder().customerId(c.getId()).pincodeId(pin)
+                .defaultPickup(true).addressLine1("x").build();
+        when(addresses.findAllByCustomerIdWithinCompany(c.getId(), COMPANY)).thenReturn(java.util.List.of(pickup));
+        when(homeBranches.branchServingPincode(COMPANY, pin)).thenReturn(java.util.Optional.of(pune));
+        assertThat(service.setHomeBranch(c.getId(), null).getHomeBranchId()).isEqualTo(pune);
+    }
+
     private static Customer existing(String code, String mobile) {
         Customer customer = Customer.builder()
                 .customerCode(code)

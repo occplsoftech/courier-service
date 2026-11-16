@@ -30,6 +30,7 @@ public record CustomerResponse(
         String billingState, String billingPincode,
         CustomerStatus status,
         UUID createdBy, Instant createdDate, UUID updatedBy, Instant updatedDate, Long version,
-        List<CustomerAddressResponse> addresses
+        List<CustomerAddressResponse> addresses,
+        @Schema(description = "The branch this business customer belongs to; its couriers are the customer's default (13.2)") UUID homeBranchId
 ) {
 }
