@@ -8,6 +8,14 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-16 — Phase 13.3b (backend): Shopify order import
+
+- **Connection** (V165 `shop_connections`, `ShopConnection`, `ShopConnectionService`): `GET/POST/PATCH/DELETE /customer-portal/connections/shopify`, `POST /import`. The customer pastes the Admin API token of a custom app made in their own Shopify admin; it is checked (`shop.json`) and stored encrypted with `CourierSecretsCodec`. Store address must be `*.myshopify.com` (no other host is ever called). Disconnect forgets the token; imported orders stay.
+- **Import** (`ShopifyHttpClient`, Admin REST 2025-01; job every 2 min picks connections not imported for 15 min; "Import now"): open, unfulfilled orders changed since the last import (first time: 30 days), paged by the `Link` header, up to 1000 per run. `ShopifyOrderMapper`: order name (#1001), shipping address (phone falls back to order/customer/billing), total grams → kg, current total → value, line items → items/contents; COD when a cash-on-delivery gateway and still unpaid (amount = total outstanding). Each order is saved in its own transaction (`PortalOrderService.importFromShop`); unusable ones (bad phone/pincode) are listed with the reason (latest 50); cancelled / no-shipping-address orders are left out. A refused token (401/403) pauses the connection with the reason.
+- **Tracking back:** booking an imported order publishes `OrderBooked`; after commit the order is fulfilled in Shopify through its fulfillment orders with the courier name and tracking number (`notify_customer`), unless the customer turned it off. Result on the order: `shopSync` SENT / FAILED + reason (V165 columns `connection_id`, `external_id`, `shop_sync`, `shop_sync_error` on `portal_orders`).
+
+---
+
 ## 2026-11-16 — Phase 13.3a (backend): orders inbox and the public order API
 
 - **API keys** (V164 `customer_api_keys`, `CustomerApiKeyService`): `GET/POST /customer-portal/api-keys`, `DELETE /{id}` (revoke). Key `occ_` + 40 url-safe characters, shown once; only SHA-256 + first 12 characters stored; up to 5 active; last-used recorded (every 5 min at most).
