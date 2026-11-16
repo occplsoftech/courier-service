@@ -36,7 +36,7 @@ public class CustomerApiKey extends CompanyOwnedEntity {
     @Column(name = "name", nullable = false, length = 60) private String name;
     /** The first characters, to recognise the key in the list. */
     @Column(name = "key_prefix", nullable = false, length = 16, updatable = false) private String keyPrefix;
-    @Column(name = "key_hash", nullable = false, length = 64, updatable = false) private String keyHash;
+    @Column(name = "key_hash", nullable = false, length = 64, updatable = false, columnDefinition = "CHAR(64)") private String keyHash;
     @Column(name = "last_used_at") private Instant lastUsedAt;
     @Column(name = "revoked_at") private Instant revokedAt;
 
