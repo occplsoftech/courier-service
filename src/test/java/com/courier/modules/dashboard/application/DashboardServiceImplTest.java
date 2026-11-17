@@ -163,9 +163,13 @@ class DashboardServiceImplTest {
         when(shipmentRepository.findIdsByCompanyIdAndStatusIn(eq(COMPANY), any()))
                 .thenReturn(List.of(podShipmentA, podShipmentB));
         when(podVerificationService.latestByShipmentIds(any())).thenReturn(Map.of());
+        // Even an admin who is also assigned to a branch gets the company-wide view (13.4: a branch is chosen explicitly).
+        org.mockito.Mockito.lenient().doReturn(Wallet.builder().branchId(UUID.randomUUID()).availableBalance(BigDecimal.TEN).build())
+                .when(walletService).getForBranch(null);
 
         DashboardSummaryResponse response = service.summary();
 
+        assertThat(response.branchOverview()).isNull();
         assertThat(response.companyOverview()).isNotNull();
         assertThat(response.companyOverview().pipeline()).hasSize(7);
         assertThat(response.companyOverview().manifestsAwaitingDispatch()).isEqualTo(6L);
