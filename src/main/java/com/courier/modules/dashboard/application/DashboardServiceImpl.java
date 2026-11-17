@@ -171,7 +171,11 @@ public class DashboardServiceImpl implements DashboardService {
         // branch instead of always running company-wide — see the new branch below.
         // A named branch (13.4): the admin sees that branch's dashboard; getForBranch checks the branch is in the company, and refuses
         // a branch user naming any branch but their own. Never for the cross-tenant read.
-        Wallet ownWallet = branchId != null && !crossTenant ? walletService.getForBranch(branchId) : ownWallet();
+        // A company admin's own view is company-wide even when the admin is also assigned to a branch: they reach a branch's view by
+        // naming it. Everyone else defaults to their own branch.
+        boolean companyAdmin = !crossTenant && caller.hasRole(com.courier.shared.security.Roles.COMPANY_ADMIN);
+        Wallet ownWallet = branchId != null && !crossTenant ? walletService.getForBranch(branchId)
+                : companyAdmin ? null : ownWallet();
         UUID ownBranchId = ownWallet == null ? null : ownWallet.getBranchId();
 
         LocalDate today = LocalDate.now();
