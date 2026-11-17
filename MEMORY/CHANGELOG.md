@@ -8,6 +8,14 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-17 — Platform: All Bookings for the super admin
+
+- `GET /api/v1/platform/bookings` (SUPER_ADMIN; filters companyId, carriedBy OCCPL/FORWARDED/BOOKED_WITH, providerCode, courier, from/to (IST, inclusive), search; page/size ≤100) and `/export` (Excel, up to 20,000 rows). `PlatformBookingsService`: one cross-company SQL over `shipments` (counter and portal OCCPL bookings; a forwarded one shows the courier, courier AWB and our cost) and `portal_bookings` with no shipment (booked directly with a courier, or an OCCPL pickup not yet booked; BOOKED/CANCELLED/OUTCOME_UNKNOWN). Channel COUNTER / PORTAL / API / SHOPIFY / WOOCOMMERCE. Totals per carrier for the filter.
+- `CarrierLabel`: "OCCPL Network", the courier's name, or for an aggregator the real courier from its service name ("Delhivery via Shipyaari", "Blue Dart via Shiprocket"); the courier filter uses the same patterns (MySQL REGEXP).
+- Staff app: Platform → All Bookings (filters, carrier chips that keep their counts, colour per carried-by, pages, Download Excel).
+
+---
+
 ## 2026-11-17 — Phase 14.1: forward several shipments at once
 
 - `POST /forwarding/bulk/options {shipmentIds}` and `POST /forwarding/bulk {items:[{shipmentId, providerCode, serviceCode}]}` (up to 20 per call; `BulkForwardingService`). Each shipment goes through `ForwardingService.options/forward` exactly as a single forward (who may, blockers, fresh price, audit, never twice); one row per shipment: FORWARDED / UNCONFIRMED / REFUSED (reason) / ERROR, and one failure never stops the rest. A shipment listed twice is forwarded once.
