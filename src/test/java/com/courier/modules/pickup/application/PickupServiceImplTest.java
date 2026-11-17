@@ -357,4 +357,23 @@ class PickupServiceImplTest {
         when(pincodeMappings.findBranchForPincode(pincodeId)).thenReturn(Optional.of(partner(PDP, BranchType.BRANCH, true)));
         assertThat(service.suggestPartner(p.getId())).isEmpty();
     }
+
+    @Test
+    @DisplayName("an admin's pickup counts can be narrowed to one branch; a branch manager's are always their own")
+    void statsByBranch() {
+        UUID branch = UUID.randomUUID();
+        UUID mine = UUID.randomUUID();
+        when(pickups.countByStatus(COMPANY, null, branch)).thenReturn(java.util.List.<Object[]>of(new Object[] {PickupStatus.REQUESTED, 3L}));
+        assertThat(service.stats(branch)).containsEntry(PickupStatus.REQUESTED, 3L).containsEntry(PickupStatus.BOOKED, 0L);
+
+        UUID manager = UUID.randomUUID();
+        User u = mock(User.class);
+        when(u.getBranchId()).thenReturn(mine);
+        when(userService.getById(manager)).thenReturn(u);
+        when(branchService.getById(mine)).thenReturn(partner(mine, BranchType.BRANCH, true));
+        when(branches.findByIdWithinCompany(mine, COMPANY)).thenReturn(Optional.of(partner(mine, BranchType.BRANCH, true)));
+        as(manager, Roles.BRANCH_MANAGER);
+        when(pickups.countByStatus(COMPANY, null, mine)).thenReturn(java.util.List.<Object[]>of(new Object[] {PickupStatus.ASSIGNED, 2L}));
+        assertThat(service.stats(branch)).containsEntry(PickupStatus.ASSIGNED, 2L).containsEntry(PickupStatus.REQUESTED, 0L);
+    }
 }

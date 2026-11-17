@@ -155,12 +155,13 @@ public class PickupServiceImpl implements PickupService {
     @Override
     @Transactional(readOnly = true)
     @PreAuthorize(READ)
-    public Map<PickupStatus, Long> stats() {
+    public Map<PickupStatus, Long> stats(UUID bookingBranchId) {
         Map<PickupStatus, Long> out = new EnumMap<>(PickupStatus.class);
         for (PickupStatus s : PickupStatus.values()) {
             out.put(s, 0L);
         }
-        for (Object[] row : pickups.countByStatus(requireCompany(), scope().pdp(), scope().booking())) {
+        Scope own = scope();
+        for (Object[] row : pickups.countByStatus(requireCompany(), own.pdp(), own.booking() != null ? own.booking() : bookingBranchId)) {
             out.put((PickupStatus) row[0], (Long) row[1]);
         }
         return out;

@@ -69,8 +69,8 @@ public class PickupController {
 
     @GetMapping("/stats")
     @Operation(summary = "Pickup counts per status")
-    public ApiResponse<StatsResponse> stats() {
-        Map<PickupStatus, Long> by = service.stats();
+    public ApiResponse<StatsResponse> stats(@RequestParam(required = false) UUID bookingBranchId) {
+        Map<PickupStatus, Long> by = service.stats(bookingBranchId);
         long open = by.entrySet().stream().filter(e -> e.getKey().isOpen()).mapToLong(Map.Entry::getValue).sum();
         return ApiResponse.success(new StatsResponse(by, open));
     }
