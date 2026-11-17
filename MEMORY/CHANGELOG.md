@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-17 — Phase 14.1: forward several shipments at once
+
+- `POST /forwarding/bulk/options {shipmentIds}` and `POST /forwarding/bulk {items:[{shipmentId, providerCode, serviceCode}]}` (up to 20 per call; `BulkForwardingService`). Each shipment goes through `ForwardingService.options/forward` exactly as a single forward (who may, blockers, fresh price, audit, never twice); one row per shipment: FORWARDED / UNCONFIRMED / REFUSED (reason) / ERROR, and one failure never stops the rest. A shipment listed twice is forwarded once.
+- Staff app: tick boxes on Shipments At Hub (shipments held at the hub, up to 50) → Forward Shipments page: priced 5 at a time with progress, cheapest service pre-selected, "Cheapest for all" / "Use one courier for all", one confirm, results per row with courier AWB and label, download the list (CSV).
+
+---
+
 ## 2026-11-16 — Phase 13.4 (backend): branch filter for pickups, branch dashboards for admins
 
 - **Dashboard:** `GET /dashboard/summary?branchId=` — a company admin gets that branch's dashboard (branch-scoped figures, branchOverview, its wallet), the same view the branch's own staff get. The branch is checked through `WalletService.getForBranch` (in the company; a branch user may only name their own). Ignored for the cross-tenant super-admin read.
