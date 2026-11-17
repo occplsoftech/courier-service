@@ -10,12 +10,13 @@
 |---|---|---|---|---|
 | 6 | Pricing, booking and numbering foundations (done) | - | - | `[x]` |
 | 7 | Stabilise and verify on dev | S | 6 | `[x]` (built 2026-11-04; two owner actions left, see 7.4 / 7.7 / 7.8) |
-| 8 | Hub forwards a shipment to a courier partner | L | 6 | `[x]` built 2026-11-04 (backend, staff screen, customer tracking); verify on dev after deploy |
-| 9 | Customer quick wins (labels, cancel, reschedule) | M | 6 | `[ ]` |
-| 10 | Notifications and delivery exceptions | M | 6 | `[ ]` |
-| 11 | Money: POD, invoices, COD remittance, commission | L | 8 | `[ ]` |
-| 12 | Returns, reverse pickup and reports | L | 10, 11 | `[ ]` |
-| 13 | Integrations and access control | L | 8 | `[ ]` |
+| 8 | Hub forwards a shipment to a courier partner | L | 6 | `[x]` |
+| 9 | Customer quick wins (labels, cancel, reschedule) | M | 6 | `[x]` |
+| 10 | Notifications and delivery exceptions | M | 6 | `[x]` |
+| 11 | Money: POD, invoices, COD remittance, commission | L | 8 | `[x]` |
+| 12 | Returns, reverse pickup and reports | L | 10, 11 | `[x]` |
+| 13 | Integrations and access control | L | 8 | `[x]` (all live on dev 2026-11-17; Shopify/WooCommerce await a real store test) |
+| 14 | Hub productivity: forward several shipments at once | M | 8 | `[~]` |
 
 ## Phase 6 — Foundations `[x]` (all merged and deployed 2026-10-30)
 
@@ -48,7 +49,7 @@
 | 7.7 | **Security:** rotate the passwords pasted in chat (staff, e-commerce login, the AWS key id); change or delete the two test users whose passwords were reset | owner | S | `[ ]` **owner** |
 | 7.8 | Stop `.env.bak` / `docker-compose.yml.bak` lingering in `/opt/occpl`; merge the infra PR for `claude/courier-s3-env` | infra | S | `[ ]` **owner (server)** |
 
-## Phase 8 — Forward to a courier partner from the hub `[ ]` **next**
+## Phase 8 — Forward to a courier partner from the hub `[x]`
 
 Scenario: the customer books with OCCPL Network, OCCPL collects the parcel and brings it to a hub or branch, and there the shipment can be handed to Delhivery, Shiprocket or another connected courier. The shipment (AWB, shipment number) already exists from the first booking (phase 6).
 
@@ -69,16 +70,16 @@ Defaults agreed in the brief: courier collects from the branch/hub; customer pri
 | # | Item | Repos | Size |
 |---|---|---|---|
 | 9.1 | Print **all labels** of a bulk upload in one go; download the bulk result as Excel | CS, EC | S |
-| 9.2 | **Cancel** a booking before pickup (refund to wallet, release the shipment number) — backend done (OCCPL Network only); portal button next | CS, EC | M |
-| 9.3 | **Reschedule** the pickup (date and slot) — backend done; portal card next | CS, EC | M |
-| 9.4 | Wallet statement export; shipments list export — backend done; portal buttons next | CS, EC | S |
+| 9.2 | **Cancel** a booking before pickup (refund to wallet, release the shipment number) — done (OCCPL Network only) | CS, EC | M |
+| 9.3 | **Reschedule** the pickup (date and slot) — done | CS, EC | M |
+| 9.4 | Wallet statement export; shipments list export — done | CS, EC | S |
 
 ## Phase 10 — Notifications and delivery exceptions `[x]`
 
 | # | Item | Repos | Size |
 |---|---|---|---|
 | 10.1 | SMS / WhatsApp / email to the customer at booked, picked up, out for delivery, delivered (reuse Communication Center) | CS | M |
-| 10.2 | Delivery failed / undelivered: reason, the customer's choice (re-attempt, change address, return), staff queue — part a (failed attempt, reason, message) built; part b (choice + queue) next. Return = mark Returned; return due after 3 attempts / 7 days | CS, CW, EC | L |
+| 10.2 | Delivery failed / undelivered: reason, the customer's choice (re-attempt, change address, return), staff queue — done (failed attempt, reason, message; the customer's choice; staff queue). Return = mark Returned; return due after 3 attempts / 7 days | CS, CW, EC | L |
 
 ## Phase 11 — Money `[x]`
 
@@ -98,14 +99,20 @@ Defaults agreed in the brief: courier collects from the branch/hub; customer pri
 | 12.1 | Return / RTO shipments and reverse pickup from the buyer — done: RTO charge = forward freight; OCCPL return tracked as a trip back (Load Sheet to the booking branch, hand back); reverse pickup on OCCPL Network (outside couriers later) | CS, CW, EC | L |
 | 12.2 | Customer dashboard — done: all couriers, period switch (7/30/90 days, this month), spend, on-time %, where the parcels are, courier split, late and failed-delivery lists | CS, EC | M |
 
-## Phase 13 — Integrations and access control `[ ]`
+## Phase 13 — Integrations and access control `[x]`
 
 | # | Item | Repos | Size |
 |---|---|---|---|
 | 13.1 | **Enforce courier access at booking** — done: the booking step re-checks allowed + connected (and OCCPL-only for return pickups) before anything is created or charged | CS | S |
 | 13.2 | Branch-level courier assignment — done: home branch per customer (from pickup pincode, editable) and a courier list per branch as the default for its customers | CS, CW | M |
-| 13.3 | Connect the customer's shop (Shopify / WooCommerce) or an API key so orders arrive without re-typing — chosen: an Orders inbox the customer books from; order: a) API key, b) Shopify (customer pastes a custom-app token), c) WooCommerce. a) done; b) Shopify done; c) WooCommerce built (same flow; note + Completed back) | CS, EC | L |
-| 13.4 | Filter the staff pickup list by branch for admins; branch dashboards — built: branch picker on Pickup Requests (list + counts) and View on the Dashboard (an admin sees any branch's dashboard) | CS, CW | S |
+| 13.3 | Connect the customer's shop (Shopify / WooCommerce) or an API key so orders arrive without re-typing — chosen: an Orders inbox the customer books from; order: a) API key, b) Shopify (customer pastes a custom-app token), c) WooCommerce. a) done; b) Shopify done; c) WooCommerce done (same flow; note + Completed back) | CS, EC | L |
+| 13.4 | Filter the staff pickup list by branch for admins; branch dashboards — done: branch picker on Pickup Requests (list + counts) and View on the Dashboard (an admin sees any branch's dashboard) | CS, CW | S |
+
+## Phase 14 — Hub productivity `[~]`
+
+| # | Item | Repos | Size |
+|---|---|---|---|
+| 14.1 | Forward several shipments at once from a hub (one courier choice per shipment, one confirm) | CS, CW | M |
 
 ## Decisions and actions waiting on the owner
 
@@ -114,7 +121,8 @@ Defaults agreed in the brief: courier collects from the branch/hub; customer pri
 | Shipyaari returns HTTP 500 | Activate a plan on the Shipyaari account |
 | Company logo / favicon uploads vs the private S3 bucket | Choose: store in the database, or a public folder |
 | Real rates for customers | Send the numbers or the filled Excel; load through the import |
-| Which phase next | Recommended: phase 8, then 9 |
+| Real Shopify / WooCommerce test | A Shopify development store and a WooCommerce site on https (keys pasted in the portal by the owner) |
+| Shiprocket cancel (403) | Give the API user permission to cancel |
 
 ## Known behaviours to remember
 
