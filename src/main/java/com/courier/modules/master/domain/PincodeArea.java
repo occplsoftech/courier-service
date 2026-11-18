@@ -58,6 +58,10 @@ public class PincodeArea extends CompanyOwnedEntity {
     @Column(name = "is_primary", nullable = false)
     private boolean primary = false;
 
+    /** This area can be booked to (the pincode itself must be serviceable too). */
+    @Column(name = "serviceable", nullable = false)
+    private boolean serviceable = true;
+
     @Column(name = "oda_applicable", nullable = false)
     private boolean odaApplicable = false;
 

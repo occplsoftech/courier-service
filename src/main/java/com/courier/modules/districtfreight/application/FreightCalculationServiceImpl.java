@@ -81,8 +81,9 @@ public class FreightCalculationServiceImpl implements FreightCalculationService 
                         "Pincode %s is not on file or has no resolvable district — cannot calculate freight."
                                 .formatted(destinationPincode)));
         if (!coverage.serviceable()) {
-            throw new BusinessRuleException(
-                    "Pincode %s is not serviceable.".formatted(coverage.pincodeCode()));
+            throw new BusinessRuleException(destinationAreaId == null
+                    ? "Pincode %s is not serviceable.".formatted(coverage.pincodeCode())
+                    : "Service unavailable for %s (%s).".formatted(coverage.cityName(), coverage.pincodeCode()));
         }
         if (!coverage.districtActive()) {
             throw new BusinessRuleException(

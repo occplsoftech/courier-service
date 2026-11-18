@@ -76,6 +76,25 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
     /** Looked up lazily: this adapter is one of them, and tracking a forwarded shipment asks the courier it went to. */
     private final org.springframework.beans.factory.ObjectProvider<List<CourierProviderAdapter>> allAdapters;
 
+    /** Counts a delivery pincode OCCPL does not serve, for the unserviceable-requests report. Absent in tests built by hand. */
+    private com.courier.modules.master.application.ServiceabilityService serviceability;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setServiceability(com.courier.modules.master.application.ServiceabilityService serviceability) {
+        this.serviceability = serviceability;
+    }
+
+    private void countUnserviceable(String pincode) {
+        if (serviceability == null) {
+            return;
+        }
+        try {
+            serviceability.check(pincode, null, null, com.courier.modules.master.domain.UnserviceableRequest.Source.PORTAL);
+        } catch (RuntimeException e) {
+            // never stops pricing; a malformed pincode is simply not counted
+        }
+    }
+
     @Override public String code() { return CODE; }
     @Override public String displayName() { return "OCCPL Network"; }
     @Override public boolean external() { return false; }
@@ -89,6 +108,7 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
         }
         PincodeLocation delivery = pincodes.location(r.deliveryPincode()).orElse(null);
         if (delivery == null || !delivery.serviceable() || delivery.districtId() == null) {
+            countUnserviceable(r.deliveryPincode());
             return unavailable("OCCPL network does not deliver to " + r.deliveryPincode() + ".");
         }
         if (r.cod() && !delivery.codAvailable()) {

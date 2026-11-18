@@ -8,6 +8,15 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-18 — Area serviceability at booking, and the unserviceable-requests report
+
+- **Per-area switch** (V166 `master_pincode_areas.serviceable`, default on): an area of a pincode can be switched off on its own; `PATCH /global-masters/pincodes/{id}/areas/{linkId}` takes `serviceable`, the area list returns it. Freight calculation (and so booking) treats pincode-off or area-off as unserviceable: "Service unavailable for Camp, Pune (411001)."
+- **Check** `GET /serviceability/check?pincode&areaId&branchId` (`ServiceabilityService`): NOT_ON_FILE / PINCODE_OFF / AREA_OFF with the message. Every unserviceable answer is counted (V166 `unserviceable_requests`, one row per company + pincode + area; staff and portal counts, first/last asked, last branch and user; own transaction, never fails the caller). The portal's OCCPL Network pricing counts unserviceable delivery pincodes too (no area).
+- **Report** `GET /serviceability/unserviceable` (open / switched on / all, search, since; most asked first; "serviceable now" worked out live), `/export` (Excel), `POST /unserviceable/{id}/turn-on` (company admin / super admin): switches the area on, and its pincode when off (prepaid on); refused for NOT_ON_FILE (add it in Masters). Asked again after being switched on → open again. Audit `AREA_SERVICE_TURNED_ON`.
+- Staff app: area check on Shipment Booking (✓ Serviceable / red message; Book blocked), Serviceable switch per area on the pincode page, Reports → Unserviceable Requests.
+
+---
+
 ## 2026-11-17 — Platform: All Bookings for the super admin
 
 - `GET /api/v1/platform/bookings` (SUPER_ADMIN; filters companyId, carriedBy OCCPL/FORWARDED/BOOKED_WITH, providerCode, courier, from/to (IST, inclusive), search; page/size ≤100) and `/export` (Excel, up to 20,000 rows). `PlatformBookingsService`: one cross-company SQL over `shipments` (counter and portal OCCPL bookings; a forwarded one shows the courier, courier AWB and our cost) and `portal_bookings` with no shipment (booked directly with a courier, or an OCCPL pickup not yet booked; BOOKED/CANCELLED/OUTCOME_UNKNOWN). Channel COUNTER / PORTAL / API / SHOPIFY / WOOCOMMERCE. Totals per carrier for the filter.

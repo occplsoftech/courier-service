@@ -166,18 +166,18 @@ public class PincodeController {
     }
 
     @PatchMapping("/{id}/areas/{areaLinkId}")
-    @Operation(summary = "Set ODA for one Area of this pincode",
+    @Operation(summary = "Set ODA and/or serviceability for one Area of this pincode",
             description = "Same write audience as create. A fresh 250.00 fills in "
-                    + "server-side the moment `odaApplicable` turns true with no amount given.")
+                    + "server-side the moment `odaApplicable` turns true with no amount given. `serviceable=false` stops bookings to this area.")
     public ApiResponse<PincodeAreaResponse> updateArea(@PathVariable UUID id, @PathVariable UUID areaLinkId,
                                                         @Valid @RequestBody UpdatePincodeAreaRequest request) {
         return ApiResponse.success(toAreaResponse(
-                pincodeAreaService.updateOda(id, areaLinkId, request.odaApplicable(), request.odaAmount())));
+                pincodeAreaService.update(id, areaLinkId, request.odaApplicable(), request.odaAmount(), request.serviceable())));
     }
 
     private PincodeAreaResponse toAreaResponse(PincodeAreaService.Row row) {
         return new PincodeAreaResponse(row.link().getId(), row.link().getAreaId(), row.areaName(), row.cityName(),
-                row.link().isPrimary(), row.link().isOdaApplicable(), row.link().getOdaAmount());
+                row.link().isPrimary(), row.link().isOdaApplicable(), row.link().getOdaAmount(), row.link().isServiceable());
     }
 
     @PutMapping("/{id}")
