@@ -15,6 +15,7 @@ import java.math.BigDecimal;
 @Schema(name = "UpdatePincodeAreaRequest", description = "Per-area ODA setting on a pincode")
 public record UpdatePincodeAreaRequest(
         Boolean odaApplicable,
-        @DecimalMin(value = "0", message = "must not be negative") BigDecimal odaAmount
+        @DecimalMin(value = "0", message = "must not be negative") BigDecimal odaAmount,
+        Boolean serviceable
 ) {
 }

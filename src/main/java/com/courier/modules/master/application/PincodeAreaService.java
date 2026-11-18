@@ -67,6 +67,13 @@ public class PincodeAreaService {
     @Transactional
     @PreAuthorize(WRITE)
     public Row updateOda(UUID pincodeId, UUID linkId, Boolean odaApplicable, BigDecimal odaAmount) {
+        return update(pincodeId, linkId, odaApplicable, odaAmount, null);
+    }
+
+    /** ODA and/or serviceability of one area of a pincode; each field optional. */
+    @Transactional
+    @PreAuthorize(WRITE)
+    public Row update(UUID pincodeId, UUID linkId, Boolean odaApplicable, BigDecimal odaAmount, Boolean serviceable) {
         return CompanyContext.runAs(GlobalMasters.PLATFORM_COMPANY_ID, () -> {
             UUID companyId = GlobalMasters.PLATFORM_COMPANY_ID;
             PincodeArea link = pincodeAreas.findByIdAndCompanyIdAndPincodeId(linkId, companyId, pincodeId)
@@ -76,6 +83,9 @@ public class PincodeAreaService {
             }
             if (odaAmount != null) {
                 link.setOdaAmount(odaAmount);
+            }
+            if (serviceable != null) {
+                link.setServiceable(serviceable);
             }
             link.applyInvariants();
             PincodeArea saved = pincodeAreas.saveAndFlush(link);

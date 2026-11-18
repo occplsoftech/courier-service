@@ -114,7 +114,7 @@ public class MasterDistrictFreightCoverageDirectory implements PincodeCoverageLo
             if (district == null) {
                 return Optional.empty();
             }
-            return Optional.of(new CoverageRef(pincode.getId(), pincode.getCode(), pincode.isServiceable(),
+            return Optional.of(new CoverageRef(pincode.getId(), pincode.getCode(), pincode.isServiceable() && link.isServiceable(),
                     link.isOdaApplicable(), district.getId(), district.getCode(), district.getName(),
                     district.isActive(), area.getName() + ", " + city.getName(), city.getId()));
         });
