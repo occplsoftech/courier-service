@@ -68,22 +68,15 @@ public class PricingEngineImpl implements PricingEngine {
         BigDecimal volumetricWeight = VolumetricCalculator.calculate(
                 command.length(), command.width(), command.height(),
                 configuration.volumetricDivisor());
-        // The minimum chargeable weight floor (CompanySettings.defaultChargeableWeightKg)
-        // is applied inside each branch below, not here — a caller that never reaches
-        // pricing (route/rate validation refuses first) must not pay for a CompanySettings
-        // lookup it will never use.
         try {
             Route route = routeValidation.validate(command);
             LocalDate bookingDate = bookingValidation.validate(command);
             List<Rate> candidates = rateValidation.validate(route.getId(), command, bookingDate);
 
-            // One CompanySettings lookup covers both the round-off override and the
-            // minimum chargeable weight floor — resolved only on the priced (non-fallback)
-            // path, so a caller that falls through to Freight Factor below isn't charged
-            // for a lookup this branch alone needed.
+            // CompanySettings (round-off override) is resolved only on the priced path.
+            // Chargeable weight is the higher of actual and volumetric: no company minimum.
             CompanySettings settings = companySettingsService.get();
-            BigDecimal chargeableWeight = ChargeableWeightCalculator.calculate(
-                    actualWeight, volumetricWeight, settings.getDefaultChargeableWeightKg());
+            BigDecimal chargeableWeight = ChargeableWeightCalculator.calculate(actualWeight, volumetricWeight);
             PricingContext context = new PricingContext(
                     command, configuration.withRoundingRule(resolveRoundingRule(settings)));
             context.matchedRoute(route);
@@ -161,12 +154,9 @@ public class PricingEngineImpl implements PricingEngine {
 
     private PricingResult priceByDistanceAndWeight(PricingCommand command, BigDecimal actualWeight,
                                                     BigDecimal volumetricWeight) {
-        // Fetched once, up front — needed for the floor below (before grid matching, so a
-        // below-minimum shipment matches the slab its floored weight actually falls in,
-        // not the one its raw weight would have) and reused for GST/round-off further down.
+        // Fetched once, up front, for GST/round-off further down.
         var settings = companySettingsService.get();
-        BigDecimal chargeableWeight = ChargeableWeightCalculator.calculate(
-                actualWeight, volumetricWeight, settings.getDefaultChargeableWeightKg());
+        BigDecimal chargeableWeight = ChargeableWeightCalculator.calculate(actualWeight, volumetricWeight);
         var matchOutcome = freightFactorService.tryCalculate(new FreightCalculationCommand(
                 command.bookingBranchId(), command.deliveryBranchId(), chargeableWeight));
         BigDecimal matchedFactor = matchOutcome.map(r -> r.matchedFactor().getFactor()).orElse(null);
