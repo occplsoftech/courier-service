@@ -8,6 +8,26 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-19 — Booking: zone-tariff rate cards replace the Service Type dropdown (courier-web only)
+
+- **CW#51:**
+  - Package Type defaults to NON-DOC once the options load.
+  - Every service type is priced in parallel (`freightCalculationService.calculate` per type, `forkJoin`). The calls are re-run when pincode, area, weight, package type or the customer changes (key-based `distinctUntilChanged`).
+  - If the chosen service has no rate, the other services that do are offered.
+- **CW#52:** cards like the Rate Calculator (`tariff-quote`): an icon per service, freight, ODA, extras, GST at the branch's GST %, total, delivery days, a "Lowest" badge, and the unavailable services listed with their reason. The card total row is `.tot`, because `.sum` clashed with the summary styles.
+- **CW#53:**
+  - The Service Type dropdown is removed and nothing is auto-selected.
+  - Until a service is chosen, the right panel (`aside.lr__sum`) shows "Choose a service" with the cards. MSRTC bookings get plain service buttons.
+  - Once one is chosen, the panel shows the Booking Summary with "SERVICE · delivery date · Change". `changeService()` clears the choice.
+  - Spec: `shipment-rates.spec.ts`.
+- **Checked live as Pune Test Branch:**
+  - 411001, 15 kg → Cargo ₹236 (Lowest), Surface ₹720, Premium ₹4,720.
+  - Surface → freight ₹610 from Zone tariff PUNE_CASH_2025.
+  - A To Pay booking TEST_BR-000004 (net ₹780) was made and then cancelled.
+- No backend change: booking still prices business-customer zone → zone tariff → District Level Freight.
+
+---
+
 ## 2026-11-18 — Area serviceability at booking, and the unserviceable-requests report
 
 - **Per-area switch** (V166 `master_pincode_areas.serviceable`, default on): an area of a pincode can be switched off on its own; `PATCH /global-masters/pincodes/{id}/areas/{linkId}` takes `serviceable`, the area list returns it. Freight calculation (and so booking) treats pincode-off or area-off as unserviceable: "Service unavailable for Camp, Pune (411001)."

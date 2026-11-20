@@ -16,7 +16,7 @@
 | 11 | Money: POD, invoices, COD remittance, commission | L | 8 | `[x]` |
 | 12 | Returns, reverse pickup and reports | L | 10, 11 | `[x]` |
 | 13 | Integrations and access control | L | 8 | `[x]` (all live on dev 2026-11-17; Shopify/WooCommerce await a real store test) |
-| 14 | Hub productivity: forward several shipments at once | M | 8 | `[~]` |
+| 14 | Hub productivity: forward several shipments at once | M | 8 | `[x]` (14.1 done 2026-11-17) |
 
 ## Phase 6 — Foundations `[x]` (all merged and deployed 2026-10-30)
 
@@ -108,11 +108,23 @@ Defaults agreed in the brief: courier collects from the branch/hub; customer pri
 | 13.3 | Connect the customer's shop (Shopify / WooCommerce) or an API key so orders arrive without re-typing — chosen: an Orders inbox the customer books from; order: a) API key, b) Shopify (customer pastes a custom-app token), c) WooCommerce. a) done; b) Shopify done; c) WooCommerce done (same flow; note + Completed back) | CS, EC | L |
 | 13.4 | Filter the staff pickup list by branch for admins; branch dashboards — done: branch picker on Pickup Requests (list + counts) and View on the Dashboard (an admin sees any branch's dashboard) | CS, CW | S |
 
-## Phase 14 — Hub productivity `[~]`
+## Phase 14 — Hub productivity `[x]`
 
 | # | Item | Repos | Size |
 |---|---|---|---|
-| 14.1 | Forward several shipments at once from a hub (one courier choice per shipment, one confirm) | CS, CW | M |
+| 14.1 | Forward several shipments at once from a hub (one courier choice per shipment, one confirm) — done: Shipments At Hub → Forward Shipments, cheapest pre-selected, up to 20 per call (CS#115, CW#46/#47) | CS, CW | M |
+
+## Done outside the phases (2026-11-17 to 2026-11-19)
+
+| Item | Repos |
+|---|---|
+| Platform → All Bookings for the super admin: every booking across companies with carrier (OCCPL / forwarded / booked with, real courier behind an aggregator), Excel | CS#116, CW#48 |
+| Area serviceability: per-area switch, booking blocked when off, Unserviceable Requests report with counts per pincode + area (staff and portal), Turn on | CS#117, CW#49/#50 |
+| Booking picks the service from zone-tariff rate cards in the summary panel; no Service Type dropdown; NON-DOC default | CW#51/#52/#53 |
+
+## Next (not started)
+
+- **WheelsEye API integration** — waiting for the owner: purpose, API docs, credentials.
 
 ## Decisions and actions waiting on the owner
 
@@ -123,6 +135,10 @@ Defaults agreed in the brief: courier collects from the branch/hub; customer pri
 | Real rates for customers | Send the numbers or the filled Excel; load through the import |
 | Real Shopify / WooCommerce test | A Shopify development store and a WooCommerce site on https (keys pasted in the portal by the owner) |
 | Shiprocket cancel (403) | Give the API user permission to cancel |
+| Blue Dart, Ekart, Porter | Connect the accounts (credentials) |
+| AIR rate to Pune in PUNE_CASH_2025 | Add the lane if AIR should be offered for Pune bookings |
+| TEST_BR wallet ₹10.80 | Top up to test Paid bookings as the branch |
+| Passwords pasted in chat; `.bak` files on the server | Rotate the passwords; delete the files |
 
 ## Known behaviours to remember
 
