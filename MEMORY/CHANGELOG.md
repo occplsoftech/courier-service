@@ -8,6 +8,16 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-20 — Chargeable weight: higher of actual and volumetric, no company minimum
+
+- **Rule:** chargeable weight = MAX(actual, L×W×H / 5000). The company-wide floor
+  (`CompanySettings.defaultChargeableWeightKg`, 15 kg by default) is no longer applied by
+  `ChargeableWeightCalculator`, `PricingEngineImpl` (both paths) or `ShipmentServiceImpl.summariseWeight`.
+- **Kept:** the settings column and API field (unused, no migration); a customer rate card's own
+  minimum chargeable weight (part of that tariff) is unchanged.
+- **courier-web:** the item grid no longer pre-fills 15 kg or floors its preview; the Domestic (CASH) /
+  Credit Shipment page no longer floors; Settings no longer shows or edits Default Chargeable Weight.
+
 ## 2026-11-19 — Booking: zone-tariff rate cards replace the Service Type dropdown (courier-web only)
 
 - **CW#51:**

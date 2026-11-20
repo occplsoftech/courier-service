@@ -227,20 +227,17 @@ class ShipmentServiceImplTest {
     }
 
     @Test
-    @DisplayName("a booking below the company's minimum chargeable weight prices at the "
-            + "minimum, not its own lighter actual/volumetric weight; one above it prices "
-            + "at its own weight, unfloored")
-    void chargeableWeightNeverPricesBelowTheCompanyMinimum() {
-        // @BeforeEach's stub already carries the entity default (15.000kg) — command()'s
-        // 5.000kg item has no dimensions, so actual == volumetric-less chargeable == 5.000
-        // before the floor.
-        Shipment belowMinimum = service.create(command());
-        assertThat(belowMinimum.getActualWeight()).isEqualByComparingTo("5.000");
-        assertThat(belowMinimum.getChargeableWeight()).isEqualByComparingTo("15.000");
+    @DisplayName("chargeable weight is the higher of actual and volumetric: no company "
+            + "minimum, even though the settings row still carries the old 15kg default")
+    void chargeableWeightHasNoCompanyMinimum() {
+        // @BeforeEach's stub carries the entity default (15.000kg) — it must not floor
+        // anything: command()'s 5.000kg item has no dimensions, so it prices at 5.000.
+        Shipment light = service.create(command());
+        assertThat(light.getActualWeight()).isEqualByComparingTo("5.000");
+        assertThat(light.getChargeableWeight()).isEqualByComparingTo("5.000");
 
-        // Same @BeforeEach stub (15.000kg minimum) — a 16.000kg item is above it, so it
-        // prices at its own weight instead.
-        CreateShipmentCommand aboveMinimum = new CreateShipmentCommand(
+        // A heavier item prices at its own weight too.
+        CreateShipmentCommand heavier = new CreateShipmentCommand(
                 BOOKING_BRANCH, null, PICKUP_PINCODE, DELIVERY_PINCODE,
                 "Asha Shah", "221B Baker Street, Pune", "9876543210",
                 "Rahul Verma", "12 MG Road, Mumbai", "9876500000",
@@ -250,9 +247,9 @@ class ShipmentServiceImplTest {
                         null, null, null, null, false, false)),
                 null, null, null, null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null);
-        Shipment aboveMinimumShipment = service.create(aboveMinimum);
-        assertThat(aboveMinimumShipment.getActualWeight()).isEqualByComparingTo("16.000");
-        assertThat(aboveMinimumShipment.getChargeableWeight()).isEqualByComparingTo("16.000");
+        Shipment heavierShipment = service.create(heavier);
+        assertThat(heavierShipment.getActualWeight()).isEqualByComparingTo("16.000");
+        assertThat(heavierShipment.getChargeableWeight()).isEqualByComparingTo("16.000");
     }
 
     @Test

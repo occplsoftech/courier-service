@@ -2883,10 +2883,7 @@ public class ShipmentServiceImpl implements ShipmentService {
      * the same "not refused" rule {@code VolumetricCalculator} documents for a single
      * parcel.
      *
-     * <p>Chargeable weight never prices below the company's own {@code
-     * CompanySettings.defaultChargeableWeightKg} — a real pricing floor, not just the
-     * item grid's booking-screen prefill: a 10kg actual/volumetric shipment still prices
-     * at the company's 15kg minimum, while a 16kg one prices at its own 16kg.
+     * <p>Chargeable weight is the higher of the two; there is no company-wide minimum.
      */
     private WeightSummary summariseWeight(List<ShipmentItem> items) {
         BigDecimal divisor = pricingProperties.toConfiguration().volumetricDivisor();
@@ -2901,9 +2898,7 @@ public class ShipmentServiceImpl implements ShipmentService {
         }
         BigDecimal normalisedActual = WeightCalculator.normalise(actual);
         BigDecimal normalisedVolumetric = WeightCalculator.normalise(volumetric);
-        BigDecimal minimumChargeable = companySettingsService.get().getDefaultChargeableWeightKg();
-        BigDecimal chargeable = ChargeableWeightCalculator.calculate(
-                normalisedActual, normalisedVolumetric, minimumChargeable);
+        BigDecimal chargeable = ChargeableWeightCalculator.calculate(normalisedActual, normalisedVolumetric);
         return new WeightSummary(normalisedActual, normalisedVolumetric, chargeable);
     }
 
