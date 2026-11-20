@@ -326,6 +326,15 @@ this module existed) now point at the real `/shipments/new`/`/shipments` routes;
 Management ships. The dashboard's `book`/`search` quick actions got real routes too —
 both previously toasted "available once the shipments module ships."
 
+### Service rate cards (2026-11-19, CW#51–#53)
+
+- `shipment-create.ts` has no Service Type dropdown. `serviceRates$()` prices every active service type with `POST /district-level-freight/calculate`, using the same pricing chain as the booking: business-customer zone → zone tariff → District Level Freight.
+- Each `ServiceRate` holds freight, oda, extras, gst, roundOff, total, days and basis, or an error. The GST is `round((freight+oda+extras) * branch GST %) / 100`.
+- `availableRates`, `unavailableRates` and `cheapestRate` are computed.
+- The aside `lr__sum` shows "Choose a service" with the cards until `serviceTypeId` is set. After that it shows the Booking Summary with a `.chosen` bar ("LABEL · delivery date · Change"). `changeService()` clears it.
+- Package Type defaults to NON-DOC: the zone tariff needs both service type and package type.
+- Spec: `shipment-rates.spec.ts`.
+
 ## Verified by running it (2026-07-30, MySQL 8.0.46, `SERVER_PORT=8081`)
 
 Backend over HTTP (fresh `Rahul Deshmukh`/`Neha Kulkarni` customers created for the

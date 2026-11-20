@@ -7,7 +7,102 @@
 
 ## Current Version
 
-**Roadmap (2026-10-30):** the ordered phases for the customer portal, booking and courier forwarding are in `MEMORY/modules/customer-portal-roadmap.md` (phase 8, forwarding to a courier partner from the hub, is next).
+## HANDOFF — state on 2026-11-20 (read this before anything else)
+
+The project is being continued from another Claude account. Read this block first. After it, read `MEMORY/CHANGELOG.md` (newest first) and `MEMORY/modules/customer-portal-roadmap.md`.
+
+**Repositories (GitHub owner `occplsoftech`):**
+
+| Repo | What it is |
+|---|---|
+| `courier-service` (CS) | Spring Boot 3, Java 21, Flyway, MySQL. This repo, and the only one that holds MEMORY/. |
+| `courier-web` (CW) | Angular staff app (company admin, branches, hubs, super admin). |
+| `e-commerce-bussines` (EC) | Angular customer portal. |
+
+Every merge to `main` deploys to dev: CS → the API, CW → https://courier.dev.occplsoftech.com, EC → the portal.
+
+**Status:** everything below is merged, deployed and checked live on dev. No PRs were open on 2026-11-20. The latest are CS#117 and CW#53. The next free Flyway migration is **V167**: fetch `main` first in case someone has taken it.
+
+**Done:**
+
+1. **Roadmap phases 6–13: done.** See `modules/customer-portal-roadmap.md`. This covers:
+   - Forwarding a shipment to a courier partner from the hub.
+   - Customer labels, cancel and reschedule.
+   - Notifications.
+   - Money: POD, invoices, COD remittance, commission.
+   - Returns and reverse pickup.
+   - Reports.
+   - Courier access control.
+   - Integrations:
+     - 13.3a: API key and Orders inbox.
+     - 13.3b: Shopify (paste-token).
+     - 13.3c: WooCommerce.
+   - 13.4: branch filter on pickups, and an admin can view any branch's dashboard.
+2. **14.1: forward several shipments at once.** Lives in Shipments At Hub → Forward Shipments, up to 20 per call (CS#115, CW#46/#47).
+3. **All Bookings for the super admin (CS#116, CW#48).** It shows every booking across companies with who carries it: OCCPL Network, forwarded, or booked with a courier (BlueDart etc., "Delhivery via Shipyaari"). Package `modules/platformbookings`, `/api/v1/platform/bookings`. It is SUPER_ADMIN only and was checked to give 403/401 to everyone else.
+4. **Area serviceability (CS#117, CW#49/#50).** V166 adds:
+   - A pincode + area check at booking.
+   - A per-area Serviceable switch for the company admin on the pincode page.
+   - Booking is blocked when the area or pincode is off.
+   - A count of every unserviceable request per pincode and area, staff and portal (Reports → Unserviceable Requests, with Excel export and "Turn on").
+5. **Zone-tariff rates at booking (CW#51/#52/#53, frontend only).**
+   - The Shipment Booking screen has no Service Type dropdown any more.
+   - The right-hand panel shows service cards, styled like the Rate Calculator: freight, ODA, extras, GST, total, delivery days, and a "Lowest" badge. They come from `POST /district-level-freight/calculate` called once per service type.
+   - Picking a card sets the service type and shows the Booking Summary with a "SERVICE · delivery date · Change" bar.
+   - Package Type defaults to NON-DOC.
+   - The backend pricing order is unchanged: business-customer zone → zone tariff (needs serviceType + packageType + the branch's postal code) → District Level Freight. See `modules/shipment-booking.md` "Service rate cards".
+6. **Fixes along the way:**
+   - CS#110: `CustomerApiKey.keyHash` is `CHAR(64)`. Hibernate validation crashed startup on dev.
+   - CS#113: a company admin stays company-wide even when assigned to a branch.
+   - EC#46/#48: the portal's new shipment fills the pickup contact from the profile.
+
+**Waiting on the owner (do not guess these):**
+- **WheelsEye API integration: not started.** Needs what it should do (truck booking? tracking?), its API docs and credentials.
+- **Couriers:**
+  - Shiprocket cancel returns 403 (API user lacks permission) and returned no rates.
+  - Blue Dart, Ekart and Porter are not connected.
+  - Shipyaari 500 means an inactive plan.
+- **Dev data:**
+  - Tariff `PUNE_CASH_2025` has CRG/PRM/SRF lanes to PUNE but no AIR (AIR only to VIDHARBHA).
+  - Pune Test Branch (`TEST_BR`) wallet is ₹10.80, so a Paid booking there fails. Test with To Pay.
+- **Integrations and data to supply:**
+  - A real Shopify dev store / WooCommerce https site.
+  - Real customer rates.
+  - Logo/favicon storage (DB vs public folder).
+  - Keep or delete the old test rate.
+- **Security:**
+  - Rotate the passwords that were pasted into chat during development.
+  - Delete the `.bak` files on the server.
+  - **Never** write credentials into code, PRs, quick-login buttons or these MEMORY files.
+
+**How work was done (keep doing it):**
+- The owner wants a flow image (an HTML mock → PNG) before a feature is built, and product choices asked as questions.
+- PR per repo. Merge **only** when the owner says "merge".
+- After the deploy, test on dev with Playwright and send screenshots.
+- "check now" = check the deploy run.
+
+**Live testing on dev:**
+- Log in as company `OCCPL`, with credentials supplied by the owner (passed as env vars, never committed).
+- To act as a branch: Branches → row `TEST_BR` → Actions → *Login as Branch* (a 15-minute branch session). The quick-fill "Pune Branch" on the login page belongs to a company that dev does not have.
+- The booking page shows a "Welcome to Courier SaaS" tour: press Escape.
+- Selectors: item rows are `.ieg__row`; the destination pincode is `label.fld` "Destination Pincode"; the rate panel is `aside.lr__sum` with `.svc-card`.
+- A local build can be tested against dev by serving `dist/` through Playwright `page.route` and letting `/api` through. Strip `origin`/`referer` if you proxy the API.
+- Reference: 411001 at 15 kg from TEST_BR → Cargo ₹236, Surface ₹720, Premium ₹4,720. Test area "C D A (O)" of 411001 must be left **on**.
+- Cancel any test booking afterwards: TEST_BR-000004 was booked and cancelled.
+
+**Gotchas:**
+- Hibernate schema validation is strict (CHAR vs VARCHAR).
+- AFTER_COMMIT listeners need a REQUIRES_NEW transaction.
+- Use `CompanyContext.runAs` for cross-company work.
+- Global masters live under `GlobalMasters.PLATFORM_COMPANY_ID`.
+- Store secrets through `CourierSecretsCodec`.
+- Frontend:
+  - Install with `npx -y npm@11 ci`; older npm fails on peer dependencies.
+  - Test with `npx ng test --watch=false`.
+  - CI fails on any unhandled error in a spec. Flush mocked HTTP calls with realistic bodies.
+  - No `new Map()` inside Angular templates.
+
+---
 
 **Customer portal, phase 1 (2026-10-21, V128, no version bump):** `CUSTOMER` accounts linked to a business customer (`users.customer_id`), scope gate keeping them inside `/api/v1/customer-portal/**`, `/customer-portal/profile`, portal access admin endpoints, and the quote/markup/booking schema. Read `MEMORY/modules/customer-portal.md` before touching any of it.
 
