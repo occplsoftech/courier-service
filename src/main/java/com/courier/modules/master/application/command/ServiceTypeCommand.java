@@ -12,6 +12,7 @@ public record ServiceTypeCommand(
         Boolean express,
         LocalTime cutoffTime,
         Integer priority,
+        Integer volumetricDivisor,
         Long expectedVersion
 ) {
 }

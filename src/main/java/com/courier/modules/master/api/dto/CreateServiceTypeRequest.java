@@ -3,6 +3,7 @@ package com.courier.modules.master.api.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
@@ -25,6 +26,10 @@ public record CreateServiceTypeRequest(
                 example = "18:00:00") LocalTime cutoffTime,
         @PositiveOrZero
         @Schema(description = "Ranking when more than one service can carry a shipment; higher wins")
-        Integer priority
+        Integer priority,
+        @Positive
+        @Schema(description = "cm3-per-kg divisor of L x W x H for volumetric weight on this service; "
+                + "empty uses the default (5000)", example = "5000")
+        Integer volumetricDivisor
 ) {
 }

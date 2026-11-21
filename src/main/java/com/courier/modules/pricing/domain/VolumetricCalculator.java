@@ -15,6 +15,13 @@ public final class VolumetricCalculator {
     private VolumetricCalculator() {
     }
 
+    /** The service type's own divisor when it has one (Air and Surface commonly differ),
+     *  else the deployment default. */
+    public static BigDecimal divisor(Integer serviceTypeDivisor, BigDecimal fallback) {
+        return serviceTypeDivisor != null && serviceTypeDivisor > 0
+                ? BigDecimal.valueOf(serviceTypeDivisor) : fallback;
+    }
+
     /**
      * Zero when any dimension is missing — a shipment with no captured dimensions is
      * priced on actual weight alone, not refused, since dimensions are optional input.

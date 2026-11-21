@@ -169,13 +169,13 @@ public class MasterDataBootstrapService {
     private List<ServiceTypeCommand> defaultServiceTypes() {
         return List.of(
                 new ServiceTypeCommand("SAME_DAY", "Same Day", "Booked and delivered today",
-                        10, 0, true, LocalTime.of(11, 0), 40, null),
+                        10, 0, true, LocalTime.of(11, 0), 40, null, null),
                 new ServiceTypeCommand("EXPRESS", "Express", "Next working day where serviced",
-                        20, 1, true, LocalTime.of(18, 0), 30, null),
+                        20, 1, true, LocalTime.of(18, 0), 30, null, null),
                 new ServiceTypeCommand("STANDARD", "Standard", "The default service level",
-                        30, 3, false, LocalTime.of(18, 0), 20, null),
+                        30, 3, false, LocalTime.of(18, 0), 20, null, null),
                 new ServiceTypeCommand("ECONOMY", "Economy", "Lowest cost, longest transit",
-                        40, 6, false, LocalTime.of(18, 0), 10, null));
+                        40, 6, false, LocalTime.of(18, 0), 10, null, null));
     }
 
     private List<PaymentModeCommand> defaultPaymentModes() {

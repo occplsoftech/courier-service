@@ -105,6 +105,7 @@ public class ServiceTypeServiceImpl extends AbstractMasterDataService<ServiceTyp
         values.put("express", serviceType.isExpress());
         values.put("cutoffTime", String.valueOf(serviceType.getCutoffTime()));
         values.put("priority", serviceType.getPriority());
+        values.put("volumetricDivisor", serviceType.getVolumetricDivisor());
         return values;
     }
 
@@ -113,5 +114,6 @@ public class ServiceTypeServiceImpl extends AbstractMasterDataService<ServiceTyp
         serviceType.setExpress(Boolean.TRUE.equals(command.express()));
         serviceType.setCutoffTime(command.cutoffTime());
         serviceType.setPriority(command.priority() == null ? 0 : command.priority());
+        serviceType.setVolumetricDivisor(command.volumetricDivisor());
     }
 }

@@ -253,6 +253,34 @@ class ShipmentServiceImplTest {
     }
 
     @Test
+    @DisplayName("volumetric weight uses the booked service type's own divisor, else 5000")
+    void volumetricWeightUsesTheServiceTypesDivisor() {
+        CreateShipmentCommand bulky = new CreateShipmentCommand(
+                BOOKING_BRANCH, null, PICKUP_PINCODE, DELIVERY_PINCODE,
+                "Asha Shah", "221B Baker Street, Pune", "9876543210",
+                "Rahul Verma", "12 MG Road, Mumbai", "9876500000",
+                SERVICE_TYPE, PACKAGE_TYPE, PAYMENT_MODE,
+                null, LocalDate.of(2026, 7, 30), new BigDecimal("1000"), 1, "handle with care", null, null, null,
+                List.of(new ShipmentItemCommand("Box", 1, new BigDecimal("2.000"),
+                        new BigDecimal("40"), new BigDecimal("40"), new BigDecimal("40"), null, false, false)),
+                null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null);
+
+        // No divisor on the service: 64000 / 5000 = 12.8kg.
+        Shipment byDefault = service.create(bulky);
+        assertThat(byDefault.getVolumetricWeight()).isEqualByComparingTo("12.800");
+        assertThat(byDefault.getChargeableWeight()).isEqualByComparingTo("12.800");
+
+        // Surface at 4000: 64000 / 4000 = 16kg.
+        com.courier.modules.master.domain.ServiceType surface = new com.courier.modules.master.domain.ServiceType();
+        surface.setVolumetricDivisor(4000);
+        when(serviceTypeRepository.findByIdWithinCompany(SERVICE_TYPE, COMPANY)).thenReturn(Optional.of(surface));
+        Shipment bySurface = service.create(bulky);
+        assertThat(bySurface.getVolumetricWeight()).isEqualByComparingTo("16.000");
+        assertThat(bySurface.getChargeableWeight()).isEqualByComparingTo("16.000");
+    }
+
+    @Test
     @DisplayName("a crossing booking sets nextLocationId to the crossing branch (not the "
             + "delivery branch) and creates a CrossingDetail for it")
     void crossingBookingCreatesCrossingDetail() {
