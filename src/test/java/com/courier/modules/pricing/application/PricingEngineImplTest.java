@@ -51,6 +51,7 @@ class PricingEngineImplTest {
     @Mock private FreightFactorService freightFactorService;
     @Mock private com.courier.modules.company.application.CompanySettingsService companySettingsService;
     @Mock private ApplicableChargesCalculator applicableChargesCalculator;
+    @Mock private com.courier.modules.master.domain.ServiceTypeRepository serviceTypeRepository;
 
     private PricingEngineImpl engine;
 
@@ -59,7 +60,7 @@ class PricingEngineImplTest {
         PricingProperties properties = new PricingProperties();
         engine = new PricingEngineImpl(routeValidation, bookingValidation, rateValidation,
                 weightValidation, pricingFactory, properties, freightFactorService, companySettingsService,
-                applicableChargesCalculator);
+                applicableChargesCalculator, serviceTypeRepository);
     }
 
     @Test

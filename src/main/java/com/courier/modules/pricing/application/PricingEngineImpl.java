@@ -6,6 +6,9 @@ import com.courier.modules.freight.application.FreightCalculationResult;
 import com.courier.modules.freight.application.FreightFactorService;
 import com.courier.modules.freight.application.command.FreightCalculationCommand;
 import com.courier.modules.master.domain.Route;
+import com.courier.modules.master.domain.ServiceType;
+import com.courier.modules.master.domain.ServiceTypeRepository;
+import com.courier.shared.company.CompanyContext;
 import com.courier.modules.pricing.application.calculator.ApplicableChargesCalculator;
 import com.courier.modules.pricing.application.command.PricingCommand;
 import com.courier.modules.pricing.application.factory.PricingFactory;
@@ -57,6 +60,7 @@ public class PricingEngineImpl implements PricingEngine {
     private final FreightFactorService freightFactorService;
     private final CompanySettingsService companySettingsService;
     private final ApplicableChargesCalculator applicableChargesCalculator;
+    private final ServiceTypeRepository serviceTypeRepository;
 
     @Override
     @PreAuthorize("isAuthenticated()")
@@ -67,7 +71,8 @@ public class PricingEngineImpl implements PricingEngine {
         BigDecimal actualWeight = WeightCalculator.normalise(command.actualWeight());
         BigDecimal volumetricWeight = VolumetricCalculator.calculate(
                 command.length(), command.width(), command.height(),
-                configuration.volumetricDivisor());
+                VolumetricCalculator.divisor(serviceTypeDivisor(command.serviceTypeId()),
+                        configuration.volumetricDivisor()));
         try {
             Route route = routeValidation.validate(command);
             LocalDate bookingDate = bookingValidation.validate(command);
@@ -200,5 +205,15 @@ public class PricingEngineImpl implements PricingEngine {
         return applicableChargesCalculator.resolve(command.serviceTypeId(), chargeableWeight,
                 command.totalActualWeight(), command.numberOfPackages(),
                 command.bookingBranchId(), command.deliveryBranchId(), freight);
+    }
+
+    /** The service type's own volumetric divisor, or null to use the deployment default. */
+    private Integer serviceTypeDivisor(java.util.UUID serviceTypeId) {
+        if (serviceTypeId == null) {
+            return null;
+        }
+        return CompanyContext.getCompanyId()
+                .flatMap(companyId -> serviceTypeRepository.findByIdWithinCompany(serviceTypeId, companyId))
+                .map(ServiceType::getVolumetricDivisor).orElse(null);
     }
 }

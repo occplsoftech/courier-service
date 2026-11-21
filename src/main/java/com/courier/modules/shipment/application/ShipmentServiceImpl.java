@@ -222,7 +222,7 @@ public class ShipmentServiceImpl implements ShipmentService {
 
         List<ShipmentItem> items = buildItems(command.items(), command.actualWeight(),
                 command.length(), command.width(), command.height());
-        WeightSummary weight = summariseWeight(items);
+        WeightSummary weight = summariseWeight(items, command.serviceTypeId(), companyId);
         requireWithinPackageTypeCeiling(command.packageTypeId(), weight.actualWeight());
 
         LocalDate bookingDate = command.bookingDate() == null ? LocalDate.now() : command.bookingDate();
@@ -519,7 +519,7 @@ public class ShipmentServiceImpl implements ShipmentService {
                 .orElseThrow(() -> new BusinessRuleException("No active package type is set up."));
 
         List<ShipmentItem> items = buildItems(List.of(), c.actualWeight(), c.length(), c.breadth(), c.height());
-        WeightSummary weight = summariseWeight(items);
+        WeightSummary weight = summariseWeight(items, serviceType.getVolumetricDivisor());
         LocalDate bookingDate = LocalDate.now();
 
         Shipment shipment = Shipment.builder()
@@ -644,7 +644,7 @@ public class ShipmentServiceImpl implements ShipmentService {
 
         List<ShipmentItem> items = buildItems(command.items(), command.actualWeight(),
                 command.length(), command.width(), command.height());
-        WeightSummary weight = summariseWeight(items);
+        WeightSummary weight = summariseWeight(items, command.serviceTypeId(), companyId);
         requireWithinPackageTypeCeiling(command.packageTypeId(), weight.actualWeight());
 
         LocalDate bookingDate = command.bookingDate() == null ? shipment.getBookingDate() : command.bookingDate();
@@ -2884,9 +2884,19 @@ public class ShipmentServiceImpl implements ShipmentService {
      * parcel.
      *
      * <p>Chargeable weight is the higher of the two; there is no company-wide minimum.
+     * The volumetric divisor is the booked service type's own (Air and Surface commonly
+     * differ), else the deployment default.
      */
-    private WeightSummary summariseWeight(List<ShipmentItem> items) {
-        BigDecimal divisor = pricingProperties.toConfiguration().volumetricDivisor();
+    private WeightSummary summariseWeight(List<ShipmentItem> items, UUID serviceTypeId, UUID companyId) {
+        Integer serviceDivisor = serviceTypeId == null ? null : serviceTypeRepository
+                .findByIdWithinCompany(serviceTypeId, companyId)
+                .map(ServiceType::getVolumetricDivisor).orElse(null);
+        return summariseWeight(items, serviceDivisor);
+    }
+
+    private WeightSummary summariseWeight(List<ShipmentItem> items, Integer serviceTypeDivisor) {
+        BigDecimal divisor = VolumetricCalculator.divisor(serviceTypeDivisor,
+                pricingProperties.toConfiguration().volumetricDivisor());
         BigDecimal actual = BigDecimal.ZERO;
         BigDecimal volumetric = BigDecimal.ZERO;
         for (ShipmentItem item : items) {

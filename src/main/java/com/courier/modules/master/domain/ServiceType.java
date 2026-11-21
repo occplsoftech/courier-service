@@ -55,10 +55,18 @@ public class ServiceType extends MasterDataEntity {
     @Column(name = "priority", nullable = false)
     private Integer priority = 0;
 
+    /** cm3-per-kg divisor of L x W x H for this service's volumetric weight (Air is
+     *  commonly 5000, Surface 4000). Null falls back to the deployment default. */
+    @Column(name = "volumetric_divisor")
+    private Integer volumetricDivisor;
+
     @Override
     protected void applySpecificInvariants() {
         if (deliveryDays != null && deliveryDays < 0) {
             throw new BusinessRuleException("Delivery days cannot be negative.");
+        }
+        if (volumetricDivisor != null && volumetricDivisor <= 0) {
+            throw new BusinessRuleException("The volumetric divisor must be above 0 (commonly 5000), or left empty.");
         }
         if (priority == null) {
             this.priority = 0;

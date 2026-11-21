@@ -8,6 +8,19 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-21 — Volumetric divisor per service type
+
+- **Rule:** volumetric weight = L×W×H (cm) ÷ the booked service type's own `volumetricDivisor`
+  (e.g. Air 5000, Surface 4000); empty falls back to `pricing.volumetric-divisor` (5000).
+  Chargeable stays MAX(actual, volumetric).
+- **V167:** `master_service_types.volumetric_divisor INT NULL`. Service Type create/update/response carry
+  `volumetricDivisor` (must be > 0 or empty).
+- **Applied in:** `ShipmentServiceImpl.summariseWeight` (create, update, portal booking) and
+  `PricingEngineImpl` (by `serviceTypeId`), via `VolumetricCalculator.divisor(serviceDivisor, default)`.
+- **courier-web:** Service Type master has the field and a column; the item grid takes `[volumetricDivisor]`
+  from the chosen service (Shipment Booking, Edit); Domestic (CASH) / Credit price every mode with its own
+  chargeable weight and show it per mode.
+
 ## 2026-11-20 — Chargeable weight: higher of actual and volumetric, no company minimum
 
 - **Rule:** chargeable weight = MAX(actual, L×W×H / 5000). The company-wide floor
