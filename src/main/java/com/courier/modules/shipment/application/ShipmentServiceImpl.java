@@ -302,7 +302,7 @@ public class ShipmentServiceImpl implements ShipmentService {
         BigDecimal toPayCharge = toPayChargeFor(paymentMode);
         BigDecimal netAmount = netAmountWithOtherCharges(priced, otherCharges, command.odaCharge(), bookingBranch,
                 freightCalc, command.ratePerKgOverride(), appointmentDeliveryCharge, insuranceApplicable,
-                doorDeliveryCharge, toPayCharge, command.invoiceValue());
+                doorDeliveryCharge, toPayCharge, fovValue(command.invoiceValue(), command.declaredValue()));
 
         if (paymentMode.isCollectAtBooking()) {
             requireSufficientBalance(command.bookingBranchId(), netAmount);
@@ -372,7 +372,7 @@ public class ShipmentServiceImpl implements ShipmentService {
         persistItems(saved, companyId, items);
         persistCharges(saved, companyId, priced, otherCharges, command.odaCharge(), bookingBranch, freightCalc,
                 command.ratePerKgOverride(), appointmentDeliveryCharge, insuranceApplicable, doorDeliveryCharge, toPayCharge,
-                command.invoiceValue());
+                fovValue(command.invoiceValue(), command.declaredValue()));
         appendHistory(saved, companyId, null, ShipmentStatus.BOOKED, "Shipment booked");
 
         if (crossing) {
@@ -731,7 +731,7 @@ public class ShipmentServiceImpl implements ShipmentService {
         persistItems(saved, companyId, items);
         replaceCharges(saved, companyId, priced, otherCharges, command.odaCharge(), bookingBranch, freightCalc,
                 command.ratePerKgOverride(), appointmentDeliveryCharge, insuranceApplicable, doorDeliveryCharge, toPayCharge,
-                command.invoiceValue());
+                fovValue(command.invoiceValue(), command.declaredValue()));
 
         log.info("Shipment {} ({}) updated in company {} by {}", saved.getShipmentNumber(),
                 saved.getId(), companyId, currentActor());
@@ -739,7 +739,7 @@ public class ShipmentServiceImpl implements ShipmentService {
                 Map.of("shipmentNumber", saved.getShipmentNumber(),
                         "netAmount", netAmountWithOtherCharges(priced, otherCharges, command.odaCharge(), bookingBranch,
                                 freightCalc, command.ratePerKgOverride(), appointmentDeliveryCharge, insuranceApplicable,
-                                doorDeliveryCharge, toPayCharge, command.invoiceValue())
+                                doorDeliveryCharge, toPayCharge, fovValue(command.invoiceValue(), command.declaredValue()))
                                 .toPlainString()));
 
         return saved;
@@ -3031,10 +3031,22 @@ public class ShipmentServiceImpl implements ShipmentService {
      *  {@code DECIMAL(19,4)}. */
     private static final int MONEY_SCALE = 4;
 
-    /** {@code insuranceApplicable}'s own rate — direct user request ("2% of Invoice Value
-     *  as FOV"), independent of the Pricing Engine's rate-driven {@code
+    /** {@code insuranceApplicable}'s own rate — direct user request (FOV: 0.2% of the value,
+     *  minimum 100), independent of the Pricing Engine's rate-driven {@code
      *  InsuranceCalculator} (which this overrides when checked). */
-    private static final BigDecimal INSURANCE_PERCENTAGE = BigDecimal.valueOf(2);
+    private static final BigDecimal INSURANCE_PERCENTAGE = new BigDecimal("0.2");
+    /** FOV is never less than this, however low the value. */
+    static final BigDecimal FOV_MINIMUM = new BigDecimal("100");
+
+    /** FOV (risk cover) when ticked: 0.2% of the value or {@link #FOV_MINIMUM}, whichever is higher. */
+    static BigDecimal fov(BigDecimal value) {
+        return percentOf(value == null ? BigDecimal.ZERO : value, INSURANCE_PERCENTAGE).max(FOV_MINIMUM.setScale(MONEY_SCALE));
+    }
+
+    /** What FOV is a percentage of: the invoice value, else the declared value (the Domestic page has only the latter). */
+    static BigDecimal fovValue(BigDecimal invoiceValue, BigDecimal declaredValue) {
+        return invoiceValue != null && invoiceValue.signum() > 0 ? invoiceValue : declaredValue;
+    }
 
     /**
      * {@code otherCharges} is manual, typed at booking time — not part of the Pricing
@@ -3091,7 +3103,7 @@ public class ShipmentServiceImpl implements ShipmentService {
      *
      * <p>{@code insuranceApplicable} (checkbox, manual at booking time), when true,
      * replaces the Pricing Engine's own rate-driven {@code priced.insuranceCharge()} with
-     * {@code invoiceValue * 2%} (FOV) instead — same delta-and-tax treatment as {@code
+     * FOV ({@link #fov}: 0.2% of the invoice value, else the declared value; at least 100) instead — same delta-and-tax treatment as {@code
      * odaCharge}: only the difference from the engine's figure needs fresh GST, since
      * {@code priced.gstAmount()} only ever taxed the engine's (now possibly superseded)
      * figure. Zero when {@code invoiceValue} isn't set.
@@ -3130,7 +3142,7 @@ public class ShipmentServiceImpl implements ShipmentService {
         BigDecimal gstOnOdaChargeDelta = percentOf(odaChargeDelta, bookingGstPercentage());
 
         BigDecimal finalInsuranceCharge = insuranceApplicable
-                ? percentOf(safeInvoiceValue, INSURANCE_PERCENTAGE) : priced.insuranceCharge();
+                ? fov(safeInvoiceValue) : priced.insuranceCharge();
         BigDecimal insuranceChargeDelta = finalInsuranceCharge.subtract(priced.insuranceCharge());
         BigDecimal gstOnInsuranceChargeDelta = percentOf(insuranceChargeDelta, bookingGstPercentage());
 
@@ -3250,7 +3262,7 @@ public class ShipmentServiceImpl implements ShipmentService {
         BigDecimal odaChargeDelta = finalOdaCharge.subtract(priced.odaCharge());
         BigDecimal gstOnOdaChargeDelta = percentOf(odaChargeDelta, bookingGstPercentage());
         BigDecimal finalInsuranceCharge = insuranceApplicable
-                ? percentOf(safeInvoiceValue, INSURANCE_PERCENTAGE) : priced.insuranceCharge();
+                ? fov(safeInvoiceValue) : priced.insuranceCharge();
         BigDecimal insuranceChargeDelta = finalInsuranceCharge.subtract(priced.insuranceCharge());
         BigDecimal gstOnInsuranceChargeDelta = percentOf(insuranceChargeDelta, bookingGstPercentage());
         BigDecimal totalBeforeRoundOff = priced.netAmount().subtract(priced.roundOff())

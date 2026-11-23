@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-23 — FOV: 0.2% of the value, minimum 100
+
+- `insuranceApplicable` (the FOV tick box) now charges `ShipmentServiceImpl.fov(value)` = max(0.2% of value, 100) (was 2%, no
+  minimum). The value is the invoice value, else the declared value (`fovValue`), so Domestic (CASH) / Credit, which send only
+  a declared value, get FOV too. GST applies as before. courier-web: tick box on Domestic / Credit; Shipment Booking preview
+  follows the same rule (`features/shipment/fov.ts`).
+
 ## 2026-11-23 — GST: one company rate (Settings → Finance) for every booking
 
 - Bookings charged GST at the booking branch's own `gstPercentage` (18% by default) and, on the rate path, the matched rate's;
