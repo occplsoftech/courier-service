@@ -139,6 +139,11 @@ public record CompanySettingsRequest(
 
         @PositiveOrZero
         @Schema(description = "Version last read; required for the full PUT, ignored by PATCH")
-        Long version
+        Long version,
+
+        @DecimalMin("0.0") @DecimalMax("100.0") @Digits(integer = 3, fraction = 2)
+        @Schema(description = "Forwarding: offer only couriers whose cost leaves at least this % of the booked amount as "
+                + "profit (10 = a ₹100 booking is offered couriers up to ₹90)")
+        BigDecimal forwardMinProfitPercent
 ) {
 }

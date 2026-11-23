@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-23 — Forwarding: only couriers that leave the minimum profit
+
+- `company_settings_config.forward_min_profit_percent` (V169, default 10; Settings → Shipment, `PATCH /company-settings/shipment`
+  `forwardMinProfitPercent`). `ForwardingService.maxCost` = the shipment's booked net amount × (100 − %) / 100.
+- `options()` leaves out every courier service costing more (one "Below the profit margin" entry in `unavailable` lists them);
+  `forward()` refuses one. No booked amount (no charge row) = no limit. 0% offers every courier.
+
 ## 2026-11-23 — COD: collection amount and a 2% COD charge on staff bookings
 
 - `POST /shipments` takes `codAmount` (required, > 0, on a Cash on Delivery payment mode). Stored on `shipments.cod_amount`.

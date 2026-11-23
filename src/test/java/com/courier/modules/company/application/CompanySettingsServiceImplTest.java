@@ -86,7 +86,7 @@ class CompanySettingsServiceImplTest {
                 null, null, null, null, null,
                 null, null, null, null, null,
                 null, null, null, null,
-                null);
+                null, null);
     }
 
     // ------------------------------------------------------------------- get / seed
@@ -158,7 +158,7 @@ class CompanySettingsServiceImplTest {
                 null, null, null, null, null,
                 null, null, null, null, null,
                 null, null, null, null,
-                null);
+                null, null);
 
         CompanySettings saved = service.patchFinance(cmd);
 
@@ -191,7 +191,7 @@ class CompanySettingsServiceImplTest {
                 null, null, null, null, null,
                 null, null, null, null, null,
                 null, null, null, null,
-                null);
+                null, null);
 
         CompanySettings saved = service.patchShipment(cmd);
 
@@ -218,7 +218,7 @@ class CompanySettingsServiceImplTest {
                 null, 45, null, null, null,
                 null, null, null, null, ThemePreference.DARK,
                 null, null, null, null,
-                3L);
+                3L, null);
 
         CompanySettings saved = service.replace(cmd);
 
@@ -245,7 +245,7 @@ class CompanySettingsServiceImplTest {
                 null, null, null, null, null,
                 null, null, null, null, null,
                 null, null, null, null,
-                1L);
+                1L, null);
 
         assertThatThrownBy(() -> service.replace(cmd))
                 .isInstanceOf(ObjectOptimisticLockingFailureException.class);
