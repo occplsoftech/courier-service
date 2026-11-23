@@ -8,6 +8,14 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-23 — GST: one company rate (Settings → Finance) for every booking
+
+- Bookings charged GST at the booking branch's own `gstPercentage` (18% by default) and, on the rate path, the matched rate's;
+  Settings → Finance → GST Percentage only reached the freight-factor fallback. Now `CompanySettings.gstPercentage` is the
+  one rate: `ShipmentServiceImpl.bookingGstPercentage()` (all charge deltas) and `PricingContext.gstPercentage` for
+  `GSTCalculator`. `Branch.gstPercentage` and `Rate.gstPercentage` stay stored but no longer price a booking.
+- courier-web: Shipment Booking and Domestic (CASH) / Credit read GST from `GET /company-settings` (finance) instead of the branch.
+
 ## 2026-11-23 — Porter: cancel an order
 
 - `PorterAdapter` cancels with `POST /v1/orders/{crn}/cancel`: the customer's own cancel on the portal (before the rider starts

@@ -3041,8 +3041,8 @@ public class ShipmentServiceImpl implements ShipmentService {
      * Engine's own rate-driven breakup — so it is added on top of {@code priced.netAmount()}
      * rather than folded into the engine's calculation. GST on it is likewise computed here,
      * not by the Pricing Engine (which never sees {@code otherCharges} at all): at the
-     * <b>booking</b> branch's own {@code gstPercentage} (V25, the same source the commission
-     * percentages below already use), folded straight into the persisted {@code gstAmount} —
+     * company's GST % ({@link #bookingGstPercentage}, Settings → Finance; the branch's own GST % is not used),
+     * folded straight into the persisted {@code gstAmount} —
      * one combined GST figure, not a second line, so every report/receipt that already reads
      * {@code gstAmount} picks it up for free.
      *
@@ -3051,7 +3051,7 @@ public class ShipmentServiceImpl implements ShipmentService {
      * Engine is still called (see {@code priceIt}) purely for fuel/handling/insurance/
      * discount/round-off/GST%, which this integration does not change. Same delta trick as
      * {@code odaCharge} below: {@code freightDelta = freightCalc.baseFreight() -
-     * priced.freight()} needs fresh GST at the booking branch's own {@code gstPercentage},
+     * priced.freight()} needs fresh GST at the company's GST % ({@link #bookingGstPercentage}),
      * since {@code priced.gstAmount()} only ever taxed the engine's own (now superseded)
      * freight figure.
      *
@@ -3080,7 +3080,7 @@ public class ShipmentServiceImpl implements ShipmentService {
      * except it replaces that line instead of adding a new one. GST is recomputed only on
      * the difference from {@code priced.odaCharge()} (the Pricing Engine's own, now-
      * superseded figure — {@code priced.gstAmount()} only ever taxed that one), at the
-     * booking branch's own {@code gstPercentage} — same source {@code gstOnOtherCharges}
+     * booking company's GST % ({@link #bookingGstPercentage}) — same source {@code gstOnOtherCharges}
      * uses. An unedited ODA still nets out correctly by the same delta-algebra {@code
      * freightDelta} above relies on.
      *
@@ -3098,13 +3098,13 @@ public class ShipmentServiceImpl implements ShipmentService {
      *
      * <p>{@code doorDeliveryCharge} (Door Delivery, manual at booking time, meaningful only
      * when {@code Shipment.deliveryType} is {@code DOOR}) is taxed with GST at the booking
-     * branch's own {@code gstPercentage} — same treatment as {@code otherCharges} (direct
+     * company's GST % ({@link #bookingGstPercentage}) — same treatment as {@code otherCharges} (direct
      * user request; was previously GST-free like {@code appointmentDeliveryCharge}, which
      * stays untaxed). Callers already zero {@code doorDeliveryCharge} out for {@code OFFICE}
      * before it reaches here, so this method trusts it verbatim.
      *
      * <p>{@code toPayCharge} (the company's To-Pay charge, decided by {@link #toPayChargeFor} —
-     * not typed) is taxed with GST at the booking branch's {@code gstPercentage}, same as
+     * not typed) is taxed with GST at the company's GST %, same as
      * {@code doorDeliveryCharge}.
      */
     private void copyCharge(PricingResult priced, BigDecimal otherCharges, BigDecimal odaCharge,
@@ -3117,22 +3117,22 @@ public class ShipmentServiceImpl implements ShipmentService {
                 appointmentDeliveryCharge == null ? BigDecimal.ZERO : appointmentDeliveryCharge;
         BigDecimal safeDoorDeliveryCharge = doorDeliveryCharge == null ? BigDecimal.ZERO : doorDeliveryCharge;
         BigDecimal safeToPayCharge = toPayCharge == null ? BigDecimal.ZERO : toPayCharge;
-        BigDecimal gstOnToPayCharge = percentOf(safeToPayCharge, bookingBranch.getGstPercentage());
+        BigDecimal gstOnToPayCharge = percentOf(safeToPayCharge, bookingGstPercentage());
         BigDecimal safeInvoiceValue = invoiceValue == null ? BigDecimal.ZERO : invoiceValue;
         BigDecimal freight = effectiveFreight(freightCalc, ratePerKgOverride);
         BigDecimal freightDelta = freight.subtract(priced.freight());
         BigDecimal gstOnOtherCharges = gstOnOtherCharges(safeOtherCharges, bookingBranch);
-        BigDecimal gstOnDoorDeliveryCharge = percentOf(safeDoorDeliveryCharge, bookingBranch.getGstPercentage());
-        BigDecimal gstOnFreightDelta = percentOf(freightDelta, bookingBranch.getGstPercentage());
+        BigDecimal gstOnDoorDeliveryCharge = percentOf(safeDoorDeliveryCharge, bookingGstPercentage());
+        BigDecimal gstOnFreightDelta = percentOf(freightDelta, bookingGstPercentage());
 
         BigDecimal finalOdaCharge = odaCharge == null ? freightCalc.odaCharge() : odaCharge;
         BigDecimal odaChargeDelta = finalOdaCharge.subtract(priced.odaCharge());
-        BigDecimal gstOnOdaChargeDelta = percentOf(odaChargeDelta, bookingBranch.getGstPercentage());
+        BigDecimal gstOnOdaChargeDelta = percentOf(odaChargeDelta, bookingGstPercentage());
 
         BigDecimal finalInsuranceCharge = insuranceApplicable
                 ? percentOf(safeInvoiceValue, INSURANCE_PERCENTAGE) : priced.insuranceCharge();
         BigDecimal insuranceChargeDelta = finalInsuranceCharge.subtract(priced.insuranceCharge());
-        BigDecimal gstOnInsuranceChargeDelta = percentOf(insuranceChargeDelta, bookingBranch.getGstPercentage());
+        BigDecimal gstOnInsuranceChargeDelta = percentOf(insuranceChargeDelta, bookingGstPercentage());
 
         BigDecimal branchShareOfOtherCharges = BigDecimal.valueOf(100)
                 .subtract(bookingBranch.getCommissionOnOtherCharges());
@@ -3210,9 +3210,15 @@ public class ShipmentServiceImpl implements ShipmentService {
                 .divide(BigDecimal.valueOf(100), MONEY_SCALE, java.math.RoundingMode.HALF_UP);
     }
 
-    private static BigDecimal gstOnOtherCharges(BigDecimal otherCharges,
-                                                com.courier.modules.company.domain.Branch bookingBranch) {
-        return percentOf(otherCharges, bookingBranch.getGstPercentage());
+    private BigDecimal gstOnOtherCharges(BigDecimal otherCharges,
+                                         com.courier.modules.company.domain.Branch bookingBranch) {
+        return percentOf(otherCharges, bookingGstPercentage());
+    }
+
+    /** The one GST rate every booking charges: the company's (Settings → Finance → GST Percentage), not the branch's. */
+    private BigDecimal bookingGstPercentage() {
+        BigDecimal gst = companySettingsService.get().getGstPercentage();
+        return gst == null ? BigDecimal.ZERO : gst;
     }
 
     /** Same total {@link #copyCharge} persists as {@code netAmount} — used ahead of that
@@ -3234,19 +3240,19 @@ public class ShipmentServiceImpl implements ShipmentService {
                 appointmentDeliveryCharge == null ? BigDecimal.ZERO : appointmentDeliveryCharge;
         BigDecimal safeDoorDeliveryCharge = doorDeliveryCharge == null ? BigDecimal.ZERO : doorDeliveryCharge;
         BigDecimal safeToPayCharge = toPayCharge == null ? BigDecimal.ZERO : toPayCharge;
-        BigDecimal gstOnToPayCharge = percentOf(safeToPayCharge, bookingBranch.getGstPercentage());
+        BigDecimal gstOnToPayCharge = percentOf(safeToPayCharge, bookingGstPercentage());
         BigDecimal safeInvoiceValue = invoiceValue == null ? BigDecimal.ZERO : invoiceValue;
-        BigDecimal gstOnDoorDeliveryCharge = percentOf(safeDoorDeliveryCharge, bookingBranch.getGstPercentage());
+        BigDecimal gstOnDoorDeliveryCharge = percentOf(safeDoorDeliveryCharge, bookingGstPercentage());
         BigDecimal freight = effectiveFreight(freightCalc, ratePerKgOverride);
         BigDecimal freightDelta = freight.subtract(priced.freight());
-        BigDecimal gstOnFreightDelta = percentOf(freightDelta, bookingBranch.getGstPercentage());
+        BigDecimal gstOnFreightDelta = percentOf(freightDelta, bookingGstPercentage());
         BigDecimal finalOdaCharge = odaCharge == null ? freightCalc.odaCharge() : odaCharge;
         BigDecimal odaChargeDelta = finalOdaCharge.subtract(priced.odaCharge());
-        BigDecimal gstOnOdaChargeDelta = percentOf(odaChargeDelta, bookingBranch.getGstPercentage());
+        BigDecimal gstOnOdaChargeDelta = percentOf(odaChargeDelta, bookingGstPercentage());
         BigDecimal finalInsuranceCharge = insuranceApplicable
                 ? percentOf(safeInvoiceValue, INSURANCE_PERCENTAGE) : priced.insuranceCharge();
         BigDecimal insuranceChargeDelta = finalInsuranceCharge.subtract(priced.insuranceCharge());
-        BigDecimal gstOnInsuranceChargeDelta = percentOf(insuranceChargeDelta, bookingBranch.getGstPercentage());
+        BigDecimal gstOnInsuranceChargeDelta = percentOf(insuranceChargeDelta, bookingGstPercentage());
         BigDecimal totalBeforeRoundOff = priced.netAmount().subtract(priced.roundOff())
                 .add(safeOtherCharges).add(gstOnOtherCharges(safeOtherCharges, bookingBranch))
                 .add(odaChargeDelta).add(gstOnOdaChargeDelta).add(freightDelta).add(gstOnFreightDelta)
