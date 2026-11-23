@@ -70,7 +70,7 @@ Defaults agreed in the brief: courier collects from the branch/hub; customer pri
 | # | Item | Repos | Size |
 |---|---|---|---|
 | 9.1 | Print **all labels** of a bulk upload in one go; download the bulk result as Excel | CS, EC | S |
-| 9.2 | **Cancel** a booking before pickup (refund to wallet, release the shipment number) — done (OCCPL Network only) | CS, EC | M |
+| 9.2 | **Cancel** a booking before pickup (refund to wallet, release the shipment number) — done (OCCPL Network; Porter from 2026-11-23) | CS, EC | M |
 | 9.3 | **Reschedule** the pickup (date and slot) — done | CS, EC | M |
 | 9.4 | Wallet statement export; shipments list export — done | CS, EC | S |
 

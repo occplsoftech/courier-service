@@ -4,6 +4,7 @@ import com.courier.modules.company.application.geocoding.GeocodingPort;
 import com.courier.modules.customerportal.rates.application.CustomerPortalProperties;
 import com.courier.modules.customerportal.rates.domain.BookingOutcome;
 import com.courier.modules.customerportal.rates.domain.BookingRequest;
+import com.courier.modules.customerportal.rates.domain.CancelOutcome;
 import com.courier.modules.customerportal.rates.domain.ChargeComponent;
 import com.courier.modules.customerportal.rates.domain.ChargeLine;
 import com.courier.modules.customerportal.rates.domain.ConnectionTest;
@@ -51,6 +52,8 @@ import java.util.function.Function;
  *       contact; answers {@code order_id} (the CRN) and {@code tracking_url}. Pickup and drop must be in one city.</li>
  *   <li>{@code GET /v1.1/orders/{crn}}: status open, accepted, live, ended or cancelled, the rider and the timings
  *       (epoch seconds). Porter allows one call a minute per order, so answers are kept for a minute.</li>
+ *   <li>{@code POST /v1/orders/{crn}/cancel}: cancels an order before the rider starts the trip (the customer's own
+ *       cancel on the portal, or an unconfirmed hub forward).</li>
  * </ul>
  * The CRN is stored as both the order reference and the tracking number, so the tracking sync and Porter's webhook
  * ({@code order_id}) find the booking. Quotes use the pincodes' map positions; a booking uses the pin the customer placed and
@@ -409,6 +412,74 @@ public class PorterAdapter implements CourierProviderAdapter {
             case "cancelled", "order_cancel" -> "Cancelled";
             default -> status;
         };
+    }
+
+    // ------------------------------------------------------------------ cancel
+
+    /** A confirmed Porter booking can be cancelled while Porter is connected; the portal only offers it before pickup. */
+    @Override
+    public boolean canCancelBooking(UUID companyId, UUID customerId, String orderRef) {
+        return !blank(orderRef) && configured(companyId);
+    }
+
+    @Override
+    public CancelOutcome cancelBooking(UUID companyId, UUID customerId, String orderRef, String reason) {
+        return cancel(companyId, orderRef);
+    }
+
+    /** An unconfirmed hub forward: only an order Porter numbered can be cancelled from here. */
+    @Override
+    public CancelOutcome cancelOrder(UUID companyId, String orderRef, String reference) {
+        if (blank(orderRef)) {
+            return CancelOutcome.failed("Porter gave no order number for this forward. Check the Porter app and cancel it there if it exists.");
+        }
+        return cancel(companyId, orderRef);
+    }
+
+    /**
+     * {@code POST /v1/orders/{crn}/cancel}. 2xx and "already cancelled" are CANCELLED; 404 is NOT_FOUND; anything else
+     * (the trip has started, Porter is down, the answer is unclear) is FAILED, so nothing is marked cancelled or refunded.
+     */
+    CancelOutcome cancel(UUID companyId, String crn) {
+        if (blank(crn)) {
+            return CancelOutcome.failed("This booking has no Porter order number to cancel.");
+        }
+        CustomerPortalProperties.Porter config = settings.apply(companyId);
+        if (!config.configured()) {
+            return CancelOutcome.failed("Porter is not connected, so the order cannot be cancelled from here.");
+        }
+        String id = crn.trim();
+        try {
+            http.post().uri(config.host() + "/v1/orders/{crn}/cancel", id)
+                    .header("x-api-key", config.getApiKey())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve().toBodilessEntity();
+            tracks.remove(companyId + ":" + id);
+            log.info("Porter order {} cancelled", id);
+            return CancelOutcome.cancelled("Porter order " + id + " is cancelled.");
+        } catch (RestClientResponseException e) {
+            int status = e.getStatusCode().value();
+            String type = errorType(e);
+            String text = (type + " " + e.getResponseBodyAsString()).toLowerCase(Locale.ROOT);
+            log.warn("Porter refused to cancel order {}: {} {}", id, status, type);
+            if (text.contains("already_cancel") || text.contains("already cancel")) {
+                tracks.remove(companyId + ":" + id);
+                return CancelOutcome.cancelled("The Porter order was already cancelled.");
+            }
+            if (status == 404 || "order_not_found".equals(type)) {
+                return CancelOutcome.notFound("Porter has no order " + id + ".");
+            }
+            if (status >= 500) {
+                return CancelOutcome.failed("Porter could not cancel the order right now. Please try again in a few minutes.");
+            }
+            if (status == 401) {
+                return CancelOutcome.failed("Porter refused the connection. Please contact support.");
+            }
+            return CancelOutcome.failed("Porter could not cancel this order. The rider may already be on the way with it; "
+                    + "please contact support.");
+        } catch (RestClientException e) {
+            return CancelOutcome.failed("Porter could not be reached to cancel the order. Please try again.");
+        }
     }
 
     @Override
