@@ -14,6 +14,8 @@ All notable changes to this project. Format based on
   `forwardMinProfitPercent`). `ForwardingService.maxCost` = the shipment's booked net amount × (100 − %) / 100.
 - `options()` leaves out every courier service costing more (one "Below the profit margin" entry in `unavailable` lists them);
   `forward()` refuses one. No booked amount (no charge row) = no limit. 0% offers every courier.
+- The couriers' rates are not shown when forwarding: `options()` still sorts cheapest first, then sends `cost` null and no
+  breakdown; the profit-margin messages name the services, not their prices. The cost is still recorded on the shipment.
 
 ## 2026-11-23 — COD: collection amount and a 2% COD charge on staff bookings
 

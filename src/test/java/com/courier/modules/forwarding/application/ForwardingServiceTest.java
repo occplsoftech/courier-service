@@ -139,7 +139,8 @@ class ForwardingServiceTest {
         assertThat(o.blocker()).isNull();
         assertThat(o.collectFrom()).isEqualTo("Pune Hub, 411016");
         assertThat(o.options()).extracting(x -> x.serviceCode()).containsExactly("SURFACE", "EXPRESS");
-        assertThat(o.options().get(0).cost()).isEqualByComparingTo("180");
+        assertThat(o.options().get(0).serviceCode()).isEqualTo("SURFACE");   // cheapest first
+        assertThat(o.options()).allSatisfy(x -> assertThat(x.cost()).isNull()); // no rate is shown when forwarding
         assertThat(o.unavailable()).extracting(u -> u.providerCode()).containsExactly("SHIPROCKET");
         ArgumentCaptor<RateRequest> req = ArgumentCaptor.forClass(RateRequest.class);
         verify(comparison).askExternalForForwarding(req.capture());
@@ -348,8 +349,8 @@ class ForwardingServiceTest {
         ForwardOptions o = service.options(shipment.getId());
 
         assertThat(o.options()).extracting(ForwardingService.ForwardOption::serviceCode).containsExactly("SURFACE");
-        assertThat(o.unavailable()).anySatisfy(u -> assertThat(u.reason()).contains("₹225").contains("Delhivery Express ₹300"));
+        assertThat(o.unavailable()).anySatisfy(u -> assertThat(u.reason()).contains("10% profit").contains("Delhivery Express").doesNotContain("₹"));
         assertThatThrownBy(() -> service.forward(shipment.getId(), "DELHIVERY", "EXPRESS"))
-                .isInstanceOf(com.courier.shared.exception.BusinessRuleException.class).hasMessageContaining("more than ₹225");
+                .isInstanceOf(com.courier.shared.exception.BusinessRuleException.class).hasMessageContaining("less than the 10% profit");
     }
 }

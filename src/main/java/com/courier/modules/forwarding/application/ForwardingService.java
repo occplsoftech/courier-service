@@ -120,7 +120,7 @@ public class ForwardingService {
             }
             for (ProviderRate rate : r.rates()) {
                 if (limit != null && rate.providerTotal() != null && rate.providerTotal().compareTo(limit) > 0) {
-                    tooDear.add(r.providerName() + " " + rate.serviceName() + " ₹" + money(rate.providerTotal()));
+                    tooDear.add(rate.serviceName() == null ? r.providerName() : rate.serviceName());
                     continue;
                 }
                 options.add(new ForwardOption(r.providerCode(), r.providerName(), rate.serviceCode(), rate.serviceName(), rate.transportMode(),
@@ -129,10 +129,12 @@ public class ForwardingService {
             }
         }
         options.sort(Comparator.comparing(ForwardOption::cost));
+        // The couriers' rates are not shown when forwarding: cheapest first, but no price leaves the server.
+        options.replaceAll(o -> new ForwardOption(o.providerCode(), o.providerName(), o.serviceCode(), o.serviceName(),
+                o.transportMode(), o.etaMinDays(), o.etaMaxDays(), o.chargeableWeightKg(), null, List.of()));
         if (!tooDear.isEmpty()) {
-            unavailable.add(new Unavailable("PROFIT", "Below the profit margin", "Cost more than ₹" + money(limit)
-                    + " (the booked amount less the " + money(minProfitPercent()) + "% profit set in Settings): "
-                    + String.join(", ", tooDear) + "."));
+            unavailable.add(new Unavailable("PROFIT", "Below the profit margin", "Leave less than the "
+                    + money(minProfitPercent()) + "% profit set in Settings: " + String.join(", ", tooDear) + "."));
         }
         return new ForwardOptions(s.getId(), s.getShipmentNumber(), null, hub.getBranchName() + ", " + hub.getPostalCode(), options, unavailable);
     }
@@ -170,8 +172,8 @@ public class ForwardingService {
         BigDecimal cost = rate.providerTotal();
         BigDecimal limit = maxCost(s, companyId);
         if (limit != null && cost != null && cost.compareTo(limit) > 0) {
-            throw new BusinessRuleException("%s costs ₹%s, more than ₹%s: the booked amount less the %s%% profit set in Settings."
-                    .formatted(adapter.displayName(), money(cost), money(limit), money(minProfitPercent())));
+            throw new BusinessRuleException("%s %s leaves less than the %s%% profit set in Settings. Choose another courier."
+                    .formatted(adapter.displayName(), rate.serviceName(), money(minProfitPercent())));
         }
 
         shipmentService.beginForward(s.getId(), providerCode, rate.serviceName());
