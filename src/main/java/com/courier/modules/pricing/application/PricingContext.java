@@ -38,6 +38,8 @@ public final class PricingContext {
     private BigDecimal actualWeight;
     private BigDecimal volumetricWeight;
     private BigDecimal chargeableWeight;
+    /** The company's GST % (Settings → Finance); null falls back to the matched rate's own. */
+    private BigDecimal gstPercentage;
 
     public PricingContext(PricingCommand command, PricingConfiguration configuration) {
         this.command = command;
@@ -142,5 +144,13 @@ public final class PricingContext {
     /** {@link #totalBeforeRoundOff()} plus Round Off — the final net amount. */
     public BigDecimal netAmount() {
         return totalBeforeRoundOff().add(charge(ChargeType.ROUND_OFF));
+    }
+
+    public BigDecimal gstPercentage() {
+        return gstPercentage;
+    }
+
+    public void gstPercentage(BigDecimal gstPercentage) {
+        this.gstPercentage = gstPercentage;
     }
 }

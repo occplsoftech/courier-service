@@ -413,6 +413,24 @@ class ShipmentServiceImplTest {
         assertThat(captor.getValue().getGstAmount()).isEqualByComparingTo("25.20");
     }
 
+    @Test
+    @DisplayName("GST on charges added at booking follows Settings → Finance → GST Percentage, not the branch's 18%")
+    void bookingGstFollowsCompanySettings() {
+        when(freightCalculationService.calculate(any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(freightCalculationResult(new BigDecimal("100.00"), BigDecimal.ZERO));
+        when(companySettingsService.get()).thenReturn(com.courier.modules.company.domain.CompanySettings.builder()
+                .toPayCharge(BigDecimal.ZERO).gstPercentage(BigDecimal.ZERO).build());
+
+        service.create(commandWithRatePerKgOverride(new BigDecimal("25.00")));
+
+        org.mockito.ArgumentCaptor<com.courier.modules.shipment.domain.ShipmentCharge> captor =
+                org.mockito.ArgumentCaptor.forClass(com.courier.modules.shipment.domain.ShipmentCharge.class);
+        verify(chargeRepository).save(captor.capture());
+        // The 25.00 freight rise carries no GST at 0%: only the engine's own (stubbed) 20.70 remains.
+        assertThat(captor.getValue().getFreight()).isEqualByComparingTo("125.00");
+        assertThat(captor.getValue().getGstAmount()).isEqualByComparingTo("20.70");
+    }
+
     private com.courier.modules.shipment.domain.ShipmentCharge bookAndCaptureCharge() {
         service.create(command());
         org.mockito.ArgumentCaptor<com.courier.modules.shipment.domain.ShipmentCharge> captor =

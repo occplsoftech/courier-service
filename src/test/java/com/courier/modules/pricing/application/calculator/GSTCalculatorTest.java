@@ -32,4 +32,17 @@ class GSTCalculatorTest {
         assertThat(calculator.calculate(context)).isEqualByComparingTo("23.40");
         assertThat(calculator.isEnabled(context)).isTrue();
     }
+
+    @Test
+    void theCompanysGstWinsOverTheRatesOwn() {
+        Rate rate = PricingTestSupport.rate("RATE1", "0.000", "5.000");
+        rate.setGstPercentage(new BigDecimal("18"));
+        PricingContext context = PricingTestSupport.contextWithMatchedRate(rate,
+                new BigDecimal("2.000"), PricingTestSupport.command(new BigDecimal("2.000")),
+                PricingTestSupport.configuration());
+        context.charge(ChargeType.FREIGHT, new BigDecimal("100.00"));
+        context.gstPercentage(BigDecimal.ZERO);
+
+        assertThat(calculator.calculate(context)).isEqualByComparingTo("0.00");
+    }
 }

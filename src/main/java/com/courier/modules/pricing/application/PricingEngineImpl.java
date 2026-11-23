@@ -90,6 +90,7 @@ public class PricingEngineImpl implements PricingEngine {
             context.actualWeight(actualWeight);
             context.volumetricWeight(volumetricWeight);
             context.chargeableWeight(chargeableWeight);
+            context.gstPercentage(settings.getGstPercentage());
 
             PricingStrategy strategy = pricingFactory.resolve(context);
             return strategy.price(context);
