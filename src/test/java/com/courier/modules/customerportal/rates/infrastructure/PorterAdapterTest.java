@@ -4,6 +4,7 @@ import com.courier.modules.company.application.geocoding.GeocodingPort;
 import com.courier.modules.customerportal.rates.application.CustomerPortalProperties;
 import com.courier.modules.customerportal.rates.domain.BookingOutcome;
 import com.courier.modules.customerportal.rates.domain.BookingRequest;
+import com.courier.modules.customerportal.rates.domain.CancelOutcome;
 import com.courier.modules.customerportal.rates.domain.ConnectionTest;
 import com.courier.modules.customerportal.rates.domain.DeliveryStage;
 import com.courier.modules.customerportal.rates.domain.ProviderRate;
@@ -273,6 +274,57 @@ class PorterAdapterTest {
         server.expect(requestTo("https://pfe-apigw.porter.in/v1/get_quote")).andRespond(withSuccess(QUOTE, MediaType.APPLICATION_JSON));
 
         assertThat(adapter.getRates(rate("411001", "411057", "2", null, null, null)).available()).isTrue();
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("cancel: posts to Porter's cancel API; the next tracking call asks Porter again")
+    void cancel() {
+        server.expect(requestTo(UAT + "/v1.1/orders/CRN1")).andRespond(withSuccess(LIVE, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(UAT + "/v1/orders/CRN1/cancel")).andExpect(method(HttpMethod.POST))
+                .andExpect(header("x-api-key", "key-1"))
+                .andRespond(withSuccess("{\"message\":\"Order cancelled\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(UAT + "/v1.1/orders/CRN1")).andRespond(withSuccess(
+                "{\"order_id\":\"CRN1\",\"status\":\"cancelled\"}", MediaType.APPLICATION_JSON));
+        ShipmentRef ref = new ShipmentRef(COMPANY, UUID.randomUUID(), "b1", "CRN1", "CRN1", null);
+
+        adapter.track(ref);
+        CancelOutcome outcome = adapter.cancelBooking(COMPANY, UUID.randomUUID(), "CRN1", "Changed my mind");
+        TrackingResult after = adapter.track(ref);
+
+        server.verify();
+        assertThat(outcome.result()).isEqualTo(CancelOutcome.Result.CANCELLED);
+        assertThat(DeliveryStage.of(after.status())).isEqualTo(DeliveryStage.CANCELLED);
+        assertThat(adapter.canCancelBooking(COMPANY, UUID.randomUUID(), "CRN1")).isTrue();
+        assertThat(adapter.canCancelBooking(COMPANY, UUID.randomUUID(), null)).isFalse();
+    }
+
+    @Test
+    @DisplayName("cancel refusals: already cancelled counts as done, unknown order is not found, the rest fail and change nothing")
+    void cancelRefused() {
+        server.expect(requestTo(UAT + "/v1/orders/A/cancel")).andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                .contentType(MediaType.APPLICATION_JSON).body("{\"type\":\"order_already_cancelled\",\"message\":\"Order is already cancelled\"}"));
+        server.expect(requestTo(UAT + "/v1/orders/B/cancel")).andRespond(withStatus(HttpStatus.NOT_FOUND));
+        server.expect(requestTo(UAT + "/v1/orders/C/cancel")).andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                .contentType(MediaType.APPLICATION_JSON).body("{\"type\":\"order_cancellation_not_allowed\",\"message\":\"Trip started\"}"));
+        server.expect(requestTo(UAT + "/v1/orders/D/cancel")).andRespond(withStatus(HttpStatus.BAD_GATEWAY));
+
+        assertThat(adapter.cancelBooking(COMPANY, null, "A", null).result()).isEqualTo(CancelOutcome.Result.CANCELLED);
+        assertThat(adapter.cancelBooking(COMPANY, null, "B", null).result()).isEqualTo(CancelOutcome.Result.NOT_FOUND);
+        CancelOutcome started = adapter.cancelBooking(COMPANY, null, "C", null);
+        assertThat(started.result()).isEqualTo(CancelOutcome.Result.FAILED);
+        assertThat(started.message()).contains("rider may already be on the way");
+        assertThat(adapter.cancelBooking(COMPANY, null, "D", null).result()).isEqualTo(CancelOutcome.Result.FAILED);
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("cancel needs Porter connected and an order number; nothing is sent otherwise")
+    void cancelPreconditions() {
+        assertThat(adapter.cancelOrder(COMPANY, null, "SHP-1").result()).isEqualTo(CancelOutcome.Result.FAILED);
+        cfg.setApiKey("");
+        assertThat(adapter.cancelBooking(COMPANY, null, "CRN1", null).result()).isEqualTo(CancelOutcome.Result.FAILED);
+        assertThat(adapter.canCancelBooking(COMPANY, null, "CRN1")).isFalse();
         server.verify();
     }
 }

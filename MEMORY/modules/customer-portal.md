@@ -275,7 +275,12 @@ Integration fields: `apiKey` (secret), `mobile` (Porter's quote API needs a cust
   awaiting pickup, live = out for delivery, ended = delivered, cancelled (the sync then refunds the wallet).
 - Webhook: Porter posts `{status: order_accepted|order_start_trip|order_end_job|order_reopen|order_cancel, order_id, order_details.event_ts}`
   to the address on the Courier Integrations card; registered through Porter's form (URL only; the secret is in the path).
-- No label (riders need none). No cancel yet: `POST /v1/orders/{crn}/cancel` exists but the portal has no cancel flow for any courier.
+- No label (riders need none).
+- Cancel (2026-11-23): `POST /v1/orders/{crn}/cancel` (no body). `canCancelBooking` = connected + has a CRN; the portal offers it
+  only while the stage is awaiting pickup (`PortalShipmentService.cancellable`), so not once the trip has started. 2xx or an
+  "already cancelled" answer = CANCELLED (booking cancelled, wallet credited by `PortalBookingService.cancel`); 404 = NOT_FOUND;
+  everything else (trip started, 5xx, timeout) = FAILED and nothing changes. `cancelOrder` (unconfirmed hub forward) needs the CRN.
+  Porter's exact error types for cancel are not in our copy of the contract: check on UAT.
 - UAT simulator `POST /v1/simulation/initiate_order_flow` {order_id, flow_type 0-7} moves a test order through the statuses.
 - Next (portal, PO-2): pincode -> pick the area -> map pin at booking, sent as `pickupPin`/`deliveryPin`.
 

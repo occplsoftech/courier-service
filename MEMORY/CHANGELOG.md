@@ -8,6 +8,11 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-23 — Porter: cancel an order
+
+- `PorterAdapter` cancels with `POST /v1/orders/{crn}/cancel`: the customer's own cancel on the portal (before the rider starts
+  the trip; wallet credited back) and an unconfirmed hub forward. Refusals change nothing. Tests in `PorterAdapterTest`.
+
 ## 2026-11-21 — Volumetric divisor per service type
 
 - **Rule:** volumetric weight = L×W×H (cm) ÷ the booked service type's own `volumetricDivisor`
