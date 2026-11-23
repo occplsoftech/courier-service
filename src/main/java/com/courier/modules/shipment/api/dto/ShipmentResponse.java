@@ -47,7 +47,7 @@ public record ShipmentResponse(
         List<ShipmentItemResponse> items,
         @Schema(description = "Set when the shipment was handed to a courier partner from the hub") ForwardInfo forward,
         @Schema(description = "Set once a delivery attempt failed") UndeliveredInfo undelivered,
-        @Schema(description = "Portal COD: the amount to collect from the receiver for the customer") BigDecimal codAmount,
+        @Schema(description = "COD: the amount the rider collects from the receiver for the shipper") BigDecimal codAmount,
         @Schema(description = "When the COD amount was collected (and paid into the customer's wallet)") Instant codCollectedAt,
         @Schema(description = "Set once a return to the sender started") RtoInfo rto,
         @Schema(description = "A return pickup booked by a portal customer: collected from their buyer, delivered to them") boolean returnPickup

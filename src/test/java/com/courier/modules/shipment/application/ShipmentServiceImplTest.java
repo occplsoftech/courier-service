@@ -492,8 +492,89 @@ class ShipmentServiceImplTest {
         PaymentMode cod = paymentMode(false);
         cod.setCashOnDelivery(true);
         when(paymentModeService.getById(PAYMENT_MODE)).thenReturn(cod);
+        allowWallet();
 
-        assertThat(bookAndCaptureCharge().getToPayCharge()).isEqualByComparingTo("0");
+        service.create(withCod(command(), "1000", null));
+        org.mockito.ArgumentCaptor<com.courier.modules.shipment.domain.ShipmentCharge> captor =
+                org.mockito.ArgumentCaptor.forClass(com.courier.modules.shipment.domain.ShipmentCharge.class);
+        verify(chargeRepository).save(captor.capture());
+        assertThat(captor.getValue().getToPayCharge()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    @DisplayName("COD: 2% of the collection amount, at least 100, taxed; counter COD freight is paid at booking")
+    void counterCodChargesTwoPercentAndIsPaidAtBooking() {
+        PaymentMode cod = paymentMode(false);
+        cod.setCashOnDelivery(true);
+        when(paymentModeService.getById(PAYMENT_MODE)).thenReturn(cod);
+        allowWallet();
+
+        Shipment created = service.create(withCod(command(), "10000", null));
+
+        org.mockito.ArgumentCaptor<com.courier.modules.shipment.domain.ShipmentCharge> captor =
+                org.mockito.ArgumentCaptor.forClass(com.courier.modules.shipment.domain.ShipmentCharge.class);
+        verify(chargeRepository).save(captor.capture());
+        assertThat(created.getCodAmount()).isEqualByComparingTo("10000");
+        assertThat(captor.getValue().getCodCharge()).isEqualByComparingTo("200");   // 2% of 10,000
+        assertThat(captor.getValue().getGstAmount()).isEqualByComparingTo("56.70"); // 20.70 + 18% of 200
+        verify(walletService).getForBranch(BOOKING_BRANCH);
+        verify(eventPublisher).publishEvent(any(ShipmentEvent.PrepaidBookingConfirmed.class));
+    }
+
+    @Test
+    @DisplayName("credit-client COD is billed: no wallet debit at the counter")
+    void creditCodIsBilledNotPaidAtTheCounter() {
+        PaymentMode cod = paymentMode(false);
+        cod.setCashOnDelivery(true);
+        when(paymentModeService.getById(PAYMENT_MODE)).thenReturn(cod);
+
+        service.create(withCod(command(), "3000", UUID.randomUUID()));
+
+        verify(walletService, never()).getForBranch(any());
+        verify(eventPublisher, never()).publishEvent(any(ShipmentEvent.PrepaidBookingConfirmed.class));
+    }
+
+    @Test
+    @DisplayName("a COD booking without a collection amount is refused")
+    void codNeedsACollectionAmount() {
+        PaymentMode cod = paymentMode(false);
+        cod.setCashOnDelivery(true);
+        when(paymentModeService.getById(PAYMENT_MODE)).thenReturn(cod);
+
+        assertThatThrownBy(() -> service.create(command()))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("COD collection amount");
+        verify(shipmentRepository, never()).save(any());
+    }
+
+    @Test
+    void codChargeIsTwoPercentWithAHundredMinimum() {
+        assertThat(ShipmentServiceImpl.codCharge(new BigDecimal("1000"))).isEqualByComparingTo("100");
+        assertThat(ShipmentServiceImpl.codCharge(new BigDecimal("12500"))).isEqualByComparingTo("250");
+        assertThat(ShipmentServiceImpl.codCharge(null)).isEqualByComparingTo("0");
+    }
+
+    private void allowWallet() {
+        Wallet wallet = mock(Wallet.class);
+        when(wallet.getAvailableBalance()).thenReturn(new BigDecimal("100000.00"));
+        when(walletService.getForBranch(BOOKING_BRANCH)).thenReturn(wallet);
+    }
+
+    /** {@code c} with a COD collection amount and, optionally, a credit client. */
+    private static CreateShipmentCommand withCod(CreateShipmentCommand c, String amount, UUID businessCustomerId) {
+        try {
+            var parts = CreateShipmentCommand.class.getRecordComponents();
+            Object[] values = new Object[parts.length];
+            Class<?>[] types = new Class<?>[parts.length];
+            for (int i = 0; i < parts.length; i++) {
+                values[i] = parts[i].getAccessor().invoke(c);
+                types[i] = parts[i].getType();
+                if (parts[i].getName().equals("codAmount")) values[i] = new BigDecimal(amount);
+                if (parts[i].getName().equals("businessCustomerId")) values[i] = businessCustomerId;
+            }
+            return CreateShipmentCommand.class.getDeclaredConstructor(types).newInstance(values);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Test

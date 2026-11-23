@@ -138,6 +138,9 @@ public record CreateShipmentRequest(
                 + "ACTIVE pricing zone covering the destination, freight and ODA are priced from the "
                 + "zone's rate card and its docket/mathadi/pack/fuel/FOV lines become the minimum "
                 + "otherCharges. Omit for an ordinary booking.")
-        UUID businessCustomerId
+        UUID businessCustomerId,
+        @Schema(description = "Cash on Delivery only: the amount the rider collects from the consignee for the shipper. "
+                + "Required (above 0) on a COD payment mode; ignored on any other. Adds a COD charge of 2% of it, at least 100.")
+        @DecimalMin(value = "0") BigDecimal codAmount
 ) {
 }

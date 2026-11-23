@@ -111,6 +111,12 @@ public class ShipmentCharge extends CompanyOwnedEntity {
     @Builder.Default
     private BigDecimal toPayCharge = BigDecimal.ZERO;
 
+    /** Cash on Delivery: 2% of the COD collection amount, at least 100 ({@code ShipmentServiceImpl.codCharge}).
+     *  Taxed with GST (folded into {@link #gstAmount}). Zero on every other booking. */
+    @Column(name = "cod_charge", nullable = false, precision = 19, scale = 4)
+    @Builder.Default
+    private BigDecimal codCharge = BigDecimal.ZERO;
+
     /** {@code freight * commissionOnBasicFreight%} — the booking branch's own percentage
      *  ({@code Branch}) at booking time. */
     @Column(name = "commission_on_basic_freight", nullable = false, precision = 19, scale = 4)
