@@ -78,6 +78,8 @@ class ForwardingServiceTest {
     @Mock private UserService users;
     @Mock private PincodeService pincodes;
     @Mock private RateComparisonService comparison;
+    @Mock private com.courier.modules.shipment.domain.ShipmentChargeRepository charges;
+    @Mock private com.courier.modules.company.application.CompanySettingsService companySettings;
     private final CourierProviderAdapter delhivery = mock(CourierProviderAdapter.class);
 
     private ForwardingService service;
@@ -90,7 +92,8 @@ class ForwardingServiceTest {
         when(delhivery.code()).thenReturn("DELHIVERY");
         when(delhivery.displayName()).thenReturn("Delhivery");
         when(delhivery.external()).thenReturn(true);
-        service = new ForwardingService(shipments, items, shipmentService, branches, paymentModes, users, pincodes, comparison, List.of(delhivery));
+        service = new ForwardingService(shipments, items, shipmentService, branches, paymentModes, users, pincodes, comparison, List.of(delhivery),
+                charges, companySettings);
 
         shipment = Shipment.builder().shipmentNumber("TEST_BR-000009").trackingNumber("26110000009").bookingBranchId(HUB)
                 .currentLocationId(HUB).status(ShipmentStatus.BOOKED).actualWeight(new BigDecimal("3")).declaredValue(new BigDecimal("2000"))
@@ -136,7 +139,8 @@ class ForwardingServiceTest {
         assertThat(o.blocker()).isNull();
         assertThat(o.collectFrom()).isEqualTo("Pune Hub, 411016");
         assertThat(o.options()).extracting(x -> x.serviceCode()).containsExactly("SURFACE", "EXPRESS");
-        assertThat(o.options().get(0).cost()).isEqualByComparingTo("180");
+        assertThat(o.options().get(0).serviceCode()).isEqualTo("SURFACE");   // cheapest first
+        assertThat(o.options()).allSatisfy(x -> assertThat(x.cost()).isNull()); // no rate is shown when forwarding
         assertThat(o.unavailable()).extracting(u -> u.providerCode()).containsExactly("SHIPROCKET");
         ArgumentCaptor<RateRequest> req = ArgumentCaptor.forClass(RateRequest.class);
         verify(comparison).askExternalForForwarding(req.capture());
@@ -331,5 +335,22 @@ class ForwardingServiceTest {
         when(branches.findByIdWithinCompany(HUB, COMPANY)).thenReturn(Optional.of(noPin));
 
         assertThat(service.options(shipment.getId()).blocker()).contains("Set the pincode of Pune Hub");
+    }
+
+    @Test
+    @DisplayName("only couriers leaving the profit % from Settings are offered: ₹250 booked, 10% → up to ₹225")
+    void onlyProfitableCouriersAreOffered() {
+        com.courier.modules.shipment.domain.ShipmentCharge booked = com.courier.modules.shipment.domain.ShipmentCharge.builder()
+                .netAmount(new BigDecimal("250")).build();
+        when(charges.findByShipmentIdWithinCompany(shipment.getId(), COMPANY)).thenReturn(Optional.of(booked));
+        when(companySettings.get()).thenReturn(com.courier.modules.company.domain.CompanySettings.builder()
+                .forwardMinProfitPercent(new BigDecimal("10")).build());
+
+        ForwardOptions o = service.options(shipment.getId());
+
+        assertThat(o.options()).extracting(ForwardingService.ForwardOption::serviceCode).containsExactly("SURFACE");
+        assertThat(o.unavailable()).anySatisfy(u -> assertThat(u.reason()).contains("10% profit").contains("Delhivery Express").doesNotContain("₹"));
+        assertThatThrownBy(() -> service.forward(shipment.getId(), "DELHIVERY", "EXPRESS"))
+                .isInstanceOf(com.courier.shared.exception.BusinessRuleException.class).hasMessageContaining("less than the 10% profit");
     }
 }

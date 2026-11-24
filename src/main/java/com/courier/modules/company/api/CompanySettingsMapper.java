@@ -31,7 +31,7 @@ public class CompanySettingsMapper {
                 r.lockDurationMinutes(), r.otpExpiryMinutes(),
                 r.companyLogo(), r.favicon(), r.primaryColor(), r.secondaryColor(), r.theme(),
                 r.invoiceTemplate(), r.labelTemplate(), r.manifestTemplate(), r.receiptTemplate(),
-                r.version());
+                r.version(), r.forwardMinProfitPercent());
     }
 
     public CompanySettingsResponse toResponse(CompanySettings s) {
@@ -49,7 +49,7 @@ public class CompanySettingsMapper {
                         s.isAllowDuplicateReferenceNumber(), s.isManualStatusOverrideEnabled(),
                         s.isAutoAssignTrackingNumber(),
                         s.getDefaultChargeableWeightKg(), s.getDefaultAppointmentDeliveryCharge(),
-                        s.getToPayCharge()),
+                        s.getToPayCharge(), s.getForwardMinProfitPercent()),
                 new CompanySettingsResponse.Finance(
                         s.getGstPercentage(), s.getInvoicePrefix(), s.getCreditLimit(),
                         s.isWalletEnabled(), s.isCodEnabled(), s.isOnlinePaymentEnabled(),

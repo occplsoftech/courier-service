@@ -42,7 +42,10 @@ public record ShipmentChargeResponse(
         @Schema(description = "The Freight Factor grid cell's own factor, or an accepted "
                 + "override of it — null unless this shipment priced through the Freight "
                 + "Factor fallback (matchedRouteId/matchedRateId both null).")
-        BigDecimal appliedFreightFactor
+        BigDecimal appliedFreightFactor,
+        @Schema(description = "Cash on Delivery: 2% of the COD collection amount, at least 100. Taxed with GST "
+                + "(folded into gstAmount). Zero otherwise.")
+        BigDecimal codCharge
 ) {
     @Schema(name = "ApplicableChargeLine")
     public record ApplicableChargeLine(String chargeName, BigDecimal amount) {

@@ -172,6 +172,11 @@ public class CompanySettings extends CompanyOwnedEntity {
     @Builder.Default
     private BigDecimal toPayCharge = new BigDecimal("50.0000");
 
+    /** Forwarding: only couriers costing at most (100 - this)% of the shipment's booked amount are offered. */
+    @Column(name = "forward_min_profit_percent", nullable = false, precision = 5, scale = 2)
+    @Builder.Default
+    private BigDecimal forwardMinProfitPercent = new BigDecimal("10.00");
+
     // === Finance ============================================================
 
     /** Percentage, 0–100. {@code DECIMAL(5,2)} — money-adjacent, never a double. */

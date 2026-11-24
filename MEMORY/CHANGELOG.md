@@ -8,6 +8,34 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-23 — Forwarding: only couriers that leave the minimum profit
+
+- `company_settings_config.forward_min_profit_percent` (V169, default 10; Settings → Shipment, `PATCH /company-settings/shipment`
+  `forwardMinProfitPercent`). `ForwardingService.maxCost` = the shipment's booked net amount × (100 − %) / 100.
+- `options()` leaves out every courier service costing more (one "Below the profit margin" entry in `unavailable` lists them);
+  `forward()` refuses one. No booked amount (no charge row) = no limit. 0% offers every courier.
+- The couriers' rates are not shown when forwarding: `options()` still sorts cheapest first, then sends `cost` null and no
+  breakdown; the profit-margin messages name the services, not their prices. The cost is still recorded on the shipment.
+
+## 2026-11-23 — COD: collection amount and a 2% COD charge on staff bookings
+
+- `POST /shipments` takes `codAmount` (required, > 0, on a Cash on Delivery payment mode). Stored on `shipments.cod_amount`.
+- COD charge (`shipment_charges.cod_charge`, V168) = max(2% of codAmount, 100) (`ShipmentServiceImpl.codCharge`), taxed with
+  GST, in net_amount; exposed on `ShipmentChargeResponse.codCharge`. An edit keeps the stored amount while still COD.
+- Money: the rider collects only the COD amount (`CodCollectedAtDelivery` already uses codAmount when set). Counter COD (no
+  businessCustomerId): freight + COD charge paid at booking like PAID (wallet check, `PrepaidBookingConfirmed`, in-scan
+  commission; no delivery commission). Credit COD (businessCustomerId): billed on the client's invoice (billing picks every
+  business_customer_id shipment; COD is not "prepaid"); COD amount credited to the client's wallet on delivery as for portal COD.
+  Portal COD bookings (cod_charge 0) behave as before.
+- courier-web: COD amount field on Domestic (CASH) and Shipment Booking when the COD mode is chosen; a COD tick box on Credit.
+
+## 2026-11-23 — FOV: 0.2% of the value, minimum 100
+
+- `insuranceApplicable` (the FOV tick box) now charges `ShipmentServiceImpl.fov(value)` = max(0.2% of value, 100) (was 2%, no
+  minimum). The value is the invoice value, else the declared value (`fovValue`), so Domestic (CASH) / Credit, which send only
+  a declared value, get FOV too. GST applies as before. courier-web: tick box on Domestic / Credit; Shipment Booking preview
+  follows the same rule (`features/shipment/fov.ts`).
+
 ## 2026-11-23 — GST: one company rate (Settings → Finance) for every booking
 
 - Bookings charged GST at the booking branch's own `gstPercentage` (18% by default) and, on the rate path, the matched rate's;

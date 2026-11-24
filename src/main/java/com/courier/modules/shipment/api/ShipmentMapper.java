@@ -65,7 +65,7 @@ public class ShipmentMapper {
                 r.appointmentDelivery(), r.appointmentDate(), r.appointmentTimeSlot(),
                 r.appointmentDeliveryCharge(), r.insuranceApplicable(),
                 r.deliveryType(), r.doorDeliveryCharge(), r.flowType(), r.deliveryBranchId(),
-                r.businessCustomerId());
+                r.businessCustomerId(), r.codAmount());
     }
 
     public UpdateShipmentCommand toCommand(UpdateShipmentRequest r) {
@@ -265,7 +265,7 @@ public class ShipmentMapper {
                 c.charge().getNetAmount(),
                 c.charge().getMatchedRouteId(), c.matchedRouteCode(),
                 c.charge().getMatchedRateId(), c.matchedRateCode(),
-                c.charge().getAppliedFreightFactor());
+                c.charge().getAppliedFreightFactor(), c.charge().getCodCharge());
     }
 
     public ShipmentStatusHistoryResponse toResponse(ShipmentStatusHistory h) {

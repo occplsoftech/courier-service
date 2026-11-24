@@ -252,6 +252,7 @@ public class CompanySettingsServiceImpl implements CompanySettingsService {
         set(c.defaultChargeableWeightKg(), s::setDefaultChargeableWeightKg);
         set(c.defaultAppointmentDeliveryCharge(), s::setDefaultAppointmentDeliveryCharge);
         set(c.toPayCharge(), s::setToPayCharge);
+        set(c.forwardMinProfitPercent(), s::setForwardMinProfitPercent);
     }
 
     private void applyFinance(CompanySettings s, CompanySettingsCommand c) {

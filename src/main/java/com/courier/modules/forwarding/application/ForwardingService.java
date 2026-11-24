@@ -18,6 +18,8 @@ import com.courier.modules.master.domain.PaymentModeRepository;
 import com.courier.modules.shipment.application.ShipmentService;
 import com.courier.modules.shipment.application.command.ForwardRecord;
 import com.courier.modules.shipment.domain.Shipment;
+import com.courier.modules.company.application.CompanySettingsService;
+import com.courier.modules.shipment.domain.ShipmentChargeRepository;
 import com.courier.modules.shipment.domain.ShipmentItem;
 import com.courier.modules.shipment.domain.ShipmentItemRepository;
 import com.courier.modules.shipment.domain.ShipmentRepository;
@@ -69,6 +71,8 @@ public class ForwardingService {
     private final PincodeService pincodes;
     private final RateComparisonService comparison;
     private final List<CourierProviderAdapter> adapters;
+    private final ShipmentChargeRepository charges;
+    private final CompanySettingsService companySettings;
 
     public record Line(String label, BigDecimal amount) {
     }
@@ -101,8 +105,10 @@ public class ForwardingService {
             return new ForwardOptions(s.getId(), s.getShipmentNumber(), blocker, null, List.of(), List.of());
         }
         Branch hub = hub(s, companyId);
+        BigDecimal limit = maxCost(s, companyId);
         List<ForwardOption> options = new ArrayList<>();
         List<Unavailable> unavailable = new ArrayList<>();
+        List<String> tooDear = new ArrayList<>();
         for (ProviderResult r : comparison.askExternalForForwarding(rateRequest(s, hub, companyId))) {
             if (needsRegisteredPickup(r.providerCode()) && blank(hub.getCourierPickupLocation())) {
                 unavailable.add(new Unavailable(r.providerCode(), r.providerName(), noPickupLocation(hub, r.providerName())));
@@ -113,12 +119,23 @@ public class ForwardingService {
                 continue;
             }
             for (ProviderRate rate : r.rates()) {
+                if (limit != null && rate.providerTotal() != null && rate.providerTotal().compareTo(limit) > 0) {
+                    tooDear.add(rate.serviceName() == null ? r.providerName() : rate.serviceName());
+                    continue;
+                }
                 options.add(new ForwardOption(r.providerCode(), r.providerName(), rate.serviceCode(), rate.serviceName(), rate.transportMode(),
                         rate.etaMinDays(), rate.etaMaxDays(), rate.chargeableWeightKg(), rate.providerTotal(),
                         rate.charges().stream().map(c -> new Line(c.label(), c.amount())).toList()));
             }
         }
         options.sort(Comparator.comparing(ForwardOption::cost));
+        // The couriers' rates are not shown when forwarding: cheapest first, but no price leaves the server.
+        options.replaceAll(o -> new ForwardOption(o.providerCode(), o.providerName(), o.serviceCode(), o.serviceName(),
+                o.transportMode(), o.etaMinDays(), o.etaMaxDays(), o.chargeableWeightKg(), null, List.of()));
+        if (!tooDear.isEmpty()) {
+            unavailable.add(new Unavailable("PROFIT", "Below the profit margin", "Leave less than the "
+                    + money(minProfitPercent()) + "% profit set in Settings: " + String.join(", ", tooDear) + "."));
+        }
         return new ForwardOptions(s.getId(), s.getShipmentNumber(), null, hub.getBranchName() + ", " + hub.getPostalCode(), options, unavailable);
     }
 
@@ -153,6 +170,11 @@ public class ForwardingService {
         ProviderRate rate = priced.rates().stream().filter(r -> serviceCode.equals(r.serviceCode())).findFirst()
                 .orElseThrow(() -> new BusinessRuleException("That service is no longer offered. Check the prices again."));
         BigDecimal cost = rate.providerTotal();
+        BigDecimal limit = maxCost(s, companyId);
+        if (limit != null && cost != null && cost.compareTo(limit) > 0) {
+            throw new BusinessRuleException("%s %s leaves less than the %s%% profit set in Settings. Choose another courier."
+                    .formatted(adapter.displayName(), rate.serviceName(), money(minProfitPercent())));
+        }
 
         shipmentService.beginForward(s.getId(), providerCode, rate.serviceName());
         BookingOutcome outcome;
@@ -352,5 +374,27 @@ public class ForwardingService {
 
     private static boolean blank(String s) {
         return s == null || s.isBlank();
+    }
+
+    // ------------------------------------------------------------------ profit margin
+
+    /** The most a courier may cost: the shipment's booked amount less the profit % in Settings; null when unknown. */
+    BigDecimal maxCost(Shipment s, UUID companyId) {
+        BigDecimal booked = charges.findByShipmentIdWithinCompany(s.getId(), companyId)
+                .map(c -> c.getNetAmount()).orElse(null);
+        if (booked == null || booked.signum() <= 0) {
+            return null;
+        }
+        BigDecimal keep = BigDecimal.valueOf(100).subtract(minProfitPercent()).max(BigDecimal.ZERO);
+        return booked.multiply(keep).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal minProfitPercent() {
+        BigDecimal p = companySettings.get().getForwardMinProfitPercent();
+        return p == null ? BigDecimal.ZERO : p;
+    }
+
+    private static String money(BigDecimal v) {
+        return v.setScale(2, java.math.RoundingMode.HALF_UP).stripTrailingZeros().toPlainString();
     }
 }
