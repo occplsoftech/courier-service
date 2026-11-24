@@ -132,6 +132,8 @@ class ShipmentServiceImplTest {
     @Mock private com.courier.modules.communication.application.provider.SmsProvider smsProvider;
     @Mock private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
+    private final com.courier.modules.shipment.application.ShipmentPaymentService shipmentPaymentService =
+            org.mockito.Mockito.mock(com.courier.modules.shipment.application.ShipmentPaymentService.class);
     private ShipmentServiceImpl service;
 
     @BeforeEach
@@ -145,7 +147,7 @@ class ShipmentServiceImplTest {
                 ewayBillService, freightCalculationService,
                 applicableChargesCalculator, auditService, eventPublisher, fileStoragePort, shipmentAssetRepository,
                 deliveryDispatchOtpRepository, passwordEncoder, companySettingsService, communicationSettingService,
-                smsProvider, objectMapper);
+                smsProvider, objectMapper, shipmentPaymentService);
 
         CompanyContext.setCompanyId(COMPANY);
         signedIn(Roles.COMPANY_ADMIN);
@@ -617,6 +619,52 @@ class ShipmentServiceImplTest {
         verify(walletService).getForBranch(BOOKING_BRANCH);
         verify(eventPublisher).publishEvent(any(ShipmentEvent.PrepaidBookingConfirmed.class));
         assertThat(created.getStatus()).isEqualTo(ShipmentStatus.BOOKED);
+    }
+
+    @Test
+    @DisplayName("a Paid booking taken by Razorpay skips the wallet, records the payment pending and publishes no debit")
+    void razorpayBookingSkipsWallet() {
+        when(paymentModeService.getById(PAYMENT_MODE)).thenReturn(paymentMode(true));
+
+        Shipment created = service.create(command(), new com.courier.modules.shipment.application.command.CounterPayment(
+                com.courier.modules.shipment.domain.ShipmentPayment.Method.RAZORPAY, null));
+
+        verify(shipmentPaymentService).requireRazorpayReady(COMPANY);
+        verify(walletService, never()).getForBranch(any());
+        verify(shipmentPaymentService).recordAtBooking(any(Shipment.class),
+                org.mockito.ArgumentMatchers.eq(com.courier.modules.shipment.domain.ShipmentPayment.Method.RAZORPAY),
+                org.mockito.ArgumentMatchers.isNull(), any(BigDecimal.class));
+        verify(eventPublisher, never()).publishEvent(any(ShipmentEvent.PrepaidBookingConfirmed.class));
+        assertThat(created.getStatus()).isEqualTo(ShipmentStatus.BOOKED);
+    }
+
+    @Test
+    @DisplayName("a Paid booking taken by UPI QR debits the wallet as before and records the payment with its reference")
+    void upiQrBookingDebitsWallet() {
+        when(paymentModeService.getById(PAYMENT_MODE)).thenReturn(paymentMode(true));
+        Wallet wallet = mock(Wallet.class);
+        when(wallet.getAvailableBalance()).thenReturn(new BigDecimal("1000.00"));
+        when(walletService.getForBranch(BOOKING_BRANCH)).thenReturn(wallet);
+
+        service.create(command(), new com.courier.modules.shipment.application.command.CounterPayment(
+                com.courier.modules.shipment.domain.ShipmentPayment.Method.UPI_QR, "412345678901"));
+
+        verify(shipmentPaymentService).recordAtBooking(any(Shipment.class),
+                org.mockito.ArgumentMatchers.eq(com.courier.modules.shipment.domain.ShipmentPayment.Method.UPI_QR),
+                org.mockito.ArgumentMatchers.eq("412345678901"), any(BigDecimal.class));
+        verify(eventPublisher).publishEvent(any(ShipmentEvent.PrepaidBookingConfirmed.class));
+    }
+
+    @Test
+    @DisplayName("a Razorpay choice on a To Pay booking is refused")
+    void razorpayOnlyForPaid() {
+        when(paymentModeService.getById(PAYMENT_MODE)).thenReturn(paymentMode(false));
+
+        assertThatThrownBy(() -> service.create(command(), new com.courier.modules.shipment.application.command.CounterPayment(
+                com.courier.modules.shipment.domain.ShipmentPayment.Method.RAZORPAY, null)))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("only on a Paid booking");
+        verify(shipmentRepository, never()).save(any());
     }
 
     @Test

@@ -36,11 +36,14 @@ class RazorpayWebhookControllerTest {
     private final WalletService walletService = mock(WalletService.class);
     private RazorpayWebhookController controller;
 
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher =
+            org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class);
+
     @BeforeEach
     void setUp() {
         RazorpayProperties props = new RazorpayProperties();
         props.setWebhookSecret(SECRET);
-        controller = new RazorpayWebhookController(walletService, props, new ObjectMapper());
+        controller = new RazorpayWebhookController(walletService, props, new ObjectMapper(), eventPublisher);
     }
 
     @AfterEach
@@ -59,6 +62,18 @@ class RazorpayWebhookControllerTest {
                 {"event":"payment.captured","payload":{"payment":{"entity":
                 {"id":"pay_1","order_id":"order_1","notes":%s}}}}""".formatted(notes);
         return controller.handle(body.getBytes(StandardCharsets.UTF_8), sign(body));
+    }
+
+    @Test
+    @DisplayName("qr_code.credited hands the QR id on for the booking payment to be re-checked")
+    void qrCredited() throws Exception {
+        String body = """
+                {"event":"qr_code.credited","payload":{"qr_code":{"entity":{"id":"qr_77"}},"payment":{"entity":{"id":"pay_77"}}}}""";
+        ResponseEntity<Void> response = controller.handle(body.getBytes(StandardCharsets.UTF_8), sign(body));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(eventPublisher).publishEvent(new com.courier.modules.finance.application.payment.RazorpayQrCredited("qr_77"));
+        verify(walletService, never()).settleFromWebhook(any(), any(), any(), any());
     }
 
     @Test

@@ -141,6 +141,12 @@ public record CreateShipmentRequest(
         UUID businessCustomerId,
         @Schema(description = "Cash on Delivery only: the amount the rider collects from the consignee for the shipper. "
                 + "Required (above 0) on a COD payment mode; ignored on any other. Adds a COD charge of 2% of it, at least 100.")
-        @DecimalMin(value = "0") BigDecimal codAmount
+        @DecimalMin(value = "0") BigDecimal codAmount,
+        @Schema(description = "Paid bookings only: how the customer pays at the counter, RAZORPAY, CASH (default) or UPI_QR. "
+                + "RAZORPAY books with the payment pending (open the QR with POST /shipments/{id}/payment/qr) and does not "
+                + "debit the branch wallet.")
+        com.courier.modules.shipment.domain.ShipmentPayment.Method paymentMethod,
+        @Schema(description = "UPI_QR: the UPI reference (UTR) the customer's app shows. Optional.")
+        @Size(max = 100) String paymentReference
 ) {
 }

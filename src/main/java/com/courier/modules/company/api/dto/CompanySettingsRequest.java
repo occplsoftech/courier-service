@@ -144,6 +144,15 @@ public record CompanySettingsRequest(
         @DecimalMin("0.0") @DecimalMax("100.0") @Digits(integer = 3, fraction = 2)
         @Schema(description = "Forwarding: offer only couriers whose cost leaves at least this % of the booked amount as "
                 + "profit (10 = a ₹100 booking is offered couriers up to ₹90)")
-        BigDecimal forwardMinProfitPercent
+        BigDecimal forwardMinProfitPercent,
+
+        @Size(max = 100)
+        @Pattern(regexp = "^$|^[a-zA-Z0-9._-]{2,256}@[a-zA-Z][a-zA-Z0-9]{1,63}$", message = "must be a UPI ID like name@bank")
+        @Schema(description = "The company's UPI ID for the booking screen's QR option (empty clears it)")
+        String upiId,
+
+        @Size(max = 100)
+        @Schema(description = "Name shown in the customer's UPI app for that QR")
+        String upiPayeeName
 ) {
 }

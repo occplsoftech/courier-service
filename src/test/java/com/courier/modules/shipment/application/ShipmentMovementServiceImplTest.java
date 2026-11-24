@@ -118,6 +118,8 @@ class ShipmentMovementServiceImplTest {
     @Mock private com.courier.modules.communication.application.provider.SmsProvider smsProvider;
     @Mock private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
+    private final com.courier.modules.shipment.application.ShipmentPaymentService shipmentPaymentService =
+            org.mockito.Mockito.mock(com.courier.modules.shipment.application.ShipmentPaymentService.class);
     private ShipmentServiceImpl service;
 
     @BeforeEach
@@ -131,7 +133,7 @@ class ShipmentMovementServiceImplTest {
                 ewayBillService, freightCalculationService,
                 applicableChargesCalculator, auditService, eventPublisher, fileStoragePort,
                 shipmentAssetRepository, deliveryDispatchOtpRepository, passwordEncoder, companySettingsService,
-                communicationSettingService, smsProvider, objectMapper);
+                communicationSettingService, smsProvider, objectMapper, shipmentPaymentService);
         CompanyContext.setCompanyId(COMPANY);
         AuthenticatedUser principal = new AuthenticatedUser(
                 CALLER, COMPANY, "ops@test.com", Set.of(Roles.COMPANY_ADMIN), "jti");

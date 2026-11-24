@@ -99,7 +99,9 @@ public class ShipmentController {
                     + "the booking has committed.")
     public ResponseEntity<ApiResponse<ShipmentResponse>> create(
             @Valid @RequestBody CreateShipmentRequest request) {
-        Shipment created = shipmentService.create(mapper.toCommand(request));
+        Shipment created = shipmentService.create(mapper.toCommand(request),
+                new com.courier.modules.shipment.application.command.CounterPayment(
+                        request.paymentMethod(), request.paymentReference()));
         return ResponseEntity
                 .created(UriComponentsBuilder.fromPath("/api/v1/shipments/{id}")
                         .buildAndExpand(created.getId()).toUri())

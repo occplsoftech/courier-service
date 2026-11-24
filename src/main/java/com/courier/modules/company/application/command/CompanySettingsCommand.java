@@ -49,6 +49,40 @@ public record CompanySettingsCommand(
 
         Long expectedVersion,
 
-        BigDecimal forwardMinProfitPercent
+        BigDecimal forwardMinProfitPercent,
+
+        String upiId,
+        String upiPayeeName
 ) {
+    /** The shape before the UPI ID: leaves it unchanged. */
+    public CompanySettingsCommand(String companyName, String displayName, String supportEmail, String
+            supportMobile, String website, String language, String timezone, String currency, String country, String
+            state, String city, String awbPrefix, Long awbRunningNumber, String bookingPrefix, String manifestPrefix,
+            String defaultServiceType, String defaultPackageType, WeightUnit weightUnit, DimensionUnit dimensionUnit,
+            Boolean autoGenerateBarcode, Boolean allowDuplicateReferenceNumber, Boolean manualStatusOverrideEnabled,
+            Boolean autoAssignTrackingNumber, BigDecimal defaultChargeableWeightKg, BigDecimal
+            defaultAppointmentDeliveryCharge, BigDecimal toPayCharge, BigDecimal gstPercentage, String invoicePrefix,
+            BigDecimal creditLimit, Boolean walletEnabled, Boolean codEnabled, Boolean onlinePaymentEnabled, Boolean
+            autoInvoiceGeneration, String roundOffRule, BigDecimal netAmountMaxDecreasePercent, BigDecimal
+            netAmountMaxIncreasePercent, Boolean slaBreachTicketEnabled, Integer slaBookingToLoadingSheetHours, Integer
+            slaLoadingSheetToThcHours, Integer slaThcToInscanHours, Integer slaInscanToDrsHours, Integer
+            slaDrsToDeliveryHours, BigDecimal ewayBillMandatoryValue, Boolean smsEnabled, Boolean emailEnabled, Boolean
+            whatsappEnabled, Boolean pushNotificationEnabled, String passwordPolicy, Integer sessionTimeoutMinutes,
+            Integer maxLoginAttempts, Integer lockDurationMinutes, Integer otpExpiryMinutes, String companyLogo, String
+            favicon, String primaryColor, String secondaryColor, ThemePreference theme, String invoiceTemplate, String
+            labelTemplate, String manifestTemplate, String receiptTemplate, Long expectedVersion, BigDecimal
+            forwardMinProfitPercent) {
+        this(companyName, displayName, supportEmail, supportMobile, website, language, timezone, currency, country,
+                state, city, awbPrefix, awbRunningNumber, bookingPrefix, manifestPrefix, defaultServiceType,
+                defaultPackageType, weightUnit, dimensionUnit, autoGenerateBarcode, allowDuplicateReferenceNumber,
+                manualStatusOverrideEnabled, autoAssignTrackingNumber, defaultChargeableWeightKg,
+                defaultAppointmentDeliveryCharge, toPayCharge, gstPercentage, invoicePrefix, creditLimit, walletEnabled,
+                codEnabled, onlinePaymentEnabled, autoInvoiceGeneration, roundOffRule, netAmountMaxDecreasePercent,
+                netAmountMaxIncreasePercent, slaBreachTicketEnabled, slaBookingToLoadingSheetHours, slaLoadingSheetToThcHours,
+                slaThcToInscanHours, slaInscanToDrsHours, slaDrsToDeliveryHours, ewayBillMandatoryValue, smsEnabled,
+                emailEnabled, whatsappEnabled, pushNotificationEnabled, passwordPolicy, sessionTimeoutMinutes,
+                maxLoginAttempts, lockDurationMinutes, otpExpiryMinutes, companyLogo, favicon, primaryColor, secondaryColor,
+                theme, invoiceTemplate, labelTemplate, manifestTemplate, receiptTemplate, expectedVersion,
+                forwardMinProfitPercent, null, null);
+    }
 }

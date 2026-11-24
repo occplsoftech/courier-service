@@ -266,6 +266,8 @@ public class CompanySettingsServiceImpl implements CompanySettingsService {
         set(c.roundOffRule(), v -> s.setRoundOffRule(v.toUpperCase()));
         set(c.netAmountMaxDecreasePercent(), s::setNetAmountMaxDecreasePercent);
         set(c.netAmountMaxIncreasePercent(), s::setNetAmountMaxIncreasePercent);
+        set(c.upiId(), v -> s.setUpiId(v.isBlank() ? null : v.trim()));
+        set(c.upiPayeeName(), v -> s.setUpiPayeeName(v.isBlank() ? null : v.trim()));
     }
 
     private void applySla(CompanySettings s, CompanySettingsCommand c) {
