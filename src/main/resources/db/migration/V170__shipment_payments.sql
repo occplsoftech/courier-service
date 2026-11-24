@@ -7,11 +7,13 @@
 --   reports the payment (webhook qr_code.credited, or the screen's status check). It does not debit
 --   the branch wallet: the money lands in the company's Razorpay account. CASH / UPI_QR rows are
 --   written PAID at booking and the wallet is debited as before.
--- company_settings.upi_id / upi_payee_name: the company's own UPI ID; the booking screen
+-- company_settings_config.upi_id / upi_payee_name: the company's own UPI ID; the booking screen
 --   draws a UPI QR with the exact amount from it ("QR" method, confirmed by staff).
 -- =============================================================================
 
-CREATE TABLE shipment_payments (
+-- IF NOT EXISTS: the first deploy of this file created the table and then failed on the next
+-- statement (wrong table name), and MySQL cannot roll DDL back; Flyway's repair re-runs the file.
+CREATE TABLE IF NOT EXISTS shipment_payments (
     id                 BINARY(16)    NOT NULL,
     company_id         BINARY(16)    NOT NULL,
     shipment_id        BINARY(16)    NOT NULL,
@@ -41,6 +43,6 @@ CREATE TABLE shipment_payments (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci
   COMMENT = 'How the customer paid a Paid booking at the counter';
 
-ALTER TABLE company_settings
+ALTER TABLE company_settings_config
     ADD COLUMN upi_id VARCHAR(100) NULL AFTER forward_min_profit_percent,
     ADD COLUMN upi_payee_name VARCHAR(100) NULL AFTER upi_id;
