@@ -120,6 +120,13 @@ public interface ShipmentService {
     Shipment create(CreateShipmentCommand command);
 
     /**
+     * Books, recording how the customer pays a Paid booking ({@code counterPayment} null: cash, as before).
+     * Razorpay: booked with the payment pending (a QR for the final amount is opened next) and the branch
+     * wallet is not debited.
+     */
+    Shipment create(CreateShipmentCommand command, com.courier.modules.shipment.application.command.CounterPayment counterPayment);
+
+    /**
      * Full replacement of the editable fields, re-pricing the shipment. Only while the
      * shipment is still {@code BOOKED} — once it has moved past that, the record is no
      * longer a draft. Does not touch the wallet: see the module doc's honesty note on

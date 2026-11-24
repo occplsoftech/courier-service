@@ -177,6 +177,13 @@ public class CompanySettings extends CompanyOwnedEntity {
     @Builder.Default
     private BigDecimal forwardMinProfitPercent = new BigDecimal("10.00");
 
+    /** The company's UPI ID: a Paid booking's "QR" option draws a UPI QR for the exact amount to it. */
+    @Column(name = "upi_id", length = 100)
+    private String upiId;
+
+    @Column(name = "upi_payee_name", length = 100)
+    private String upiPayeeName;
+
     // === Finance ============================================================
 
     /** Percentage, 0–100. {@code DECIMAL(5,2)} — money-adjacent, never a double. */

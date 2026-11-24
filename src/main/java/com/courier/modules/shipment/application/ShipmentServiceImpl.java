@@ -51,6 +51,7 @@ import com.courier.modules.shipment.domain.BranchCommissionSummary;
 import com.courier.modules.shipment.domain.BranchPerformanceSummary;
 import com.courier.modules.shipment.domain.PackageId;
 import com.courier.modules.shipment.domain.Shipment;
+import com.courier.modules.shipment.domain.ShipmentPayment;
 import com.courier.modules.shipment.domain.ShipmentCharge;
 import com.courier.modules.shipment.domain.ShipmentChargeRepository;
 import com.courier.modules.shipment.domain.ShipmentCriteria;
@@ -207,6 +208,7 @@ public class ShipmentServiceImpl implements ShipmentService {
     private final CommunicationSettingService communicationSettingService;
     private final SmsProvider smsProvider;
     private final ObjectMapper objectMapper;
+    private final ShipmentPaymentService shipmentPaymentService;
 
     // ------------------------------------------------------------------- create
 
@@ -218,6 +220,14 @@ public class ShipmentServiceImpl implements ShipmentService {
     // method here still uses.
     @PreAuthorize("hasAuthority('SHIPMENT_CREATE')")
     public Shipment create(CreateShipmentCommand command) {
+        return create(command, null);
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize("hasAuthority('SHIPMENT_CREATE')")
+    public Shipment create(CreateShipmentCommand command,
+                           com.courier.modules.shipment.application.command.CounterPayment counterPayment) {
         UUID companyId = requireCompany();
 
         List<ShipmentItem> items = buildItems(command.items(), command.actualWeight(),
@@ -312,7 +322,19 @@ public class ShipmentServiceImpl implements ShipmentService {
         // Counter COD: the shipper pays freight + COD charge now (the rider collects only the COD amount). Credit COD: billed.
         boolean paidAtBooking = paymentMode.isCollectAtBooking()
                 || (codCharge.signum() > 0 && command.businessCustomerId() == null);
-        if (paidAtBooking) {
+        // Razorpay: booked with the payment pending; the customer scans a QR for this exact amount into the
+        // company's Razorpay account, so the branch wallet is neither checked nor debited. Cash / UPI QR: the
+        // wallet pays, as before.
+        ShipmentPayment.Method counterMethod = counterPayment == null ? ShipmentPayment.Method.CASH
+                : counterPayment.methodOrCash();
+        if (!paidAtBooking && counterPayment != null && counterPayment.method() != null) {
+            throw new BusinessRuleException("Choose how the customer pays only on a Paid booking.");
+        }
+        boolean razorpay = paidAtBooking && counterMethod == ShipmentPayment.Method.RAZORPAY;
+        if (razorpay) {
+            shipmentPaymentService.requireRazorpayReady(companyId);
+        }
+        if (paidAtBooking && !razorpay) {
             requireSufficientBalance(command.bookingBranchId(), netAmount);
         }
 
@@ -396,6 +418,10 @@ public class ShipmentServiceImpl implements ShipmentService {
                         "netAmount", netAmount.toPlainString()));
 
         if (paidAtBooking) {
+            shipmentPaymentService.recordAtBooking(saved, counterMethod,
+                    counterPayment == null ? null : counterPayment.reference(), netAmount);
+        }
+        if (paidAtBooking && !razorpay) {
             // Commission itself is credited later, when the shipment is in-scanned at its
             // own final delivery branch — see ShipmentEvent.InScanCommissionEarned,
             // published from scanOneIn.
@@ -869,6 +895,10 @@ public class ShipmentServiceImpl implements ShipmentService {
         PaymentMode current = paymentModeService.getById(shipment.getPaymentModeId());
         PaymentMode target = paymentModeService.getById(paymentModeId);
         requireSwitchable(current, target);
+        if (shipmentPaymentService.paidByRazorpay(id, companyId)) {
+            throw new BusinessRuleException("Shipment %s was paid by Razorpay; its payment mode cannot be changed."
+                    .formatted(shipment.getShipmentNumber()));
+        }
 
         ShipmentCharge stored = chargeRepository.findByShipmentIdWithinCompany(id, companyId)
                 .orElseThrow(() -> new ResourceNotFoundException("ShipmentCharge", id));
@@ -921,7 +951,8 @@ public class ShipmentServiceImpl implements ShipmentService {
         BigDecimal balance = walletService.getForBranch(shipment.getBookingBranchId()).getAvailableBalance();
 
         List<com.courier.modules.shipment.api.dto.PaymentModeChangeResponse.Target> targets = new ArrayList<>();
-        if (shipment.isEditable() && stored != null && (current.isCollectAtBooking() || isToPay(current))) {
+        if (shipment.isEditable() && stored != null && (current.isCollectAtBooking() || isToPay(current))
+                && !shipmentPaymentService.paidByRazorpay(id, companyId)) {
             for (PaymentMode candidate : paymentModeService.search(com.courier.modules.master.domain.MasterDataCriteria.of(
                     companyId, java.util.Set.of(com.courier.modules.master.domain.MasterStatus.ACTIVE), null),
                     org.springframework.data.domain.Pageable.unpaged()).getContent()) {
@@ -1409,6 +1440,7 @@ public class ShipmentServiceImpl implements ShipmentService {
         Shipment saved = shipmentRepository.save(shipment);
         appendHistory(saved, companyId, previous, ShipmentStatus.CANCELLED, remarks.trim());
         releaseShipmentNumber(saved);
+        shipmentPaymentService.onShipmentCancelled(saved.getId(), companyId);
 
         log.info("Shipment {} ({}) cancelled in company {} by {}", saved.getShipmentNumber(),
                 saved.getId(), companyId, currentActor());

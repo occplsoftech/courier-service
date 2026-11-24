@@ -186,6 +186,89 @@ public class RazorpayPaymentGateway implements PaymentGatewayPort {
         return payments;
     }
 
+    /**
+     * {@code POST /payments/qr_codes}: a single-use UPI QR for exactly this amount, closing at
+     * {@code closeBy}. Razorpay needs the QR Codes feature on the account.
+     */
+    @Override
+    public GatewayQr createQr(BigDecimal amount, String name, String description, java.time.Instant closeBy,
+                              Map<String, String> notes) {
+        long amountMinor = toMinorUnits(amount);
+        Map<String, Object> body = new HashMap<>();
+        body.put("type", "upi_qr");
+        body.put("name", truncate(name, 40));
+        body.put("usage", "single_use");
+        body.put("fixed_amount", true);
+        body.put("payment_amount", amountMinor);
+        body.put("description", truncate(description, 250));
+        body.put("close_by", closeBy.getEpochSecond());
+        if (notes != null && !notes.isEmpty()) {
+            body.put("notes", notes);
+        }
+        Map<?, ?> response;
+        try {
+            response = restClient.post().uri("/payments/qr_codes").body(body).retrieve().body(Map.class);
+        } catch (Exception e) {
+            throw translateGatewayException(e, "QR code creation", name);
+        }
+        if (response == null || response.get("id") == null || response.get("image_url") == null) {
+            log.error("Razorpay returned no QR code for {}", name);
+            throw new BusinessRuleException(ErrorCode.SERVICE_UNAVAILABLE,
+                    "The payment gateway returned an unusable response. Try again.");
+        }
+        Object close = response.get("close_by");
+        java.time.Instant closes = close == null ? closeBy : java.time.Instant.ofEpochSecond(Long.parseLong(String.valueOf(close)));
+        return new GatewayQr(GATEWAY, String.valueOf(response.get("id")), String.valueOf(response.get("image_url")),
+                amountMinor, closes);
+    }
+
+    /** {@code GET /payments/qr_codes/{id}/payments}: the captured payments made to the QR. */
+    @Override
+    public java.util.List<GatewayPayment> fetchQrPayments(String qrId) {
+        if (isBlank(qrId)) {
+            return java.util.List.of();
+        }
+        Map<?, ?> response;
+        try {
+            response = restClient.get().uri("/payments/qr_codes/{id}/payments", qrId).retrieve().body(Map.class);
+        } catch (Exception e) {
+            throw translateGatewayException(e, "QR payments lookup", qrId);
+        }
+        java.util.List<GatewayPayment> payments = new java.util.ArrayList<>();
+        Object items = response == null ? null : response.get("items");
+        if (items instanceof java.util.List<?> list) {
+            for (Object item : list) {
+                if (item instanceof Map<?, ?> p && p.get("id") != null && p.get("amount") != null) {
+                    payments.add(new GatewayPayment(GATEWAY, String.valueOf(p.get("id")),
+                            p.get("order_id") == null ? null : String.valueOf(p.get("order_id")),
+                            toMajorUnits(Long.parseLong(String.valueOf(p.get("amount")))),
+                            p.get("currency") == null ? null : String.valueOf(p.get("currency")),
+                            "captured".equalsIgnoreCase(String.valueOf(p.get("status")))));
+                }
+            }
+        }
+        return payments;
+    }
+
+    @Override
+    public void closeQr(String qrId) {
+        if (isBlank(qrId)) {
+            return;
+        }
+        try {
+            restClient.post().uri("/payments/qr_codes/{id}/close", qrId).retrieve().toBodilessEntity();
+        } catch (Exception e) {
+            log.info("Razorpay QR {} not closed: {}", qrId, e.getMessage());
+        }
+    }
+
+    private static String truncate(String value, int max) {
+        if (value == null) {
+            return "";
+        }
+        return value.length() <= max ? value : value.substring(0, max);
+    }
+
     private static final java.time.ZoneId IST = java.time.ZoneId.of("Asia/Kolkata");
     private static final int RECON_PAGE = 100;
     /** Hard stop per day so a misbehaving response can never loop forever. */

@@ -1,5 +1,7 @@
 package com.courier.modules.finance.application.payment;
 
+import java.time.Instant;
+
 import java.math.BigDecimal;
 import java.util.Map;
 
@@ -118,5 +120,35 @@ public interface PaymentGatewayPort {
      */
     record GatewayPayment(String gateway, String paymentId, String orderId, BigDecimal amount,
                           String currency, boolean captured) {
+    }
+
+    /**
+     * A single-use UPI QR code for a fixed amount, which the customer scans at the counter
+     * (Razorpay "QR Codes"). Default: this gateway cannot make one.
+     *
+     * @param amount  in major units (rupees)
+     * @param closeBy when the QR stops accepting payment
+     */
+    default GatewayQr createQr(BigDecimal amount, String name, String description, Instant closeBy,
+                               Map<String, String> notes) {
+        throw new com.courier.shared.exception.BusinessRuleException(
+                "Razorpay is not set up for this company. Ask the company admin to add the Razorpay keys in Settings.");
+    }
+
+    /** Captured payments made to a QR code, the authoritative figures. Default: none. */
+    default java.util.List<GatewayPayment> fetchQrPayments(String qrId) {
+        return java.util.List.of();
+    }
+
+    /** Closes a QR code so it can no longer be paid; ignore failures (it may be closed already). */
+    default void closeQr(String qrId) {
+    }
+
+    /**
+     * A QR code opened at the gateway.
+     *
+     * @param imageUrl the gateway-hosted image of the QR, shown on screen
+     */
+    record GatewayQr(String gateway, String qrId, String imageUrl, long amountMinor, Instant closeBy) {
     }
 }

@@ -8,6 +8,16 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-24 — Paid booking: the customer pays by Razorpay QR, Cash or the company's UPI QR
+
+- **V170** `shipment_payments` (one per Paid staff booking: method RAZORPAY / CASH / UPI_QR, status PENDING / PAID, amount, reference, Razorpay QR id + image + close time, Razorpay payment id) and `company_settings.upi_id` / `upi_payee_name` (Settings → Finance, PATCH `/company-settings/finance`).
+- **Booking** (`POST /shipments` gains `paymentMethod`, `paymentReference`; `ShipmentService.create(command, CounterPayment)`): Cash / UPI QR as before (wallet checked and debited, payment recorded PAID with the UTR if typed). **Razorpay: booked first with the payment PENDING, branch wallet neither checked nor debited** (money goes to the company's Razorpay account, `CompanyPaymentGatewayResolver`); refused up front when the company has no Razorpay keys. A Razorpay-paid shipment's payment mode cannot be switched.
+- **QR** `POST /shipments/{id}/payment/qr`: a single-use Razorpay UPI QR (`POST /payments/qr_codes`, fixed amount, closes after 30 min; the open one is reused, an expired one closed and replaced). `GET /shipments/{id}/payment` asks Razorpay for the QR's payments (`GET /payments/qr_codes/{id}/payments`) while pending and marks PAID when captured payments cover the amount; the webhook event `qr_code.credited` triggers the same re-check (`RazorpayQrCredited`). Cancelling the shipment closes an unpaid QR. `GET /shipment-payments?status=PENDING` lists payments still due (branch users: own branch).
+- Staff app (Domestic (CASH) Shipment and Shipment Booking): with payment mode Paid, "Customer pays by Razorpay / Cash / QR". QR draws `upi://pay?pa=…&am=<final amount>` from the company UPI ID with an optional UTR field. Razorpay: after Book, a dialog shows the Razorpay QR and the amount, checks every 3 s, and on payment shows "Payment received" and carries on by itself (bill printed, shipment opened). "Close — collect later" leaves it pending; the shipment page shows Paid By + status and "Show payment QR".
+- Owner: the Razorpay account needs **QR Codes** enabled; for the webhook, add event `qr_code.credited` (the screen's status check works without it).
+
+---
+
 ## 2026-11-23 — Forwarding: only couriers that leave the minimum profit
 
 - `company_settings_config.forward_min_profit_percent` (V169, default 10; Settings → Shipment, `PATCH /company-settings/shipment`

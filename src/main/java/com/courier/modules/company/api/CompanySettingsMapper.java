@@ -31,7 +31,7 @@ public class CompanySettingsMapper {
                 r.lockDurationMinutes(), r.otpExpiryMinutes(),
                 r.companyLogo(), r.favicon(), r.primaryColor(), r.secondaryColor(), r.theme(),
                 r.invoiceTemplate(), r.labelTemplate(), r.manifestTemplate(), r.receiptTemplate(),
-                r.version(), r.forwardMinProfitPercent());
+                r.version(), r.forwardMinProfitPercent(), r.upiId(), r.upiPayeeName());
     }
 
     public CompanySettingsResponse toResponse(CompanySettings s) {
@@ -54,7 +54,8 @@ public class CompanySettingsMapper {
                         s.getGstPercentage(), s.getInvoicePrefix(), s.getCreditLimit(),
                         s.isWalletEnabled(), s.isCodEnabled(), s.isOnlinePaymentEnabled(),
                         s.isAutoInvoiceGeneration(), s.getRoundOffRule(),
-                        s.getNetAmountMaxDecreasePercent(), s.getNetAmountMaxIncreasePercent()),
+                        s.getNetAmountMaxDecreasePercent(), s.getNetAmountMaxIncreasePercent(),
+                        s.getUpiId(), s.getUpiPayeeName()),
                 new CompanySettingsResponse.Sla(
                         s.isSlaBreachTicketEnabled(), s.getSlaBookingToLoadingSheetHours(),
                         s.getSlaLoadingSheetToThcHours(), s.getSlaThcToInscanHours(),

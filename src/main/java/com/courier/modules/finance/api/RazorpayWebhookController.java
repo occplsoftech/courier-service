@@ -60,11 +60,14 @@ public class RazorpayWebhookController {
     private static final String SIGNATURE_HEADER = "X-Razorpay-Signature";
     private static final String EVENT_PAYMENT_CAPTURED = "payment.captured";
     private static final String EVENT_PAYMENT_FAILED = "payment.failed";
+    /** A Razorpay QR (a Paid booking's counter payment) received money; the shipment module re-checks it. */
+    private static final String EVENT_QR_CREDITED = "qr_code.credited";
     private static final String HMAC_ALGORITHM = "HmacSHA256";
 
     private final WalletService walletService;
     private final RazorpayProperties properties;
     private final ObjectMapper objectMapper;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @PostMapping(value = "/razorpay", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Void> handle(@RequestBody byte[] rawBody,
@@ -95,6 +98,18 @@ public class RazorpayWebhookController {
         String event = root.path("event").asText("");
         if (EVENT_PAYMENT_FAILED.equals(event)) {
             return handleFailed(root);
+        }
+        if (EVENT_QR_CREDITED.equals(event)) {
+            String qrId = textOrNull(root.path("payload").path("qr_code").path("entity"), "id");
+            if (qrId != null) {
+                try {
+                    eventPublisher.publishEvent(new com.courier.modules.finance.application.payment.RazorpayQrCredited(qrId));
+                } catch (RuntimeException e) {
+                    log.error("Could not settle Razorpay QR {}", qrId, e);
+                    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+                }
+            }
+            return ResponseEntity.ok().build();
         }
         if (!EVENT_PAYMENT_CAPTURED.equals(event)) {
             return ResponseEntity.ok().build();
