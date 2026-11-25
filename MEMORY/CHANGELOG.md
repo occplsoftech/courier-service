@@ -8,6 +8,14 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-25 — Regional zone and zone swapped to match the sheet
+
+- **V174**: in the sheet, "zone" is the regional zone and "Region" is the pincode's zone (user). V172 had them the other way.
+  Creates regional zones NORTH, SOUTH, EAST, WEST, CENTRAL; every V172-linked pincode gets regional zone = its former zone
+  and zone = its former region's sheet name (PUNE, X - PUNE, MAHARASHTRA, X - MAHARASHTRA, VIDHARBHA, REST OF INDIA,
+  NORTH EAST); the seven V172 regional zones are soft-deleted (with any REGIONAL_ZONE tariff place pointing at them).
+  Zone Tariff zones PUNE … NORTH_EAST (V173) untouched. Tested on MySQL 8: all 19,126 pincodes relinked.
+
 ## 2026-11-25 — OCCPL pincode and zone master: regional zones, per-service coverage and delivery time
 
 - **V171** `master_regional_zones` (new global master, `/api/v1/global-masters/regional-zones`, SUPER_ADMIN or COMPANY_ADMIN write).
