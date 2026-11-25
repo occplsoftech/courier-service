@@ -1,6 +1,7 @@
 package com.courier.modules.tariff.application;
 
 import com.courier.modules.master.application.CityService;
+import com.courier.modules.master.application.RegionalZoneService;
 import com.courier.modules.master.application.DistrictService;
 import com.courier.modules.master.application.PincodeLocation;
 import com.courier.modules.master.application.PincodeService;
@@ -69,6 +70,7 @@ public class TariffZoneServiceImpl implements TariffZoneService {
     private final StateService stateService;
     private final DistrictService districtService;
     private final CityService cityService;
+    private final RegionalZoneService regionalZoneService;
     private final PincodeService pincodeService;
     private final AuditService auditService;
 
@@ -251,9 +253,10 @@ public class TariffZoneServiceImpl implements TariffZoneService {
         Names names = new Names();
         TariffZoneView.LocationView place = new TariffZoneView.LocationView(null, LocationScope.PINCODE, stateId,
                 names.state(stateId), where.districtId(), names.district(where.districtId()), where.cityId(),
-                names.city(where.cityId()), code);
+                names.city(where.cityId()), code, where.regionalZoneId(), names.regionalZone(where.regionalZoneId()));
 
-        List<TariffZoneLocation> candidates = locations.findCandidates(companyId, code, where.cityId(), where.districtId(), stateId);
+        List<TariffZoneLocation> candidates = locations.findCandidates(companyId, code, where.cityId(), where.districtId(),
+                stateId, where.regionalZoneId());
         if (candidates.isEmpty()) {
             return Optional.empty();
         }
@@ -305,7 +308,7 @@ public class TariffZoneServiceImpl implements TariffZoneService {
 
     private TariffZoneLocation build(LocationInput input) {
         if (input == null || input.scope() == null) {
-            throw new BusinessRuleException("Each location needs a scope: STATE, DISTRICT, CITY or PINCODE.");
+            throw new BusinessRuleException("Each location needs a scope: STATE, REGIONAL_ZONE, DISTRICT, CITY or PINCODE.");
         }
         TariffZoneLocation.TariffZoneLocationBuilder b = TariffZoneLocation.builder().scope(input.scope());
         switch (input.scope()) {
@@ -339,6 +342,11 @@ public class TariffZoneServiceImpl implements TariffZoneService {
                         : tryGet(() -> districtService.getById(where.districtId()).getStateId());
                 b.pincode(code).cityId(where.cityId()).districtId(where.districtId()).stateId(stateId);
             }
+            case REGIONAL_ZONE -> {
+                require(input.regionalZoneId(), "Choose a regional zone.");
+                lookup(input.regionalZoneId(), regionalZoneService::getById, "regional zone");
+                b.regionalZoneId(input.regionalZoneId());
+            }
         }
         return b.build();
     }
@@ -354,6 +362,7 @@ public class TariffZoneServiceImpl implements TariffZoneService {
             case DISTRICT -> locations.findSameDistrict(companyId, scope, location.getDistrictId());
             case CITY -> locations.findSameCity(companyId, scope, location.getCityId());
             case PINCODE -> locations.findSamePincode(companyId, scope, location.getPincode());
+            case REGIONAL_ZONE -> locations.findSameRegionalZone(companyId, scope, location.getRegionalZoneId());
         };
         for (TariffZoneLocation existing : same) {
             if (zone.getId() != null && existing.getZoneId().equals(zone.getId())) {
@@ -388,7 +397,8 @@ public class TariffZoneServiceImpl implements TariffZoneService {
 
     private TariffZoneView.LocationView toLocationView(TariffZoneLocation l, Names names) {
         return new TariffZoneView.LocationView(l.getId(), l.getScope(), l.getStateId(), names.state(l.getStateId()),
-                l.getDistrictId(), names.district(l.getDistrictId()), l.getCityId(), names.city(l.getCityId()), l.getPincode());
+                l.getDistrictId(), names.district(l.getDistrictId()), l.getCityId(), names.city(l.getCityId()), l.getPincode(),
+                l.getRegionalZoneId(), names.regionalZone(l.getRegionalZoneId()));
     }
 
     private String describe(TariffZoneLocation l) {
@@ -401,6 +411,12 @@ public class TariffZoneServiceImpl implements TariffZoneService {
         private final Map<UUID, String> states = new HashMap<>();
         private final Map<UUID, String> districts = new HashMap<>();
         private final Map<UUID, String> cities = new HashMap<>();
+        private final Map<UUID, String> regionalZones = new HashMap<>();
+
+        String regionalZone(UUID id) {
+            return id == null ? null
+                    : regionalZones.computeIfAbsent(id, k -> tryGet(() -> regionalZoneService.getById(k).getName()));
+        }
 
         String state(UUID id) {
             return id == null ? null : states.computeIfAbsent(id, k -> tryGet(() -> stateService.getById(k).getName()));

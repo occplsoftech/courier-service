@@ -5,6 +5,7 @@ import com.courier.modules.master.application.PincodeLocation;
 import com.courier.modules.master.application.PincodeService;
 import com.courier.modules.master.application.ServiceTypeService;
 import com.courier.modules.master.domain.PackageType;
+import com.courier.modules.master.domain.ServiceNetwork;
 import com.courier.modules.master.domain.ServiceType;
 import com.courier.modules.tariff.domain.TariffChargeRule;
 import com.courier.modules.tariff.domain.TariffChargeRuleRepository;
@@ -177,14 +178,23 @@ public class TariffQuoteServiceImpl implements TariffQuoteService {
                         PackageType packageType, List<TariffRateSlab> lane, List<TariffChargeRule> rules) {
         UUID fromState = origin.from().place().stateId();
         UUID toState = destination.to().place().stateId();
-        boolean oda = destination.location().odaApplicable();
+        // The pincode master records coverage per network (V171): documents, surface parcels, air parcels.
+        ServiceNetwork network = ServiceNetwork.of(packageType.isDocumentType(), serviceType.getNetwork());
+        PincodeLocation where = destination.location();
+        if (!where.serviceableBy(network)) {
+            throw new BusinessRuleException("%s service does not deliver to pincode %s."
+                    .formatted(network.label(), in.destinationPincode().trim()));
+        }
+        boolean oda = where.odaBy(network);
+        Integer tatHours = where.coverage(network).tatHours();
+        Integer deliveryDays = tatHours != null ? Integer.valueOf((tatHours + 23) / 24) : serviceType.getDeliveryDays();
         TariffPriceCalculator.Shipment shipment = new TariffPriceCalculator.Shipment(in.actualWeightKg(), in.lengthCm(),
                 in.widthCm(), in.heightCm(), in.pieces() == null ? 1 : in.pieces(), in.declaredValue(), in.cod(),
                 oda, packageType.isDocumentType(), destination.to().zone().getId(), serviceType.getId(),
                 packageType.getId(), fromState != null && Objects.equals(fromState, toState));
         TariffPriceCalculator.Price price = TariffPriceCalculator.price(origin.card(), lane, rules, shipment);
         return new Quote(origin.card(), origin.from(), destination.to(), serviceType.getId(), serviceType.getCode(),
-                serviceType.getName(), serviceType.getDeliveryDays(), packageType.getId(), packageType.getCode(), oda, price);
+                serviceType.getName(), deliveryDays, packageType.getId(), packageType.getCode(), oda, price, tatHours);
     }
 
     private Optional<TariffRateCard> activeCard(UUID companyId, TariffZoneService.Resolution from, LocalDate date) {

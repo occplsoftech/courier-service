@@ -24,7 +24,8 @@ class TariffZoneTest {
     void scopeOrder() {
         assertThat(LocationScope.PINCODE.rank()).isLessThan(LocationScope.CITY.rank());
         assertThat(LocationScope.CITY.rank()).isLessThan(LocationScope.DISTRICT.rank());
-        assertThat(LocationScope.DISTRICT.rank()).isLessThan(LocationScope.STATE.rank());
+        assertThat(LocationScope.DISTRICT.rank()).isLessThan(LocationScope.REGIONAL_ZONE.rank());
+        assertThat(LocationScope.REGIONAL_ZONE.rank()).isLessThan(LocationScope.STATE.rank());
     }
 
     @Test

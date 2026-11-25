@@ -7,6 +7,7 @@ import com.courier.modules.districtfreight.domain.BranchLookupPort;
 import com.courier.modules.districtfreight.domain.DistrictFreightStatus;
 import com.courier.modules.districtfreight.domain.DistrictLevelFreight;
 import com.courier.modules.districtfreight.domain.DistrictLevelFreightRepository;
+import com.courier.modules.districtfreight.domain.NetworkCoveragePort;
 import com.courier.modules.districtfreight.domain.PincodeCoverageLookupPort;
 import com.courier.modules.districtfreight.domain.ZoneTariffPort;
 import com.courier.shared.company.CompanyContext;
@@ -48,6 +49,14 @@ public class FreightCalculationServiceImpl implements FreightCalculationService 
     private final ZoneRateService zoneRateService;
     private final ZoneTariffPort zoneTariff;
 
+    /** Optional so hand-built instances (tests) still work; always present in the application. */
+    private NetworkCoveragePort networkCoverage;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setNetworkCoverage(NetworkCoveragePort networkCoverage) {
+        this.networkCoverage = networkCoverage;
+    }
+
     @Override
     @Transactional(readOnly = true)
     @PreAuthorize(READ)
@@ -85,6 +94,16 @@ public class FreightCalculationServiceImpl implements FreightCalculationService 
                     ? "Pincode %s is not serviceable.".formatted(coverage.pincodeCode())
                     : "Service unavailable for %s (%s).".formatted(coverage.cityName(), coverage.pincodeCode()));
         }
+        // The service the booking runs on must deliver there too (V171: document, surface and air coverage).
+        NetworkCoveragePort.NetworkCoverageRef network = tariff == null || networkCoverage == null ? null
+                : networkCoverage.coverage(coverage.pincodeCode(), tariff.serviceTypeId(), tariff.packageTypeId())
+                        .orElse(null);
+        if (network != null && !network.serviceable()) {
+            throw new BusinessRuleException("%s service does not deliver to pincode %s."
+                    .formatted(network.networkLabel(), coverage.pincodeCode()));
+        }
+        boolean pincodeOda = network != null && network.oda() != null ? network.oda() : coverage.odaApplicable();
+        Integer tatHours = network == null ? null : network.tatHours();
         if (!coverage.districtActive()) {
             throw new BusinessRuleException(
                     "District %s is inactive and cannot be used as a destination.".formatted(coverage.districtCode()));
@@ -92,9 +111,9 @@ public class FreightCalculationServiceImpl implements FreightCalculationService 
 
         if (businessCustomerId != null) {
             FreightCalculationResult zonePriced = priceFromCustomerZone(businessCustomerId, branch, coverage,
-                    chargeableWeight, declaredValue, tariff == null ? null : tariff.serviceTypeId());
+                    chargeableWeight, declaredValue, tariff == null ? null : tariff.serviceTypeId(), pincodeOda);
             if (zonePriced != null) {
-                return zonePriced;
+                return zonePriced.withTatHours(tatHours);
             }
         }
 
@@ -107,7 +126,7 @@ public class FreightCalculationServiceImpl implements FreightCalculationService 
                     .map(p -> fromTariff(p, branch, coverage, chargeableWeight))
                     .orElse(null);
             if (tariffPriced != null) {
-                return tariffPriced;
+                return tariffPriced.withTatHours(tatHours);
             }
         }
 
@@ -127,7 +146,7 @@ public class FreightCalculationServiceImpl implements FreightCalculationService 
 
         BigDecimal baseFreight = chargeableWeight.multiply(slab.ratePerKg())
                 .setScale(MONEY_SCALE, RoundingMode.HALF_UP);
-        boolean odaApplies = freight.isOdaApplicable() && coverage.odaApplicable();
+        boolean odaApplies = freight.isOdaApplicable() && pincodeOda;
         BigDecimal odaCharge = odaApplies
                 ? freight.getOdaCharge().setScale(MONEY_SCALE, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO.setScale(MONEY_SCALE, RoundingMode.HALF_UP);
@@ -136,7 +155,7 @@ public class FreightCalculationServiceImpl implements FreightCalculationService 
         return new FreightCalculationResult(freight.getId(), branch.branchId(), branch.branchCode(),
                 branch.branchName(), coverage.districtId(), coverage.districtCode(), coverage.districtName(),
                 coverage.pincodeId(), coverage.pincodeCode(), coverage.cityName(), chargeableWeight, slab.label(),
-                slab.ratePerKg(), baseFreight, odaApplies, odaCharge, totalFreight);
+                slab.ratePerKg(), baseFreight, odaApplies, odaCharge, totalFreight).withTatHours(tatHours);
     }
 
     /** The customer's zone rate card for this destination, or null when no ACTIVE zone of
@@ -144,7 +163,7 @@ public class FreightCalculationServiceImpl implements FreightCalculationService 
     private FreightCalculationResult priceFromCustomerZone(UUID customerId, BranchLookupPort.BranchRef branch,
                                                            PincodeCoverageLookupPort.CoverageRef coverage,
                                                            BigDecimal chargeableWeight, BigDecimal declaredValue,
-                                                           UUID serviceTypeId) {
+                                                           UUID serviceTypeId, boolean pincodeOda) {
         PricingZoneView zone = zoneService.resolve(customerId, coverage.districtId(), coverage.cityId())
                 .orElse(null);
         if (zone == null) {
@@ -152,14 +171,14 @@ public class FreightCalculationServiceImpl implements FreightCalculationService 
         }
         ZoneRateService.Quote quote = zoneRateService.calculate(new ZoneRateService.QuoteCommand(
                 customerId, coverage.districtId(), coverage.cityId(), chargeableWeight, declaredValue,
-                coverage.odaApplicable(), null, serviceTypeId));
+                pincodeOda, null, serviceTypeId));
         BigDecimal oda = quote.odaCharge().setScale(MONEY_SCALE, RoundingMode.HALF_UP);
         BigDecimal extras = quote.docketCharge().add(quote.mathadiCharge()).add(quote.packCharge())
                 .add(quote.fuelSurcharge()).add(quote.fovCharge()).setScale(MONEY_SCALE, RoundingMode.HALF_UP);
         return new FreightCalculationResult(null, branch.branchId(), branch.branchCode(), branch.branchName(),
                 coverage.districtId(), coverage.districtCode(), coverage.districtName(), coverage.pincodeId(),
                 coverage.pincodeCode(), coverage.cityName(), quote.chargeableWeight(),
-                "Zone " + quote.zoneName(), quote.ratePerKg(), quote.freight(), coverage.odaApplicable()
+                "Zone " + quote.zoneName(), quote.ratePerKg(), quote.freight(), pincodeOda
                 && oda.signum() > 0, oda, quote.freight().add(oda), quote.zoneName(), extras);
     }
 

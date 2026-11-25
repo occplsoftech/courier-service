@@ -54,7 +54,11 @@ public interface TariffZoneService {
      * One place to add. Only the id for the scope is needed (STATE: stateId, DISTRICT: districtId, CITY: cityId,
      * PINCODE: pincode); the rest is filled in from the geography masters.
      */
-    record LocationInput(LocationScope scope, UUID stateId, UUID districtId, UUID cityId, String pincode) {
+    record LocationInput(LocationScope scope, UUID stateId, UUID districtId, UUID cityId, String pincode,
+                         UUID regionalZoneId) {
+        public LocationInput(LocationScope scope, UUID stateId, UUID districtId, UUID cityId, String pincode) {
+            this(scope, stateId, districtId, cityId, pincode, null);
+        }
     }
 
     /** {@code place} describes the pincode itself (its city, district and state); {@code matchedBy} the rule that won. */

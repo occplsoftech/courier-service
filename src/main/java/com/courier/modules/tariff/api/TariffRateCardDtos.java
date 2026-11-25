@@ -132,6 +132,7 @@ public final class TariffRateCardDtos {
                                 BigDecimal actualWeightKg, BigDecimal volumetricWeightKg, BigDecimal chargeableWeightKg,
                                 BigDecimal freight, String freightBasis, List<ChargeLineResponse> charges,
                                 BigDecimal taxableAmount, List<TaxLineResponse> taxes, BigDecimal taxTotal,
-                                BigDecimal nonTaxableAmount, BigDecimal roundOff, BigDecimal total) {
+                                BigDecimal nonTaxableAmount, BigDecimal roundOff, BigDecimal total,
+                                Integer tatHours) {
     }
 }

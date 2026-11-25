@@ -3,6 +3,8 @@ package com.courier.modules.master.domain;
 import com.courier.shared.domain.CompanyOwnedEntity;
 import com.courier.shared.exception.BusinessRuleException;
 import jakarta.persistence.Column;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
@@ -59,6 +61,19 @@ public class ServiceType extends MasterDataEntity {
      *  commonly 5000, Surface 4000). Null falls back to the deployment default. */
     @Column(name = "volumetric_divisor")
     private Integer volumetricDivisor;
+
+    /**
+     * The network parcels on this service travel by (V171): SURFACE or AIR, null meaning SURFACE.
+     * Booking checks the delivery pincode's coverage for that network. Documents always use the
+     * document network, whatever the service.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "network", length = 10)
+    private ServiceNetwork network;
+
+    public ServiceNetwork networkOrSurface() {
+        return network == ServiceNetwork.AIR ? ServiceNetwork.AIR : ServiceNetwork.SURFACE;
+    }
 
     @Override
     protected void applySpecificInvariants() {

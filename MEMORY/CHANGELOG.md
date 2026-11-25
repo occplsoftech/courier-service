@@ -8,6 +8,23 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-25 — OCCPL pincode and zone master: regional zones, per-service coverage and delivery time
+
+- **V171** `master_regional_zones` (new global master, `/api/v1/global-masters/regional-zones`, SUPER_ADMIN or COMPANY_ADMIN write).
+  `master_pincodes` gains `regional_zone_id` and, per network, `doc_/surface_/air_serviceable`, `_oda`, `_tat_hours` (all nullable:
+  null = the pincode's own serviceable / ODA flags decide). `master_service_types.network` (SURFACE / AIR, null = SURFACE; the seeded
+  `AIR` code set to AIR). `tariff_zone_locations.regional_zone_id` and scope `REGIONAL_ZONE` (ranks after DISTRICT, before STATE).
+- **V172** loads the user's sheet (Pincode_Master_NEW_DT_15-4-2024): 7 regional zones (Pune, X - Pune, Maharashtra, X - Maharashtra,
+  Vidharbha, Rest of India, North East); 19,126 pincodes get zone (NORTH/SOUTH/EAST/WEST/CENTRAL), regional zone and Doc / Surface / Air
+  coverage + TAT hours; 28 pincodes not on file are added under the city of the nearest pincode with the same first three digits.
+  International / fake codes skipped; 421401 and 465691 (listed twice) take their first row. Tested on MySQL 8: rerun-safe, ~2 s.
+- **Booking**: the network is the package type (document → Document) else the service type's network. Zone Tariff quotes, customer
+  zone pricing and District Level Freight refuse "<Network> service does not deliver to pincode X" and take ODA from that network.
+  Delivery days come from the pincode's TAT (hours rounded up to days) when on file: tariff quotes (`tatHours`, `deliveryDays`),
+  freight calculation (`tatHours`) and the shipment's stored `expectedDeliveryDate`; else the service type's days as before.
+- Web: Masters → Regional Zone; Pincode list/form show zone, regional zone and the three coverages; Service Type gets Network;
+  Zone Tariff → Zones can add a whole regional zone; Domestic and Shipment Booking show the pincode's delivery days.
+
 ## 2026-11-24 — Paid booking: the customer pays by Razorpay QR, Cash or the company's UPI QR
 
 - **V170** `shipment_payments` (one per Paid staff booking: method RAZORPAY / CASH / UPI_QR, status PENDING / PAID, amount, reference, Razorpay QR id + image + close time, Razorpay payment id) and `company_settings.upi_id` / `upi_payee_name` (Settings → Finance, PATCH `/company-settings/finance`).

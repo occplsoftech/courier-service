@@ -19,6 +19,8 @@ public record PincodeResponse(
         boolean serviceable, boolean codAvailable, boolean prepaidAvailable,
         boolean pickupAvailable, String zone, boolean odaApplicable,
         UUID districtId, String districtName, UUID stateId, String stateName,
+        UUID regionalZoneId, String regionalZoneName,
+        NetworkCoverageDto doc, NetworkCoverageDto surface, NetworkCoverageDto air,
         UUID createdBy, Instant createdDate, UUID updatedBy, Instant updatedDate, Long version
 ) {
 }

@@ -366,7 +366,8 @@ public class ShipmentServiceImpl implements ShipmentService {
                 .packageTypeId(command.packageTypeId())
                 .paymentModeId(command.paymentModeId())
                 .shipmentType(command.shipmentType() == null ? ShipmentType.NON_DOCUMENT : command.shipmentType())
-                .expectedDeliveryDate(expectedDeliveryDate(bookingDate, serviceType))
+                .expectedDeliveryDate(expectedDeliveryDate(bookingDate, serviceType, command.deliveryPincode(),
+                        command.packageTypeId()))
                 .actualWeight(weight.actualWeight())
                 .volumetricWeight(weight.volumetricWeight())
                 .chargeableWeight(weight.chargeableWeight())
@@ -575,7 +576,8 @@ public class ShipmentServiceImpl implements ShipmentService {
                 .packageTypeId(packageType.getId())
                 .paymentModeId(paymentMode.getId())
                 .shipmentType(ShipmentType.NON_DOCUMENT)
-                .expectedDeliveryDate(expectedDeliveryDate(bookingDate, serviceType))
+                .expectedDeliveryDate(expectedDeliveryDate(bookingDate, serviceType, c.deliveryPincode(),
+                        packageType.getId()))
                 .actualWeight(weight.actualWeight())
                 .volumetricWeight(weight.volumetricWeight())
                 .chargeableWeight(c.chargeableWeight() == null ? weight.chargeableWeight() : c.chargeableWeight())
@@ -726,7 +728,8 @@ public class ShipmentServiceImpl implements ShipmentService {
         shipment.setPaymentModeId(command.paymentModeId());
         shipment.setShipmentType(command.shipmentType());
         shipment.setBookingDate(bookingDate);
-        shipment.setExpectedDeliveryDate(expectedDeliveryDate(bookingDate, serviceType));
+        shipment.setExpectedDeliveryDate(expectedDeliveryDate(bookingDate, serviceType, command.deliveryPincode(),
+                command.packageTypeId()));
         shipment.setActualWeight(weight.actualWeight());
         shipment.setVolumetricWeight(weight.volumetricWeight());
         shipment.setChargeableWeight(weight.chargeableWeight());
@@ -2863,9 +2866,29 @@ public class ShipmentServiceImpl implements ShipmentService {
         }
     }
 
-    private LocalDate expectedDeliveryDate(LocalDate bookingDate, ServiceType serviceType) {
+    /**
+     * Booking date plus the delivery pincode's delivery time for the booking's network (document, surface or air,
+     * from the pincode master, V171) rounded up to whole days; the service type's own days when the pincode has none.
+     */
+    private LocalDate expectedDeliveryDate(LocalDate bookingDate, ServiceType serviceType, String deliveryPincode,
+                                           UUID packageTypeId) {
+        Integer tatHours = networkCoverage == null ? null
+                : networkCoverage.coverage(deliveryPincode, serviceType.getId(), packageTypeId)
+                        .map(com.courier.modules.districtfreight.domain.NetworkCoveragePort.NetworkCoverageRef::tatHours)
+                        .orElse(null);
+        if (tatHours != null && tatHours > 0) {
+            return bookingDate.plusDays((tatHours + 23) / 24);
+        }
         Integer days = serviceType.getDeliveryDays();
         return days == null ? null : bookingDate.plusDays(days);
+    }
+
+    /** Optional so hand-built instances (tests) still work; always present in the application. */
+    private com.courier.modules.districtfreight.domain.NetworkCoveragePort networkCoverage;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setNetworkCoverage(com.courier.modules.districtfreight.domain.NetworkCoveragePort networkCoverage) {
+        this.networkCoverage = networkCoverage;
     }
 
     // ------------------------------------------------------------------- weight

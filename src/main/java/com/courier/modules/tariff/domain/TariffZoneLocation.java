@@ -42,7 +42,7 @@ public class TariffZoneLocation extends CompanyOwnedEntity {
     private UUID zoneId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "scope", nullable = false, length = 10, updatable = false)
+    @Column(name = "scope", nullable = false, length = 20, updatable = false)
     private LocationScope scope;
 
     @JdbcTypeCode(SqlTypes.BINARY)
@@ -60,6 +60,11 @@ public class TariffZoneLocation extends CompanyOwnedEntity {
     @Column(name = "pincode", length = 6, updatable = false)
     private String pincode;
 
+    /** For a REGIONAL_ZONE location: the regional zone (a global master) whose pincodes it covers. */
+    @JdbcTypeCode(SqlTypes.BINARY)
+    @Column(name = "regional_zone_id", columnDefinition = "BINARY(16)", updatable = false)
+    private UUID regionalZoneId;
+
     /** The value this location is keyed on at its own scope: the state id for STATE, the pincode for PINCODE, and so on. */
     public String placeKey() {
         return switch (scope) {
@@ -67,6 +72,7 @@ public class TariffZoneLocation extends CompanyOwnedEntity {
             case DISTRICT -> String.valueOf(districtId);
             case CITY -> String.valueOf(cityId);
             case PINCODE -> pincode;
+            case REGIONAL_ZONE -> String.valueOf(regionalZoneId);
         };
     }
 }

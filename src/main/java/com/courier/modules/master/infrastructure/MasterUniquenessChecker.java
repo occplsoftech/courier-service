@@ -48,7 +48,8 @@ public class MasterUniquenessChecker {
             MasterTable.COUNTRIES, MasterTable.STATES, MasterTable.DISTRICTS,
             MasterTable.CITIES, MasterTable.AREAS, MasterTable.PINCODES,
             MasterTable.VEHICLE_TYPES, MasterTable.PACKAGE_TYPES, MasterTable.SERVICE_TYPES,
-            MasterTable.PAYMENT_MODES, MasterTable.WEIGHT_SLABS, MasterTable.ROUTES);
+            MasterTable.PAYMENT_MODES, MasterTable.WEIGHT_SLABS, MasterTable.ROUTES,
+            MasterTable.REGIONAL_ZONES);
 
     private final EntityManager entityManager;
 

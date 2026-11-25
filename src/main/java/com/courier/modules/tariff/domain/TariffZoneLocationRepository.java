@@ -41,8 +41,18 @@ public interface TariffZoneLocationRepository extends JpaRepository<TariffZoneLo
             + " (l.scope = com.courier.modules.tariff.domain.LocationScope.PINCODE and l.pincode = :pincode)"
             + " or (l.scope = com.courier.modules.tariff.domain.LocationScope.CITY and l.cityId = :cityId)"
             + " or (l.scope = com.courier.modules.tariff.domain.LocationScope.DISTRICT and l.districtId = :districtId)"
+            + " or (l.scope = com.courier.modules.tariff.domain.LocationScope.REGIONAL_ZONE and l.regionalZoneId = :regionalZoneId)"
             + " or (l.scope = com.courier.modules.tariff.domain.LocationScope.STATE and l.stateId = :stateId))")
     List<TariffZoneLocation> findCandidates(@Param("companyId") UUID companyId, @Param("pincode") String pincode,
                                             @Param("cityId") UUID cityId, @Param("districtId") UUID districtId,
-                                            @Param("stateId") UUID stateId);
+                                            @Param("stateId") UUID stateId, @Param("regionalZoneId") UUID regionalZoneId);
+
+    /** Without a regional zone: matches pincode, city, district and state locations only. */
+    default List<TariffZoneLocation> findCandidates(UUID companyId, String pincode, UUID cityId, UUID districtId,
+                                                    UUID stateId) {
+        return findCandidates(companyId, pincode, cityId, districtId, stateId, null);
+    }
+
+    @Query("select l from TariffZoneLocation l where l.companyId = :companyId and l.scope = :scope and l.regionalZoneId = :id")
+    List<TariffZoneLocation> findSameRegionalZone(@Param("companyId") UUID companyId, @Param("scope") LocationScope scope, @Param("id") UUID id);
 }

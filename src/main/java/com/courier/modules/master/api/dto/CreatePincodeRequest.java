@@ -1,6 +1,7 @@
 package com.courier.modules.master.api.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -34,6 +35,10 @@ public record CreatePincodeRequest(
         Boolean pickupAvailable,
         @Size(max = 20) @Schema(example = "LOCAL") String zone,
         @Schema(description = "Out-of-Delivery-Area — still served, priced differently.")
-        Boolean odaApplicable
+        Boolean odaApplicable,
+        @Schema(description = "Regional zone (pricing region) id") UUID regionalZoneId,
+        @Valid @Schema(description = "Document network coverage") NetworkCoverageDto doc,
+        @Valid @Schema(description = "Surface network coverage") NetworkCoverageDto surface,
+        @Valid @Schema(description = "Air network coverage") NetworkCoverageDto air
 ) {
 }

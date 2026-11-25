@@ -15,18 +15,19 @@ public class ServiceTypeMasterMapper {
 
     public ServiceTypeCommand toCommand(CreateServiceTypeRequest r) {
         return new ServiceTypeCommand(r.code(), r.name(), r.description(), r.displayOrder(),
-                r.deliveryDays(), r.express(), r.cutoffTime(), r.priority(), r.volumetricDivisor(), null);
+                r.deliveryDays(), r.express(), r.cutoffTime(), r.priority(), r.volumetricDivisor(), r.network(), null);
     }
 
     public ServiceTypeCommand toCommand(UpdateServiceTypeRequest r) {
         return new ServiceTypeCommand(null, r.name(), r.description(), r.displayOrder(),
-                r.deliveryDays(), r.express(), r.cutoffTime(), r.priority(), r.volumetricDivisor(), r.version());
+                r.deliveryDays(), r.express(), r.cutoffTime(), r.priority(), r.volumetricDivisor(), r.network(), r.version());
     }
 
     public ServiceTypeResponse toResponse(ServiceType s) {
         return new ServiceTypeResponse(s.getId(), s.getCompanyId(), s.getCode(), s.getName(),
                 s.getDescription(), s.getStatus(), s.getDisplayOrder(),
                 s.getDeliveryDays(), s.isExpress(), s.getCutoffTime(), s.getPriority(), s.getVolumetricDivisor(),
+                s.networkOrSurface(),
                 s.getCreatedBy(), s.getCreatedAt(), s.getUpdatedBy(), s.getUpdatedAt(), s.getVersion());
     }
 

@@ -1,5 +1,6 @@
 package com.courier.modules.master.api.dto;
 
+import com.courier.modules.master.domain.ServiceNetwork;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -20,6 +21,7 @@ public record UpdateServiceTypeRequest(
         LocalTime cutoffTime,
         @PositiveOrZero Integer priority,
         @Positive Integer volumetricDivisor,
+        ServiceNetwork network,
         @NotNull @PositiveOrZero Long version
 ) {
 }

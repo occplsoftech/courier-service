@@ -26,6 +26,9 @@ public record FreightCalculationResponse(
         String customerZoneName,
         @Schema(description = "Zone rate's docket + mathadi + pack + fuel + FOV — the minimum Other "
                 + "Charges for the booking. Zero when District Level Freight priced it")
-        BigDecimal customerExtraCharges
+        BigDecimal customerExtraCharges,
+        @Schema(description = "Destination pincode's delivery time in hours for the booking's service "
+                + "(document, surface or air network), when the pincode master has it")
+        Integer tatHours
 ) {
 }

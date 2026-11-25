@@ -124,7 +124,7 @@ public class TariffZoneController {
 
     private static List<LocationInput> inputs(List<LocationRequest> requests) {
         return requests == null ? List.of() : requests.stream()
-                .map(l -> new LocationInput(l.scope(), l.stateId(), l.districtId(), l.cityId(), l.pincode())).toList();
+                .map(l -> new LocationInput(l.scope(), l.stateId(), l.districtId(), l.cityId(), l.pincode(), l.regionalZoneId())).toList();
     }
 
     private static ZoneResponse toResponse(TariffZoneView v, boolean withLocations) {
@@ -137,6 +137,7 @@ public class TariffZoneController {
 
     private static LocationResponse location(TariffZoneView.LocationView l) {
         return l == null ? null : new LocationResponse(l.id(), l.scope(), l.label(), l.stateId(), l.stateName(),
-                l.districtId(), l.districtName(), l.cityId(), l.cityName(), l.pincode());
+                l.districtId(), l.districtName(), l.cityId(), l.cityName(), l.pincode(),
+                l.regionalZoneId(), l.regionalZoneName());
     }
 }
