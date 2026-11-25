@@ -8,6 +8,22 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-25 — Business customer rate structure import (the printed rate card)
+
+- **V177** `customer_structure_rates`: per customer and service type, per-kg rates by origin region (NORTH, SOUTH, EAST,
+  WEST, NORTH_EAST; null = any) and destination group (cargo: WITHIN_STATE, REST_OF_INDIA, NORTH_EAST; air courier: WEST,
+  METROS, REST_OF_INDIA, EAST_NORTH_EAST), with a minimum chargeable weight.
+- `/api/v1/customer-rates/structure`: `GET /template` (the rate card layout with standard rates), `GET ?customerId=`,
+  `POST /preview` and `POST` (multipart, with the three service types: air courier, cargo by surface, cargo by air).
+  Reads the AIR COURIER MODE table, the DESTINATION (cargo) grid (By Surface / By Air columns, or "25/100" cells, "-" =
+  no rate) and "Minimum Chargeable weight 20kgs". All or nothing; replaces the customer's structure for those services
+  and switches the customer to business rates.
+- **Booking** (`FreightCalculationServiceImpl`, business customer on business rates, before pricing zones): cargo row =
+  booking branch pincode's region (North East when its zone is NORTH EAST), column = same state / NORTH EAST zone / rest of
+  India; air courier = West or East-North East by regional zone, then metros (Delhi state; Mumbai, Kolkata, Chennai,
+  Bangalore, Hyderabad districts), else Rest of India. Freight = rate × max(weight, minimum). A missing lane is refused.
+- Web: Business Customer → Import Rate Structure.
+
 ## 2026-11-25 — Pincode master sheet stored verbatim
 
 - **V176** `pincode_master_sheet`: the user's Pincode_Master_NEW_DT_15-4-2024 exactly as given, 19,168 rows in sheet

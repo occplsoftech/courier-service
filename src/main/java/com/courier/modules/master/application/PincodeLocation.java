@@ -12,7 +12,7 @@ import java.util.UUID;
 public record PincodeLocation(UUID pincodeId, UUID areaId, UUID cityId, UUID districtId,
                               boolean serviceable, boolean codAvailable, boolean odaApplicable,
                               UUID regionalZoneId, NetworkCoverage doc, NetworkCoverage surface,
-                              NetworkCoverage air) {
+                              NetworkCoverage air, String zone) {
 
     public PincodeLocation {
         doc = NetworkCoverage.orNone(doc);
@@ -20,10 +20,18 @@ public record PincodeLocation(UUID pincodeId, UUID areaId, UUID cityId, UUID dis
         air = NetworkCoverage.orNone(air);
     }
 
+    /** Without the pincode's zone text (PUNE, X - PUNE, NORTH EAST …). */
+    public PincodeLocation(UUID pincodeId, UUID areaId, UUID cityId, UUID districtId,
+                           boolean serviceable, boolean codAvailable, boolean odaApplicable,
+                           UUID regionalZoneId, NetworkCoverage doc, NetworkCoverage surface, NetworkCoverage air) {
+        this(pincodeId, areaId, cityId, districtId, serviceable, codAvailable, odaApplicable, regionalZoneId, doc, surface,
+                air, null);
+    }
+
     /** Without the V171 data: no regional zone, no per-network coverage. */
     public PincodeLocation(UUID pincodeId, UUID areaId, UUID cityId, UUID districtId,
                            boolean serviceable, boolean codAvailable, boolean odaApplicable) {
-        this(pincodeId, areaId, cityId, districtId, serviceable, codAvailable, odaApplicable, null, null, null, null);
+        this(pincodeId, areaId, cityId, districtId, serviceable, codAvailable, odaApplicable, null, null, null, null, null);
     }
 
     public NetworkCoverage coverage(ServiceNetwork network) {
