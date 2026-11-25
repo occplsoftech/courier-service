@@ -21,7 +21,8 @@ public class CorsProperties {
     private List<String> allowedOrigins = List.of("http://localhost:3000", "http://localhost:5173");
 
     /**
-     * Extra origins allowed on the public tracking API ({@code /api/v1/track/**}) only, e.g. the public website.
+     * Extra origins allowed on the public tracking API ({@code /api/v1/track/**}) and the public rates
+     * ({@code /api/v1/public/rates}) only, e.g. the public website.
      * Kept apart from {@link #allowedOrigins} so such a site never gains access to the rest of the API.
      */
     private List<String> trackingOrigins = List.of();
