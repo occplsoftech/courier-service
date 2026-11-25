@@ -1697,6 +1697,39 @@ public class ShipmentServiceImpl implements ShipmentService {
     // request. Same condition booking used to gate the credit on: the payment mode collects
     // at booking, and the booking branch itself has instantCommission on. Caller already
     // checked paymentMode.isCollectAtBooking().
+    /**
+     * The money side of a shipment reaching its final delivery branch (in-scan there, or a local delivery straight
+     * from its booking branch). TO_PAY's freight is the branch's liability the instant the shipment is physically
+     * here, not deferred to actual delivery like COD — see ShipmentEvent.ToPayReceivedAtDeliveryBranch.
+     * Collect-at-booking's booking-branch commission also credits here, on arrival at the final delivery branch —
+     * see ShipmentEvent.InScanCommissionEarned.
+     */
+    private void settleArrivalAtDeliveryBranch(Shipment saved, UUID companyId, UUID deliveryBranchId) {
+        PaymentMode paymentMode = paymentModeService.getById(saved.getPaymentModeId());
+        boolean toPay = paymentMode.isCollectAtDelivery() && !paymentMode.isCashOnDelivery();
+        ShipmentCharge stored = chargeRepository.findByShipmentIdWithinCompany(saved.getId(), companyId).orElse(null);
+        if (paymentMode.isCollectAtBooking() || toPay || counterCod(saved, stored)) {
+            ShipmentCharge charge = Optional.ofNullable(stored)
+                    .orElseThrow(() -> new ResourceNotFoundException("ShipmentCharge", saved.getId()));
+            if (toPay) {
+                eventPublisher.publishEvent(new ShipmentEvent.ToPayReceivedAtDeliveryBranch(
+                        saved.getId(), companyId, deliveryBranchId, saved.getShipmentNumber(),
+                        charge.getNetAmount(), Instant.now()));
+            } else {
+                publishInScanCommissionIfEarned(saved, companyId, charge);
+            }
+        }
+    }
+
+    /** Still at its booking branch, on no manifest, with no other branch to go to: the booking branch can deliver it itself. */
+    private static boolean localAtBookingBranch(Shipment s) {
+        return (s.getStatus() == ShipmentStatus.BOOKED || s.getStatus() == ShipmentStatus.READY_FOR_MANIFEST)
+                && s.getManifestId() == null && !s.isRto()
+                && (s.getCurrentLocationId() == null || Objects.equals(s.getCurrentLocationId(), s.getBookingBranchId()))
+                && (s.getDeliveryBranchId() == null || Objects.equals(s.getDeliveryBranchId(), s.getBookingBranchId()))
+                && (s.getNextLocationId() == null || Objects.equals(s.getNextLocationId(), s.getBookingBranchId()));
+    }
+
     private void publishInScanCommissionIfEarned(Shipment shipment, UUID companyId, ShipmentCharge charge) {
         BigDecimal branchCommission = eligibleBranchCommission(shipment.getBookingBranchId(), charge);
         if (branchCommission.compareTo(BigDecimal.ZERO) <= 0) {
@@ -1843,26 +1876,7 @@ public class ShipmentServiceImpl implements ShipmentService {
                     Map.of("shipmentNumber", saved.getShipmentNumber()));
             eventPublisher.publishEvent(new ShipmentEvent.ReceivedAtBranch(saved.getId(), companyId, Instant.now()));
 
-            // TO_PAY's freight is the branch's liability the instant the shipment is
-            // physically here, not deferred to actual delivery like COD (the consignee's
-            // amount, only real once collected) — see ShipmentEvent.ToPayReceivedAtDeliveryBranch.
-            // Collect-at-booking's booking-branch commission also credits here now, on
-            // arrival at the final delivery branch, not on Trip Challan creation — see
-            // ShipmentEvent.InScanCommissionEarned.
-            PaymentMode paymentMode = paymentModeService.getById(saved.getPaymentModeId());
-            boolean toPay = paymentMode.isCollectAtDelivery() && !paymentMode.isCashOnDelivery();
-            ShipmentCharge stored = chargeRepository.findByShipmentIdWithinCompany(saved.getId(), companyId).orElse(null);
-            if (paymentMode.isCollectAtBooking() || toPay || counterCod(saved, stored)) {
-                ShipmentCharge charge = Optional.ofNullable(stored)
-                        .orElseThrow(() -> new ResourceNotFoundException("ShipmentCharge", saved.getId()));
-                if (toPay) {
-                    eventPublisher.publishEvent(new ShipmentEvent.ToPayReceivedAtDeliveryBranch(
-                            saved.getId(), companyId, receivingBranchId, saved.getShipmentNumber(),
-                            charge.getNetAmount(), Instant.now()));
-                } else {
-                    publishInScanCommissionIfEarned(saved, companyId, charge);
-                }
-            }
+            settleArrivalAtDeliveryBranch(saved, companyId, receivingBranchId);
             return new MovementOutcome(trackingNumber, true, null);
         }
 
@@ -1915,9 +1929,20 @@ public class ShipmentServiceImpl implements ShipmentService {
                 && shipment.getDeliveryBranchId() == null
                 && shipment.getCurrentLocationId() != null
                 && !Objects.equals(shipment.getCurrentLocationId(), shipment.getBookingBranchId());
-        if (shipment.getStatus() != ShipmentStatus.IN_SCAN && !atHubUnassigned) {
+        // Booked here for a local address: the booking branch delivers it itself, without a transfer (Scan → Assign to
+        // Delivery, as on the earlier portal). It becomes its own delivery branch.
+        boolean localDelivery = !atHubUnassigned && localAtBookingBranch(shipment);
+        if (shipment.getStatus() != ShipmentStatus.IN_SCAN && !atHubUnassigned && !localDelivery) {
             return new MovementOutcome(shipment.getShipmentNumber(), false,
                     "Cannot be assigned — currently " + shipment.getStatus() + ".");
+        }
+        if (localDelivery) {
+            shipment.setDeliveryBranchId(shipment.getBookingBranchId());
+            shipment.setNextLocationId(null);
+            shipment.setCurrentLocationId(shipment.getBookingBranchId());
+            if (shipment.getStatus() == ShipmentStatus.BOOKED) {
+                shipment.transitionTo(ShipmentStatus.READY_FOR_MANIFEST);
+            }
         }
         if (shipment.isRto()) {
             return new MovementOutcome(shipment.getShipmentNumber(), false,
@@ -1949,8 +1974,12 @@ public class ShipmentServiceImpl implements ShipmentService {
         shipment.transitionTo(ShipmentStatus.OUT_FOR_DELIVERY);
         shipment.setUndeliveredOpen(false); // a failed attempt, if any, was acted on: it is out again
         Shipment saved = shipmentRepository.save(shipment);
-        appendHistory(saved, companyId, previous, ShipmentStatus.OUT_FOR_DELIVERY, "DRS",
+        appendHistory(saved, companyId, previous, ShipmentStatus.OUT_FOR_DELIVERY,
+                localDelivery ? "DRS (local delivery from the booking branch)" : "DRS",
                 shipment.getDeliveryBranchId(), saved.getManifestId(), null);
+        if (localDelivery) {
+            settleArrivalAtDeliveryBranch(saved, companyId, saved.getBookingBranchId());
+        }
         auditService.record(AuditAction.SHIPMENT_OUT_FOR_DELIVERY_ASSIGNED, ENTITY, saved.getId(),
                 Map.of("shipmentNumber", saved.getShipmentNumber(), "deliveryUserId", deliveryUserId.toString()));
         eventPublisher.publishEvent(new ShipmentEvent.OutForDelivery(saved.getId(), companyId, Instant.now()));
@@ -2155,6 +2184,12 @@ public class ShipmentServiceImpl implements ShipmentService {
         if (shipment.isRto()) {
             throw new BusinessRuleException("Shipment %s is already on its way back to the sender.".formatted(shipment.getShipmentNumber()));
         }
+        // Not yet left its booking branch (on no manifest): handed straight back to the sender.
+        if ((shipment.getStatus() == ShipmentStatus.BOOKED || shipment.getStatus() == ShipmentStatus.READY_FOR_MANIFEST)
+                && shipment.getManifestId() == null
+                && (shipment.getCurrentLocationId() == null || Objects.equals(shipment.getCurrentLocationId(), shipment.getBookingBranchId()))) {
+            return returnBeforeDispatch(shipment, companyId, reason);
+        }
         if (shipment.getStatus() != ShipmentStatus.IN_SCAN && shipment.getStatus() != ShipmentStatus.OUT_FOR_DELIVERY) {
             throw new BusinessRuleException("Shipment %s is %s — only a shipment at the delivery branch or out for delivery can be returned."
                     .formatted(shipment.getShipmentNumber(), shipment.getStatus()));
@@ -2189,6 +2224,34 @@ public class ShipmentServiceImpl implements ShipmentService {
         auditService.record(AuditAction.SHIPMENT_RETURNED, ENTITY, saved.getId(),
                 Map.of("shipmentNumber", saved.getShipmentNumber(), "reason", String.valueOf(why), "step", "RTO_STARTED"));
         eventPublisher.publishEvent(new ShipmentEvent.RtoStarted(saved.getId(), companyId, saved.getShipmentNumber(), Instant.now()));
+        return saved;
+    }
+
+    /**
+     * Returned to the sender before it ever left the booking branch (Scan → Assign to RTO, as on the earlier portal):
+     * one step, straight to RETURNED with the reason. The freight stays charged (cancel is the way to undo a booking).
+     */
+    private Shipment returnBeforeDispatch(Shipment shipment, UUID companyId, String reason) {
+        String why = reason == null || reason.isBlank() ? null : reason.trim();
+        if (why == null) {
+            throw new BusinessRuleException("Enter why the shipment is going back to the sender.");
+        }
+        ShipmentStatus previous = shipment.getStatus();
+        Instant now = Instant.now();
+        shipment.setRto(true);
+        shipment.setRtoStartedAt(now);
+        shipment.setRtoDeliveredAt(now);
+        shipment.setRtoHandedTo(shipment.getSenderName() == null ? "Sender"
+                : shipment.getSenderName().length() > 120 ? shipment.getSenderName().substring(0, 120) : shipment.getSenderName());
+        shipment.setUndeliveredOpen(false);
+        shipment.setCurrentLocationId(shipment.getBookingBranchId());
+        shipment.transitionTo(ShipmentStatus.RETURNED);
+        Shipment saved = shipmentRepository.save(shipment);
+        appendHistory(saved, companyId, previous, ShipmentStatus.RETURNED, "Returned to sender before dispatch: " + why,
+                saved.getBookingBranchId(), null, null);
+        auditService.record(AuditAction.SHIPMENT_RETURNED, ENTITY, saved.getId(),
+                Map.of("shipmentNumber", saved.getShipmentNumber(), "reason", why, "step", "RTO_BEFORE_DISPATCH"));
+        eventPublisher.publishEvent(new ShipmentEvent.Returned(saved.getId(), companyId, now));
         return saved;
     }
 

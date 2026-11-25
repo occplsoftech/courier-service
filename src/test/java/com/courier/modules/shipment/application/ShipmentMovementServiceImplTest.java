@@ -670,6 +670,62 @@ class ShipmentMovementServiceImplTest {
         assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.OUT_FOR_DELIVERY);
     }
 
+    @Test
+    @DisplayName("assignOutForDelivery delivers a local booking straight from its booking branch (Scan → Assign to Delivery)")
+    void outForDeliveryLocalFromBookingBranch() {
+        Shipment shipment = shipment(ShipmentStatus.BOOKED);
+        shipment.setDeliveryBranchId(null);
+        shipment.setCurrentLocationId(BOOKING_BRANCH);
+        when(shipmentRepository.findByIdWithinCompany(shipment.getId(), COMPANY)).thenReturn(Optional.of(shipment));
+        when(deliveryAssignmentRepository.findByShipmentIdWithinCompany(shipment.getId(), COMPANY)).thenReturn(Optional.empty());
+        when(deliveryAssignmentRepository.save(any(DeliveryAssignment.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(paymentModeService.getById(any())).thenReturn(paymentMode(false));
+        ShipmentCharge charge = org.mockito.Mockito.mock(ShipmentCharge.class);
+        when(charge.getNetAmount()).thenReturn(new BigDecimal("120.00"));
+        when(chargeRepository.findByShipmentIdWithinCompany(shipment.getId(), COMPANY)).thenReturn(Optional.of(charge));
+
+        var result = service.assignOutForDelivery(List.of(shipment.getId()), UUID.randomUUID(), null, null, null);
+
+        assertThat(result.successCount()).isEqualTo(1);
+        assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.OUT_FOR_DELIVERY);
+        assertThat(shipment.getDeliveryBranchId()).isEqualTo(BOOKING_BRANCH);
+        // To Pay: the booking branch, now its own delivery branch, takes on the freight as an in-scan there would.
+        org.mockito.Mockito.verify(eventPublisher).publishEvent(any(com.courier.modules.shipment.application.event.ShipmentEvent.ToPayReceivedAtDeliveryBranch.class));
+    }
+
+    @Test
+    @DisplayName("assignOutForDelivery still refuses a booking that is on a loading sheet or routed to another branch")
+    void outForDeliveryRefusesRoutedBooking() {
+        Shipment shipment = shipment(ShipmentStatus.READY_FOR_MANIFEST);
+        shipment.setCurrentLocationId(BOOKING_BRANCH); // deliveryBranchId = another branch
+        when(shipmentRepository.findByIdWithinCompany(shipment.getId(), COMPANY)).thenReturn(Optional.of(shipment));
+
+        var result = service.assignOutForDelivery(List.of(shipment.getId()), UUID.randomUUID(), null, null, null);
+
+        assertThat(result.failureCount()).isEqualTo(1);
+        assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.READY_FOR_MANIFEST);
+    }
+
+    @Test
+    @DisplayName("returnToSender before dispatch hands it straight back: RETURNED with the reason (Scan → Assign to RTO)")
+    void returnBeforeDispatch() {
+        Shipment shipment = shipment(ShipmentStatus.BOOKED);
+        shipment.setCurrentLocationId(BOOKING_BRANCH);
+        when(shipmentRepository.findByIdWithinCompany(shipment.getId(), COMPANY)).thenReturn(Optional.of(shipment));
+        when(shipmentRepository.save(any(Shipment.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.returnToSender(shipment.getId(), "Sender asked to take it back");
+
+        assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.RETURNED);
+        assertThat(shipment.isRto()).isTrue();
+        assertThat(shipment.getRtoHandedTo()).isEqualTo("Asha Shah");
+        assertThatThrownBy(() -> {
+            Shipment other = shipment(ShipmentStatus.BOOKED);
+            when(shipmentRepository.findByIdWithinCompany(other.getId(), COMPANY)).thenReturn(Optional.of(other));
+            service.returnToSender(other.getId(), " ");
+        }).isInstanceOf(BusinessRuleException.class).hasMessageContaining("why");
+    }
+
     // -------------------------------------------------------------------- deliver
 
     @Test

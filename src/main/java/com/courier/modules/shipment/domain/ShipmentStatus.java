@@ -68,8 +68,9 @@ public enum ShipmentStatus {
     FORWARDED;
 
     private static final Map<ShipmentStatus, Set<ShipmentStatus>> TRANSITIONS = Map.ofEntries(
-            Map.entry(BOOKED, EnumSet.of(READY_FOR_MANIFEST, MANIFEST_CREATED, CANCELLED, FORWARDED)),
-            Map.entry(READY_FOR_MANIFEST, EnumSet.of(MANIFEST_CREATED, OUT_FOR_DELIVERY, CANCELLED, FORWARDED)),
+            // RETURNED from BOOKED / READY_FOR_MANIFEST: handed back to the sender before it left the booking branch (Scan → RTO).
+            Map.entry(BOOKED, EnumSet.of(READY_FOR_MANIFEST, MANIFEST_CREATED, CANCELLED, FORWARDED, RETURNED)),
+            Map.entry(READY_FOR_MANIFEST, EnumSet.of(MANIFEST_CREATED, OUT_FOR_DELIVERY, CANCELLED, FORWARDED, RETURNED)),
             Map.entry(MANIFEST_CREATED, EnumSet.of(DISPATCHED, CANCELLED, BOOKED, READY_FOR_MANIFEST)),
             Map.entry(DISPATCHED, EnumSet.of(IN_SCAN, READY_FOR_MANIFEST)),
             // READY_FOR_MANIFEST: return to sender started; it goes back to the booking branch on a Load Sheet (Phase 12.1)
