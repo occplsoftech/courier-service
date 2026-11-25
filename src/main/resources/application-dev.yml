@@ -6,8 +6,11 @@ spring:
     enabled: true
 
 app:
+  # The company whose zone tariff the public website shows; empty switches public rates off.
+  public-rates:
+    company-code: OCCPL
   cors:
-    # Public website: tracking API only (see CorsProperties#trackingOrigins).
+    # Public website: tracking and rates only (see CorsProperties#trackingOrigins).
     tracking-origins:
       - https://pro.occpllogistics.com
     allowed-origins:

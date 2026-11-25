@@ -42,6 +42,12 @@ class TrackingCorsTest {
     }
 
     @Test
+    void websiteMayCheckRatesButNotSendOrders() {
+        assertThat(cors("/api/v1/public/rates").checkOrigin(WEBSITE)).isEqualTo(WEBSITE);
+        assertThat(cors("/api/v1/public/orders").checkOrigin(WEBSITE)).isNull();
+    }
+
+    @Test
     void websiteMayNotCallAnythingElse() {
         assertThat(cors("/api/v1/auth/login").checkOrigin(WEBSITE)).isNull();
     }
