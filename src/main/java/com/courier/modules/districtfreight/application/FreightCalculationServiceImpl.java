@@ -52,6 +52,14 @@ public class FreightCalculationServiceImpl implements FreightCalculationService 
     /** Optional so hand-built instances (tests) still work; always present in the application. */
     private NetworkCoveragePort networkCoverage;
 
+    /** A business customer's imported rate structure (V177); optional for hand-built instances (tests). */
+    private com.courier.modules.customerpricing.application.CustomerRateStructureService rateStructure;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setRateStructure(com.courier.modules.customerpricing.application.CustomerRateStructureService rateStructure) {
+        this.rateStructure = rateStructure;
+    }
+
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     void setNetworkCoverage(NetworkCoveragePort networkCoverage) {
         this.networkCoverage = networkCoverage;
@@ -109,6 +117,21 @@ public class FreightCalculationServiceImpl implements FreightCalculationService 
                     "District %s is inactive and cannot be used as a destination.".formatted(coverage.districtCode()));
         }
 
+        if (businessCustomerId != null && rateStructure != null && tariff != null && tariff.serviceTypeId() != null) {
+            // The customer's imported rate structure (V177) for this service, when they have one.
+            String origin = branchLookup.findPostalCode(branch.branchId(), companyId).orElse(null);
+            FreightCalculationResult structured = rateStructure.quote(businessCustomerId, tariff.serviceTypeId(), origin,
+                            coverage.pincodeCode(), chargeableWeight)
+                    .map(q -> new FreightCalculationResult(null, branch.branchId(), branch.branchCode(), branch.branchName(),
+                            coverage.districtId(), coverage.districtCode(), coverage.districtName(), coverage.pincodeId(),
+                            coverage.pincodeCode(), coverage.cityName(), q.chargeableWeight(), q.label(), q.ratePerKg(),
+                            q.freight(), false, BigDecimal.ZERO.setScale(MONEY_SCALE, RoundingMode.HALF_UP), q.freight(),
+                            q.label(), BigDecimal.ZERO.setScale(MONEY_SCALE, RoundingMode.HALF_UP)))
+                    .orElse(null);
+            if (structured != null) {
+                return structured.withTatHours(tatHours);
+            }
+        }
         if (businessCustomerId != null) {
             FreightCalculationResult zonePriced = priceFromCustomerZone(businessCustomerId, branch, coverage,
                     chargeableWeight, declaredValue, tariff == null ? null : tariff.serviceTypeId(), pincodeOda);
