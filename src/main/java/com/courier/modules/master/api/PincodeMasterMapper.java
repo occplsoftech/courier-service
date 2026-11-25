@@ -16,6 +16,10 @@ import com.courier.modules.master.domain.MasterDataCriteria;
 import com.courier.modules.master.domain.MasterDataSpecifications;
 import com.courier.modules.master.domain.Pincode;
 import com.courier.modules.master.domain.StateRepository;
+import com.courier.modules.master.domain.RegionalZoneRepository;
+import com.courier.modules.master.domain.NetworkCoverage;
+import com.courier.modules.master.domain.ServiceNetwork;
+import com.courier.modules.master.api.dto.NetworkCoverageDto;
 import com.courier.shared.api.PageResponse;
 import com.courier.shared.company.CompanyContext;
 import lombok.RequiredArgsConstructor;
@@ -44,17 +48,28 @@ public class PincodeMasterMapper {
     private final CityRepository cities;
     private final DistrictRepository districts;
     private final StateRepository states;
+    private final RegionalZoneRepository regionalZones;
 
     public PincodeCommand toCommand(CreatePincodeRequest r) {
         return new PincodeCommand(r.code(), r.name(), r.description(), r.displayOrder(),
                 r.areaId(), r.serviceable(), r.codAvailable(), r.prepaidAvailable(),
-                r.pickupAvailable(), r.zone(), r.odaApplicable(), null);
+                r.pickupAvailable(), r.zone(), r.odaApplicable(), r.regionalZoneId(),
+                coverage(r.doc()), coverage(r.surface()), coverage(r.air()), null);
     }
 
     public PincodeCommand toCommand(UpdatePincodeRequest r) {
         return new PincodeCommand(null, r.name(), r.description(), r.displayOrder(),
                 r.areaId(), r.serviceable(), r.codAvailable(), r.prepaidAvailable(),
-                r.pickupAvailable(), r.zone(), r.odaApplicable(), r.version());
+                r.pickupAvailable(), r.zone(), r.odaApplicable(), r.regionalZoneId(),
+                coverage(r.doc()), coverage(r.surface()), coverage(r.air()), r.version());
+    }
+
+    private static NetworkCoverage coverage(NetworkCoverageDto d) {
+        return d == null ? null : new NetworkCoverage(d.serviceable(), d.oda(), d.tatHours());
+    }
+
+    private static NetworkCoverageDto dto(NetworkCoverage c) {
+        return new NetworkCoverageDto(c.serviceable(), c.oda(), c.tatHours());
     }
 
     public PincodeResponse toResponse(Pincode p) {
@@ -77,6 +92,9 @@ public class PincodeMasterMapper {
                 p.isPickupAvailable(), p.getZone(), p.isOdaApplicable(),
                 districtId, geo.districtNames.get(districtId),
                 stateId, geo.stateNames.get(stateId),
+                p.getRegionalZoneId(), geo.regionalZoneNames.get(p.getRegionalZoneId()),
+                dto(p.coverage(ServiceNetwork.DOCUMENT)), dto(p.coverage(ServiceNetwork.SURFACE)),
+                dto(p.coverage(ServiceNetwork.AIR)),
                 p.getCreatedBy(), p.getCreatedAt(), p.getUpdatedBy(), p.getUpdatedAt(), p.getVersion());
     }
 
@@ -119,6 +137,8 @@ public class PincodeMasterMapper {
     private Geography loadGeography(List<Pincode> pincodes) {
         List<UUID> areaIds = pincodes.stream().map(Pincode::getAreaId).toList();
         Map<UUID, String> areaNames = names.globalNamesById(areas, areaIds);
+        Map<UUID, String> regionalZoneNames = names.globalNamesById(regionalZones,
+                pincodes.stream().map(Pincode::getRegionalZoneId).filter(java.util.Objects::nonNull).toList());
 
         return CompanyContext.runAs(GlobalMasters.PLATFORM_COMPANY_ID, () -> {
             UUID companyId = GlobalMasters.PLATFORM_COMPANY_ID;
@@ -153,7 +173,7 @@ public class PincodeMasterMapper {
             Map<UUID, String> stateNames = names.globalNamesById(states, stateIds);
 
             return new Geography(areaNames, areaToCity, cityToDistrict, districtToState,
-                    districtNames, stateNames);
+                    districtNames, stateNames, regionalZoneNames);
         });
     }
 
@@ -163,7 +183,7 @@ public class PincodeMasterMapper {
             Map<UUID, UUID> cityToDistrict,
             Map<UUID, UUID> districtToState,
             Map<UUID, String> districtNames,
-            Map<UUID, String> stateNames
-    ) {
+            Map<UUID, String> stateNames,
+            Map<UUID, String> regionalZoneNames) {
     }
 }

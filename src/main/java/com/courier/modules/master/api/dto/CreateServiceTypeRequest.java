@@ -1,5 +1,6 @@
 package com.courier.modules.master.api.dto;
 
+import com.courier.modules.master.domain.ServiceNetwork;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -30,6 +31,9 @@ public record CreateServiceTypeRequest(
         @Positive
         @Schema(description = "cm3-per-kg divisor of L x W x H for volumetric weight on this service; "
                 + "empty uses the default (5000)", example = "5000")
-        Integer volumetricDivisor
+        Integer volumetricDivisor,
+        @Schema(description = "Network parcels on this service travel by, checked against the pincode's coverage: "
+                + "SURFACE or AIR; empty is SURFACE. Documents always use the document network.", example = "SURFACE")
+        ServiceNetwork network
 ) {
 }

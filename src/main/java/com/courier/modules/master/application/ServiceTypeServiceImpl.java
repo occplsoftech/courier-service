@@ -2,6 +2,7 @@ package com.courier.modules.master.application;
 
 import com.courier.modules.master.application.command.ServiceTypeCommand;
 import com.courier.modules.master.domain.MasterDataCriteria;
+import com.courier.modules.master.domain.ServiceNetwork;
 import com.courier.modules.master.domain.ServiceType;
 import com.courier.modules.master.domain.ServiceTypeRepository;
 import com.courier.modules.master.infrastructure.MasterTable;
@@ -106,6 +107,7 @@ public class ServiceTypeServiceImpl extends AbstractMasterDataService<ServiceTyp
         values.put("cutoffTime", String.valueOf(serviceType.getCutoffTime()));
         values.put("priority", serviceType.getPriority());
         values.put("volumetricDivisor", serviceType.getVolumetricDivisor());
+        values.put("network", String.valueOf(serviceType.getNetwork()));
         return values;
     }
 
@@ -115,5 +117,6 @@ public class ServiceTypeServiceImpl extends AbstractMasterDataService<ServiceTyp
         serviceType.setCutoffTime(command.cutoffTime());
         serviceType.setPriority(command.priority() == null ? 0 : command.priority());
         serviceType.setVolumetricDivisor(command.volumetricDivisor());
+        serviceType.setNetwork(command.network() == ServiceNetwork.DOCUMENT ? null : command.network());
     }
 }

@@ -121,7 +121,7 @@ public class TariffRateCardController {
                 p.chargeableWeightKg(), p.freight().amount(), p.freight().basis(),
                 p.charges().stream().map(c -> new ChargeLineResponse(c.code(), c.name(), c.amount(), c.taxable(), c.basis())).toList(),
                 p.taxableAmount(), p.taxes().stream().map(t -> new TaxLineResponse(t.code(), t.percent(), t.amount())).toList(),
-                p.taxTotal(), p.nonTaxableAmount(), p.roundOff(), p.total());
+                p.taxTotal(), p.nonTaxableAmount(), p.roundOff(), p.total(), q.tatHours());
     }
 
     @GetMapping("/{id}")

@@ -22,7 +22,7 @@ public final class TariffZoneDtos {
 
     /** Only the id for the scope is needed: STATE stateId, DISTRICT districtId, CITY cityId, PINCODE pincode. */
     public record LocationRequest(@NotNull LocationScope scope, UUID stateId, UUID districtId, UUID cityId,
-                                  @Size(max = 6) String pincode) {
+                                  @Size(max = 6) String pincode, UUID regionalZoneId) {
     }
 
     public record CreateRequest(
@@ -47,7 +47,8 @@ public final class TariffZoneDtos {
     }
 
     public record LocationResponse(UUID id, LocationScope scope, String label, UUID stateId, String stateName,
-                                   UUID districtId, String districtName, UUID cityId, String cityName, String pincode) {
+                                   UUID districtId, String districtName, UUID cityId, String cityName, String pincode,
+                                   UUID regionalZoneId, String regionalZoneName) {
     }
 
     public record ZoneResponse(UUID id, String code, String name, ZoneUsage usage, String description, int displayOrder,

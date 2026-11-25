@@ -7,6 +7,7 @@ import com.courier.modules.districtfreight.domain.BranchLookupPort;
 import com.courier.modules.districtfreight.domain.DistrictFreightStatus;
 import com.courier.modules.districtfreight.domain.DistrictLevelFreight;
 import com.courier.modules.districtfreight.domain.DistrictLevelFreightRepository;
+import com.courier.modules.districtfreight.domain.NetworkCoveragePort;
 import com.courier.modules.districtfreight.domain.PincodeCoverageLookupPort;
 import com.courier.modules.districtfreight.domain.ZoneTariffPort;
 import com.courier.shared.company.CompanyContext;
@@ -207,6 +208,31 @@ class FreightCalculationServiceImplTest {
         assertThatThrownBy(() -> service.calculate(BRANCH, DESTINATION_PINCODE, null, new BigDecimal("-5")))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("greater than zero");
+    }
+
+    @Test
+    @DisplayName("the booking's service network decides: refused where it does not deliver, its own ODA flag otherwise")
+    void networkCoverageDecides() {
+        NetworkCoveragePort network = org.mockito.Mockito.mock(NetworkCoveragePort.class);
+        service.setNetworkCoverage(network);
+        UUID serviceType = UUID.randomUUID();
+        UUID packageType = UUID.randomUUID();
+        FreightCalculationService.TariffInput tariff = new FreightCalculationService.TariffInput(serviceType, packageType, 1, null);
+        when(coverageLookup.findByPincode(DESTINATION_PINCODE)).thenReturn(Optional.of(SERVICEABLE_NON_ODA));
+        when(repository.findByCompanyIdAndBranchIdAndDistrictId(COMPANY, BRANCH, DISTRICT)).thenReturn(Optional.of(row()));
+
+        when(network.coverage(DESTINATION_PINCODE, serviceType, packageType))
+                .thenReturn(Optional.of(new NetworkCoveragePort.NetworkCoverageRef("Air", false, null, null)));
+        assertThatThrownBy(() -> service.calculate(BRANCH, DESTINATION_PINCODE, null, new BigDecimal("20"), null, null, tariff))
+                .hasMessageContaining("Air service does not deliver to pincode " + DESTINATION_PINCODE);
+
+        // the pincode itself is not ODA, but the surface network reaches it as ODA
+        when(network.coverage(DESTINATION_PINCODE, serviceType, packageType))
+                .thenReturn(Optional.of(new NetworkCoveragePort.NetworkCoverageRef("Surface", true, true, 96)));
+        FreightCalculationResult result = service.calculate(BRANCH, DESTINATION_PINCODE, null, new BigDecimal("20"), null, null, tariff);
+        assertThat(result.odaApplicable()).isTrue();
+        assertThat(result.odaCharge()).isEqualByComparingTo("250.00");
+        assertThat(result.tatHours()).isEqualTo(96);
     }
 
     @Test

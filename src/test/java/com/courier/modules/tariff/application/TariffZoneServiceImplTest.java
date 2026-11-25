@@ -1,6 +1,8 @@
 package com.courier.modules.tariff.application;
 
 import com.courier.modules.master.application.CityService;
+import com.courier.modules.master.application.RegionalZoneService;
+import com.courier.modules.master.domain.RegionalZone;
 import com.courier.modules.master.application.DistrictService;
 import com.courier.modules.master.application.PincodeLocation;
 import com.courier.modules.master.application.PincodeService;
@@ -69,12 +71,14 @@ class TariffZoneServiceImplTest {
     private static final UUID PUNE_CITY = UUID.randomUUID();
     private static final UUID MUMBAI_CITY = UUID.randomUUID();
     private static final UUID KOCHI = UUID.randomUUID();
+    private static final UUID X_MAHARASHTRA = UUID.randomUUID();
 
     @Mock private TariffZoneRepository zones;
     @Mock private TariffZoneLocationRepository locations;
     @Mock private StateService stateService;
     @Mock private DistrictService districtService;
     @Mock private CityService cityService;
+    @Mock private RegionalZoneService regionalZoneService;
     @Mock private PincodeService pincodeService;
     @Mock private AuditService auditService;
     @Mock private TariffRateCardRepository rateCards;
@@ -87,7 +91,7 @@ class TariffZoneServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new TariffZoneServiceImpl(zones, locations, rateCards, rateSlabs, chargeRules, stateService, districtService, cityService, pincodeService, auditService);
+        service = new TariffZoneServiceImpl(zones, locations, rateCards, rateSlabs, chargeRules, stateService, districtService, cityService, regionalZoneService, pincodeService, auditService);
         CompanyContext.setCompanyId(COMPANY);
 
         state(MAHARASHTRA, "Maharashtra");
@@ -134,12 +138,18 @@ class TariffZoneServiceImplTest {
         when(locations.findSameDistrict(eq(COMPANY), any(), any())).thenAnswer(i -> same(LocationScope.DISTRICT, i.getArgument(2), null));
         when(locations.findSameCity(eq(COMPANY), any(), any())).thenAnswer(i -> same(LocationScope.CITY, i.getArgument(2), null));
         when(locations.findSamePincode(eq(COMPANY), any(), any())).thenAnswer(i -> same(LocationScope.PINCODE, null, i.getArgument(2)));
-        when(locations.findCandidates(eq(COMPANY), any(), any(), any(), any())).thenAnswer(i -> live().stream().filter(l -> switch (l.getScope()) {
+        when(locations.findSameRegionalZone(eq(COMPANY), any(), any())).thenAnswer(i -> same(LocationScope.REGIONAL_ZONE, i.getArgument(2), null));
+        when(locations.findCandidates(eq(COMPANY), any(), any(), any(), any(), any())).thenAnswer(i -> live().stream().filter(l -> switch (l.getScope()) {
             case PINCODE -> l.getPincode().equals(i.getArgument(1));
             case CITY -> l.getCityId().equals(i.getArgument(2));
             case DISTRICT -> l.getDistrictId().equals(i.getArgument(3));
             case STATE -> l.getStateId().equals(i.getArgument(4));
+            case REGIONAL_ZONE -> l.getRegionalZoneId().equals(i.getArgument(5));
         }).toList());
+        RegionalZone xMah = new RegionalZone();
+        xMah.setId(X_MAHARASHTRA);
+        xMah.setName("X - Maharashtra");
+        when(regionalZoneService.getById(X_MAHARASHTRA)).thenReturn(xMah);
     }
 
     @AfterEach
@@ -402,6 +412,41 @@ class TariffZoneServiceImplTest {
         service.create(zone("MAHARASHTRA", ZoneUsage.TO), List.of(stateLoc(MAHARASHTRA)));
         service.create(zone("METRO", ZoneUsage.TO), List.of(cityLoc(MUMBAI_CITY)));
         service.create(zone("KERALA", ZoneUsage.TO), List.of(stateLoc(KERALA)));
+    }
+
+    @Test
+    @DisplayName("a regional zone beats its state but loses to a city or district")
+    void regionalZoneRanksAboveState() {
+        sampleZones();
+        service.create(zone("XMAH", ZoneUsage.TO), List.of(new LocationInput(LocationScope.REGIONAL_ZONE, null, null, null, null, X_MAHARASHTRA)));
+        // 400001 (Mumbai city: METRO) and 412308 (Pune district: EXPUNE) are in X - Maharashtra too; 431001 only in it
+        for (String pin : List.of("400001", "412308", "431001")) {
+            when(pincodeService.location(pin)).thenReturn(Optional.of(new PincodeLocation(UUID.randomUUID(), UUID.randomUUID(),
+                    pin.equals("400001") ? MUMBAI_CITY : null, pin.equals("431001") ? MUMBAI_DISTRICT : PUNE_DISTRICT,
+                    true, true, false, X_MAHARASHTRA, null, null, null)));
+        }
+        // 431001 sits in a district no zone holds, so only the state and the regional zone match: the region wins
+        when(pincodeService.location("431001")).thenReturn(Optional.of(new PincodeLocation(UUID.randomUUID(), UUID.randomUUID(),
+                null, null, true, true, false, X_MAHARASHTRA, null, null, null)));
+        when(locations.findCandidates(eq(COMPANY), eq("431001"), any(), any(), any(), any())).thenAnswer(i -> live().stream()
+                .filter(l -> (l.getScope() == LocationScope.STATE && l.getStateId().equals(MAHARASHTRA))
+                        || (l.getScope() == LocationScope.REGIONAL_ZONE && l.getRegionalZoneId().equals(i.getArgument(5))))
+                .toList());
+
+        TariffZoneService.Resolution far = service.resolve("431001", ZoneUsage.TO).orElseThrow();
+        assertThat(far.zone().getCode()).isEqualTo("XMAH");
+        assertThat(far.matchedBy().label()).isEqualTo("X - Maharashtra (regional zone)");
+        assertThat(service.resolve("400001", ZoneUsage.TO).orElseThrow().zone().getCode()).isEqualTo("METRO");
+        assertThat(service.resolve("412308", ZoneUsage.TO).orElseThrow().zone().getCode()).isEqualTo("EXPUNE");
+    }
+
+    @Test
+    @DisplayName("a regional zone can be in only one competing zone")
+    void regionalZoneClash() {
+        LocationInput region = new LocationInput(LocationScope.REGIONAL_ZONE, null, null, null, null, X_MAHARASHTRA);
+        service.create(zone("XMAH", ZoneUsage.TO), List.of(region));
+        assertThatThrownBy(() -> service.create(zone("OTHER", ZoneUsage.TO), List.of(region)))
+                .hasMessageContaining("X - Maharashtra (regional zone) is already in zone XMAH");
     }
 
     @Test

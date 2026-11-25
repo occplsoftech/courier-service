@@ -9,6 +9,8 @@ import com.courier.modules.master.domain.CityRepository;
 import com.courier.modules.master.domain.District;
 import com.courier.modules.master.domain.DistrictRepository;
 import com.courier.modules.master.domain.GlobalMasters;
+import com.courier.modules.master.domain.RegionalZoneRepository;
+import com.courier.modules.master.domain.ServiceNetwork;
 import com.courier.modules.master.domain.MasterDataCriteria;
 import com.courier.modules.master.domain.Pincode;
 import com.courier.modules.master.domain.PincodeRepository;
@@ -63,6 +65,7 @@ public class PincodeServiceImpl extends AbstractMasterDataService<Pincode> imple
     private static final String READ = "isAuthenticated()";
 
     private final AreaRepository areas;
+    private final RegionalZoneRepository regionalZones;
     private final CityRepository cities;
     private final DistrictRepository districts;
     private final StateRepository states;
@@ -80,8 +83,10 @@ public class PincodeServiceImpl extends AbstractMasterDataService<Pincode> imple
                               AuditService auditService,
                               PincodePostalLookupProvider postalLookup,
                               GeographyAutoResolver geographyResolver,
-                              PincodeAreaService pincodeAreaService) {
+                              PincodeAreaService pincodeAreaService,
+                              RegionalZoneRepository regionalZones) {
         super(pincodes, uniqueness, auditService, "Pincode", MasterTable.PINCODES);
+        this.regionalZones = regionalZones;
         this.areas = areas;
         this.cities = cities;
         this.districts = districts;
@@ -187,7 +192,9 @@ public class PincodeServiceImpl extends AbstractMasterDataService<Pincode> imple
                     City city = area != null ? cities.findById(area.getCityId()).orElse(null) : null;
                     return new PincodeLocation(pincode.getId(), pincode.getAreaId(),
                             city != null ? city.getId() : null, city != null ? city.getDistrictId() : null,
-                            pincode.isServiceable(), pincode.isCodAvailable(), pincode.isOdaApplicable());
+                            pincode.isServiceable(), pincode.isCodAvailable(), pincode.isOdaApplicable(),
+                            pincode.getRegionalZoneId(), pincode.coverage(ServiceNetwork.DOCUMENT),
+                            pincode.coverage(ServiceNetwork.SURFACE), pincode.coverage(ServiceNetwork.AIR));
                 }));
     }
 
@@ -284,6 +291,10 @@ public class PincodeServiceImpl extends AbstractMasterDataService<Pincode> imple
         values.put("pickupAvailable", pincode.isPickupAvailable());
         values.put("zone", pincode.getZone());
         values.put("odaApplicable", pincode.isOdaApplicable());
+        values.put("regionalZoneId", String.valueOf(pincode.getRegionalZoneId()));
+        for (ServiceNetwork network : ServiceNetwork.values()) {
+            values.put(network.name().toLowerCase(java.util.Locale.ROOT), String.valueOf(pincode.coverage(network)));
+        }
         return values;
     }
 
@@ -300,6 +311,20 @@ public class PincodeServiceImpl extends AbstractMasterDataService<Pincode> imple
         pincode.setPickupAvailable(orTrue(command.pickupAvailable()));
         pincode.setZone(command.zone());
         pincode.setOdaApplicable(Boolean.TRUE.equals(command.odaApplicable()));
+        pincode.setRegionalZoneId(requireRegionalZone(command.regionalZoneId()));
+        pincode.setCoverage(ServiceNetwork.DOCUMENT, command.doc());
+        pincode.setCoverage(ServiceNetwork.SURFACE, command.surface());
+        pincode.setCoverage(ServiceNetwork.AIR, command.air());
+    }
+
+    /** A regional zone is global, like the pincode: it must be a live one of the platform's. */
+    private UUID requireRegionalZone(UUID regionalZoneId) {
+        if (regionalZoneId == null) {
+            return null;
+        }
+        regionalZones.findByIdWithinCompany(regionalZoneId, GlobalMasters.PLATFORM_COMPANY_ID)
+                .orElseThrow(() -> new BusinessRuleException("No regional zone has id %s.".formatted(regionalZoneId)));
+        return regionalZoneId;
     }
 
     private static boolean orTrue(Boolean value) {

@@ -2,6 +2,7 @@ package com.courier.modules.master.api.dto;
 
 import com.courier.modules.master.domain.MasterStatus;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.courier.modules.master.domain.ServiceNetwork;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
@@ -16,6 +17,7 @@ public record ServiceTypeResponse(
         MasterStatus status, Integer displayOrder,
         Integer deliveryDays, boolean express, LocalTime cutoffTime, Integer priority,
         Integer volumetricDivisor,
+        ServiceNetwork network,
         UUID createdBy, Instant createdDate, UUID updatedBy, Instant updatedDate, Long version
 ) {
 }

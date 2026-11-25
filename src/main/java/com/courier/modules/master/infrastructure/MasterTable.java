@@ -22,6 +22,7 @@ public final class MasterTable {
     public static final String PAYMENT_MODES = "master_payment_modes";
     public static final String WEIGHT_SLABS = "master_weight_slabs";
     public static final String ROUTES = "master_routes";
+    public static final String REGIONAL_ZONES = "master_regional_zones";
 
     private MasterTable() {
     }

@@ -2,6 +2,7 @@ package com.courier.modules.tariff.application;
 
 import com.courier.modules.master.application.PackageTypeService;
 import com.courier.modules.master.application.PincodeLocation;
+import com.courier.modules.master.domain.NetworkCoverage;
 import com.courier.modules.master.application.PincodeService;
 import com.courier.modules.master.application.ServiceTypeService;
 import com.courier.modules.master.domain.PackageType;
@@ -340,6 +341,28 @@ class TariffRateCardServiceImplTest {
         assertThatThrownBy(() -> quotes.quote(new TariffQuoteService.QuoteInput("411030", "462001", air.getId(), doc.getId(),
                 BigDecimal.ONE, null, null, null, null, null, false, LocalDate.of(2024, 1, 1))))
                 .hasMessageContaining("No active rate card for from zone PUNE on 2024-01-01");
+    }
+
+    @Test
+    @DisplayName("quote: the pincode's document coverage decides serviceability, ODA and delivery days for a document lane")
+    void quoteUsesNetworkCoverage() {
+        activeCard();
+        pincodes();
+        // The lane ships documents, so the document network's coverage counts, not surface or air.
+        when(pincodeService.location("462001")).thenReturn(Optional.of(new PincodeLocation(UUID.randomUUID(), null, null, null,
+                true, true, false, null, new NetworkCoverage(true, true, 48), new NetworkCoverage(false, null, null),
+                new NetworkCoverage(false, null, null))));
+
+        TariffQuoteService.Quote q = quotes.quote(quoteInput("462001", "2.3", false));
+
+        assertThat(q.oda()).isTrue();
+        assertThat(q.tatHours()).isEqualTo(48);
+        assertThat(q.deliveryDays()).isEqualTo(2);
+
+        when(pincodeService.location("462001")).thenReturn(Optional.of(new PincodeLocation(UUID.randomUUID(), null, null, null,
+                true, true, false, null, new NetworkCoverage(false, null, null), null, null)));
+        assertThatThrownBy(() -> quotes.quote(quoteInput("462001", "2.3", false)))
+                .hasMessageContaining("Document service does not deliver to pincode 462001");
     }
 
     private LaneInput parcels(ServiceType service, String fixed, String perKg) {

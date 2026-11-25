@@ -75,6 +75,49 @@ public class Pincode extends MasterDataEntity {
     @Column(name = "oda_applicable", nullable = false)
     private boolean odaApplicable = false;
 
+    /** Pricing region (V171), a {@link RegionalZone}. Independent of the direction {@link #zone}. */
+    @JdbcTypeCode(SqlTypes.BINARY)
+    @Column(name = "regional_zone_id", columnDefinition = "BINARY(16)")
+    private UUID regionalZoneId;
+
+    // Coverage per network (V171). Null = no per-network data: the flags above decide.
+    @Column(name = "doc_serviceable")
+    private Boolean docServiceable;
+    @Column(name = "doc_oda")
+    private Boolean docOda;
+    @Column(name = "doc_tat_hours")
+    private Integer docTatHours;
+    @Column(name = "surface_serviceable")
+    private Boolean surfaceServiceable;
+    @Column(name = "surface_oda")
+    private Boolean surfaceOda;
+    @Column(name = "surface_tat_hours")
+    private Integer surfaceTatHours;
+    @Column(name = "air_serviceable")
+    private Boolean airServiceable;
+    @Column(name = "air_oda")
+    private Boolean airOda;
+    @Column(name = "air_tat_hours")
+    private Integer airTatHours;
+
+    /** How {@code network} covers this pincode. */
+    public NetworkCoverage coverage(ServiceNetwork network) {
+        return switch (network) {
+            case DOCUMENT -> new NetworkCoverage(docServiceable, docOda, docTatHours);
+            case SURFACE -> new NetworkCoverage(surfaceServiceable, surfaceOda, surfaceTatHours);
+            case AIR -> new NetworkCoverage(airServiceable, airOda, airTatHours);
+        };
+    }
+
+    public void setCoverage(ServiceNetwork network, NetworkCoverage coverage) {
+        NetworkCoverage c = NetworkCoverage.orNone(coverage);
+        switch (network) {
+            case DOCUMENT -> { docServiceable = c.serviceable(); docOda = c.oda(); docTatHours = c.tatHours(); }
+            case SURFACE -> { surfaceServiceable = c.serviceable(); surfaceOda = c.oda(); surfaceTatHours = c.tatHours(); }
+            case AIR -> { airServiceable = c.serviceable(); airOda = c.oda(); airTatHours = c.tatHours(); }
+        }
+    }
+
     @Override
     protected void applySpecificInvariants() {
         if (areaId == null) {
@@ -88,6 +131,13 @@ public class Pincode extends MasterDataEntity {
         if (getCode() != null && !getCode().matches("^[0-9]{4,10}$")) {
             throw new BusinessRuleException(
                     "A pincode must be 4 to 10 digits. Got '%s'.".formatted(getCode()));
+        }
+        for (ServiceNetwork network : ServiceNetwork.values()) {
+            Integer tat = coverage(network).tatHours();
+            if (tat != null && (tat <= 0 || tat > 2400)) {
+                throw new BusinessRuleException("%s delivery time must be between 1 and 2400 hours. Got %d."
+                        .formatted(network.label(), tat));
+            }
         }
         if (!serviceable && (codAvailable || prepaidAvailable || pickupAvailable)) {
             // Refusing this outright would make "stop servicing this pincode" a

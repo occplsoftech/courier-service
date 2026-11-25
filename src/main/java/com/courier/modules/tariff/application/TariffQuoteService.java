@@ -51,8 +51,20 @@ public interface TariffQuoteService {
                       Integer pieces, BigDecimal declaredValue, boolean cod, LocalDate bookingDate) {
     }
 
+    /**
+     * {@code deliveryDays}: from the delivery pincode's TAT for the network this lane runs on when the pincode master
+     * has one ({@code tatHours}, rounded up to whole days), else the service type's own delivery days.
+     */
     record Quote(TariffRateCard card, TariffZoneService.Resolution from, TariffZoneService.Resolution to,
                  UUID serviceTypeId, String serviceTypeCode, String serviceTypeName, Integer deliveryDays,
-                 UUID packageTypeId, String packageTypeCode, boolean oda, TariffPriceCalculator.Price price) {
+                 UUID packageTypeId, String packageTypeCode, boolean oda, TariffPriceCalculator.Price price,
+                 Integer tatHours) {
+
+        public Quote(TariffRateCard card, TariffZoneService.Resolution from, TariffZoneService.Resolution to,
+                     UUID serviceTypeId, String serviceTypeCode, String serviceTypeName, Integer deliveryDays,
+                     UUID packageTypeId, String packageTypeCode, boolean oda, TariffPriceCalculator.Price price) {
+            this(card, from, to, serviceTypeId, serviceTypeCode, serviceTypeName, deliveryDays, packageTypeId,
+                    packageTypeCode, oda, price, null);
+        }
     }
 }
