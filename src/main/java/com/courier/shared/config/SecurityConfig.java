@@ -31,6 +31,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * Stateless JWT security.
@@ -188,8 +189,24 @@ public class SecurityConfig {
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        // Registered before "/**": the first matching pattern wins.
+        source.registerCorsConfiguration("/api/v1/track/**", trackingCorsConfiguration());
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    /** Public tracking: the application's own origins plus the public website's. */
+    private CorsConfiguration trackingCorsConfiguration() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(Stream.concat(
+                corsProperties.getAllowedOrigins().stream(),
+                corsProperties.getTrackingOrigins().stream()).distinct().toList());
+        configuration.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setExposedHeaders(List.of("X-Request-Id"));
+        configuration.setAllowCredentials(corsProperties.isAllowCredentials());
+        configuration.setMaxAge(3600L);
+        return configuration;
     }
 
     /**

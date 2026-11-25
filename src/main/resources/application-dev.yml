@@ -7,6 +7,9 @@ spring:
 
 app:
   cors:
+    # Public website: tracking API only (see CorsProperties#trackingOrigins).
+    tracking-origins:
+      - https://pro.occpllogistics.com
     allowed-origins:
       - https://app-dev.courier.example
       - https://skra.in
