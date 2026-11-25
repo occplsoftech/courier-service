@@ -8,6 +8,11 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-25 — Regional zone names as in the sheet
+
+- **V174** renames the V172 regional zones to the sheet's Region spelling: PUNE, X - PUNE, MAHARASHTRA, X - MAHARASHTRA,
+  VIDHARBHA, REST OF INDIA, NORTH EAST. Codes (and every pincode / tariff zone link) unchanged; tariff zone names kept.
+
 ## 2026-11-25 — OCCPL pincode and zone master: regional zones, per-service coverage and delivery time
 
 - **V171** `master_regional_zones` (new global master, `/api/v1/global-masters/regional-zones`, SUPER_ADMIN or COMPANY_ADMIN write).
