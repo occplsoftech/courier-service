@@ -8,6 +8,15 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-25 — Zones list and zone page load fast
+
+- **V175** `tariff_zones.location_count`, back-filled and kept in step on create / add / remove. The zones list reads it
+  and loads no place at all (it used to resolve every place's name, one query each: ~5,700 for OCCPL).
+- A zone's places come a page at a time: `GET /tariff-zones/{id}/locations?page=&size=` (default 50, max 200), widest
+  scope first then by pincode, with names looked up in a few batch queries (`PlaceNamePort`). Zone responses
+  (get / create / update / add / remove) now carry the count and an empty `locations`.
+- Web: the zone page shows "N places" and pages through them.
+
 ## 2026-11-25 — Regional zone and zone swapped to match the sheet
 
 - **V174**: in the sheet, "zone" is the regional zone and "Region" is the pincode's zone (user). V172 had them the other way.

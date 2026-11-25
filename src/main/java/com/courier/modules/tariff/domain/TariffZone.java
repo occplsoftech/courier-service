@@ -56,6 +56,11 @@ public class TariffZone extends CompanyOwnedEntity {
     @Builder.Default
     private int displayOrder = 0;
 
+    /** How many live places the zone holds (V175), kept in step by the service; the zones list reads it as is. */
+    @Column(name = "location_count", nullable = false)
+    @Builder.Default
+    private int locationCount = 0;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 10)
     @Builder.Default

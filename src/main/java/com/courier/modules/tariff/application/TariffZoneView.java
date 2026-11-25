@@ -6,8 +6,15 @@ import com.courier.modules.tariff.domain.TariffZone;
 import java.util.List;
 import java.util.UUID;
 
-/** A zone with its locations resolved to display names. */
-public record TariffZoneView(TariffZone zone, List<LocationView> locations) {
+/**
+ * A zone with its locations resolved to display names. {@code locationCount} is the number of places; a list of zones
+ * carries the count only and an empty {@code locations}.
+ */
+public record TariffZoneView(TariffZone zone, List<LocationView> locations, int locationCount) {
+
+    public TariffZoneView(TariffZone zone, List<LocationView> locations) {
+        this(zone, locations, locations.size());
+    }
 
     public record LocationView(UUID id, LocationScope scope, UUID stateId, String stateName, UUID districtId,
                                String districtName, UUID cityId, String cityName, String pincode,

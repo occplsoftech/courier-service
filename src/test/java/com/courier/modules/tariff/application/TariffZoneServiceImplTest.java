@@ -132,6 +132,8 @@ class TariffZoneServiceImplTest {
         });
         when(locations.findByIdWithinCompany(any(), eq(COMPANY))).thenAnswer(i -> live().stream()
                 .filter(l -> l.getId().equals(i.getArgument(0))).findFirst());
+        when(locations.findPageByZone(eq(COMPANY), any(), any())).thenAnswer(i -> new org.springframework.data.domain.PageImpl<>(
+                live().stream().filter(l -> l.getZoneId().equals(i.getArgument(1))).toList()));
         when(locations.findByZone(eq(COMPANY), any())).thenAnswer(i -> live().stream()
                 .filter(l -> l.getZoneId().equals(i.getArgument(1))).toList());
         when(locations.findSameState(eq(COMPANY), any(), any())).thenAnswer(i -> same(LocationScope.STATE, i.getArgument(2), null));
@@ -150,6 +152,11 @@ class TariffZoneServiceImplTest {
         xMah.setId(X_MAHARASHTRA);
         xMah.setName("X - Maharashtra");
         when(regionalZoneService.getById(X_MAHARASHTRA)).thenReturn(xMah);
+    }
+
+    /** A zone's places through the paged endpoint (the zone itself carries only the count). */
+    private List<TariffZoneView.LocationView> places(TariffZoneView v) {
+        return service.locations(v.zone().getId(), org.springframework.data.domain.PageRequest.of(0, 50)).getContent();
     }
 
     @AfterEach
@@ -227,12 +234,13 @@ class TariffZoneServiceImplTest {
         assertThat(v.zone().getCode()).isEqualTo("NORTH_EAST");
         assertThat(v.zone().getDisplayOrder()).isEqualTo(7);
         assertThat(v.zone().getDescription()).isNull();
-        assertThat(v.locations()).hasSize(2);
+        assertThat(v.locationCount()).isEqualTo(2);
+        assertThat(v.locations()).isEmpty();
         TariffZoneLocation mumbai = savedLocations.stream().filter(l -> l.getScope() == LocationScope.CITY).findFirst().orElseThrow();
         assertThat(mumbai.getDistrictId()).isEqualTo(MUMBAI_DISTRICT);
         assertThat(mumbai.getStateId()).isEqualTo(MAHARASHTRA);
         assertThat(mumbai.getZoneId()).isEqualTo(v.zone().getId());
-        assertThat(v.locations()).extracting(TariffZoneView.LocationView::label)
+        assertThat(places(v)).extracting(TariffZoneView.LocationView::label)
                 .contains("Mumbai, Mumbai district, Maharashtra", "Kerala");
     }
 
@@ -283,7 +291,7 @@ class TariffZoneServiceImplTest {
         service.create(zone("MAHARASHTRA", ZoneUsage.TO), List.of(stateLoc(MAHARASHTRA)));
         TariffZoneView metro = service.create(zone("METRO", ZoneUsage.TO), List.of(cityLoc(MUMBAI_CITY)));
 
-        assertThat(metro.locations()).hasSize(1);
+        assertThat(metro.locationCount()).isEqualTo(1);
     }
 
     @Test
@@ -339,7 +347,7 @@ class TariffZoneServiceImplTest {
         TariffZoneLocation pin = savedLocations.get(0);
         assertThat(pin.getCityId()).isEqualTo(MUMBAI_CITY);
         assertThat(pin.getStateId()).isEqualTo(MAHARASHTRA);
-        assertThat(v.locations().get(0).label()).isEqualTo("400001 (Mumbai)");
+        assertThat(places(v).get(0).label()).isEqualTo("400001 (Mumbai)");
     }
 
     @Test
@@ -356,12 +364,13 @@ class TariffZoneServiceImplTest {
     @DisplayName("removing a location frees the place for another zone")
     void removeLocation() {
         TariffZoneView west = service.create(zone("WEST", ZoneUsage.TO), List.of(stateLoc(MAHARASHTRA)));
-        UUID locationId = west.locations().get(0).id();
+        UUID locationId = places(west).get(0).id();
 
-        service.removeLocation(west.zone().getId(), locationId);
+        TariffZoneView after = service.removeLocation(west.zone().getId(), locationId);
         TariffZoneView maharashtra = service.create(zone("MAHARASHTRA", ZoneUsage.TO), List.of(stateLoc(MAHARASHTRA)));
 
-        assertThat(maharashtra.locations()).hasSize(1);
+        assertThat(after.locationCount()).isZero();
+        assertThat(maharashtra.locationCount()).isEqualTo(1);
     }
 
     @Test
@@ -519,5 +528,20 @@ class TariffZoneServiceImplTest {
         assertThat(action.getAllValues()).contains(com.courier.shared.audit.domain.AuditAction.TARIFF_ZONE_CREATED,
                 com.courier.shared.audit.domain.AuditAction.TARIFF_ZONE_LOCATION_ADDED);
         verify(locations, never()).findSameState(eq(COMPANY), any(), isNull());
+    }
+
+    @Test
+    @DisplayName("the zones list carries each zone's stored count, and its places come a page at a time")
+    void countsAndPages() {
+        TariffZoneView west = service.create(zone("WEST", ZoneUsage.TO), List.of(stateLoc(MAHARASHTRA), stateLoc(KERALA)));
+        service.addLocations(west.zone().getId(), List.of(pinLoc("682001")));
+        when(zones.search(eq(COMPANY), any(), any(), any())).thenReturn(List.of(west.zone()));
+
+        assertThat(service.search(null, null, null)).singleElement()
+                .satisfies(v -> {
+                    assertThat(v.locationCount()).isEqualTo(3);
+                    assertThat(v.locations()).isEmpty();
+                });
+        assertThat(places(west)).hasSize(3);
     }
 }

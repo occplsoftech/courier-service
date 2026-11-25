@@ -34,6 +34,10 @@ public interface TariffZoneService {
 
     TariffZoneView removeLocation(UUID zoneId, UUID locationId);
 
+    /** One page of a zone's places, with display names. */
+    org.springframework.data.domain.Page<TariffZoneView.LocationView> locations(UUID zoneId,
+                                                                           org.springframework.data.domain.Pageable pageable);
+
     TariffZoneView activate(UUID zoneId);
 
     TariffZoneView deactivate(UUID zoneId);
