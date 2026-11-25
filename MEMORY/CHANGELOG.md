@@ -24,6 +24,12 @@ All notable changes to this project. Format based on
   freight calculation (`tatHours`) and the shipment's stored `expectedDeliveryDate`; else the service type's days as before.
 - Web: Masters → Regional Zone; Pincode list/form show zone, regional zone and the three coverages; Service Type gets Network;
   Zone Tariff → Zones can add a whole regional zone; Domestic and Shipment Booking show the pincode's delivery days.
+- V171 also replaces the V138 `ck_tzl_scope` check so a REGIONAL_ZONE place can be saved.
+- **V173** rebuilds OCCPL / OCCPL_COURIER Zone Tariff from the pincode master: copies all five Zone Tariff tables to
+  `backup_20261125_*` first, then deletes the two companies' zones, places, rate cards, slabs and charges, and creates one
+  zone per regional zone (usage BOTH). Places: a city when all its pincodes share one regional zone, else its pincodes one
+  by one (tested: every one of the 19,126 sheet pincodes resolves to its region's zone). Customer pricing zones and
+  District Level Freight untouched; **new rate cards must be entered** — until then Zone Tariff prices nothing for OCCPL.
 
 ## 2026-11-24 — Paid booking: the customer pays by Razorpay QR, Cash or the company's UPI QR
 

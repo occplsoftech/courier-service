@@ -62,7 +62,17 @@ ALTER TABLE master_service_types
 -- The air service every company was seeded with flies; everything else stays surface.
 UPDATE master_service_types SET network = 'AIR' WHERE code = 'AIR' AND deleted = FALSE;
 
+-- The V138 scope check knows only the four geography scopes: replace it with one that also takes REGIONAL_ZONE.
+ALTER TABLE tariff_zone_locations DROP CHECK ck_tzl_scope;
+
 ALTER TABLE tariff_zone_locations
     MODIFY COLUMN scope VARCHAR(20) NOT NULL,
     ADD COLUMN regional_zone_id BINARY(16) NULL,
     ADD KEY idx_tariff_zone_locations_regional_zone (company_id, regional_zone_id);
+
+ALTER TABLE tariff_zone_locations ADD CONSTRAINT ck_tzl_scope CHECK (
+    (scope = 'STATE'         AND state_id IS NOT NULL) OR
+    (scope = 'DISTRICT'      AND district_id IS NOT NULL) OR
+    (scope = 'CITY'          AND city_id IS NOT NULL) OR
+    (scope = 'PINCODE'       AND pincode IS NOT NULL) OR
+    (scope = 'REGIONAL_ZONE' AND regional_zone_id IS NOT NULL));
