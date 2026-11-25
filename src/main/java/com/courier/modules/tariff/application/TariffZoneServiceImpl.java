@@ -38,6 +38,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -71,6 +72,14 @@ public class TariffZoneServiceImpl implements TariffZoneService {
     private final DistrictService districtService;
     private final CityService cityService;
     private final RegionalZoneService regionalZoneService;
+
+    /** Batch name lookups; optional so hand-built instances (tests) still work. */
+    private PlaceNamePort placeNames;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setPlaceNames(PlaceNamePort placeNames) {
+        this.placeNames = placeNames;
+    }
     private final PincodeService pincodeService;
     private final AuditService auditService;
 
@@ -86,6 +95,7 @@ public class TariffZoneServiceImpl implements TariffZoneService {
         requireCodeAvailable(companyId, zone.getCode(), null);
         List<TariffZoneLocation> prepared = prepare(companyId, zone, locationInputs);
 
+        zone.setLocationCount(prepared.size());
         TariffZone saved = zones.save(zone);
         for (TariffZoneLocation location : prepared) {
             location.setZoneId(saved.getId());
@@ -144,11 +154,8 @@ public class TariffZoneServiceImpl implements TariffZoneService {
         if (found.isEmpty()) {
             return List.of();
         }
-        Set<UUID> ids = found.stream().map(TariffZone::getId).collect(Collectors.toSet());
-        Map<UUID, List<TariffZoneLocation>> byZone = locations.findByZones(companyId, ids).stream()
-                .collect(Collectors.groupingBy(TariffZoneLocation::getZoneId));
-        Names names = new Names();
-        return found.stream().map(z -> toView(z, byZone.getOrDefault(z.getId(), List.of()), names)).toList();
+        // The count stored on each zone: no place is loaded for the list.
+        return found.stream().map(z -> new TariffZoneView(z, List.of(), z.getLocationCount())).toList();
     }
 
     @Override
@@ -211,6 +218,8 @@ public class TariffZoneServiceImpl implements TariffZoneService {
         }
         List<TariffZoneLocation> prepared = prepare(companyId, zone, inputs);
         prepared.forEach(locations::save);
+        zone.setLocationCount(zone.getLocationCount() + prepared.size());
+        zones.save(zone);
         auditService.record(AuditAction.TARIFF_ZONE_LOCATION_ADDED, ENTITY, zone.getId(),
                 Map.of("code", zone.getCode(), "added", String.valueOf(prepared.size())));
         return view(companyId, zone);
@@ -227,6 +236,8 @@ public class TariffZoneServiceImpl implements TariffZoneService {
                 .orElseThrow(() -> new ResourceNotFoundException("TariffZoneLocation", locationId));
         location.softDelete(SecurityUtils.getCurrentUserId().orElse(null));
         locations.save(location);
+        zone.setLocationCount(Math.max(0, zone.getLocationCount() - 1));
+        zones.save(zone);
         auditService.record(AuditAction.TARIFF_ZONE_LOCATION_REMOVED, ENTITY, zone.getId(),
                 Map.of("code", zone.getCode(), "locationId", locationId.toString()));
         return view(companyId, zone);
@@ -383,10 +394,26 @@ public class TariffZoneServiceImpl implements TariffZoneService {
         // Geography lookups below run under the platform company (global masters); a dirty zone auto-flushed in that
         // window would trip the company-isolation guard. Flush first.
         zones.flush();
-        return toView(zone, locations.findByZone(companyId, zone.getId()), new Names());
+        // The zone and its count only: places load page by page (locations()), a large zone holds thousands.
+        return new TariffZoneView(zone, List.of(), zone.getLocationCount());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize(READ)
+    public org.springframework.data.domain.Page<TariffZoneView.LocationView> locations(
+            UUID zoneId, org.springframework.data.domain.Pageable pageable) {
+        UUID companyId = requireCompany();
+        TariffZone zone = load(zoneId, companyId);
+        org.springframework.data.domain.Page<TariffZoneLocation> page =
+                locations.findPageByZone(companyId, zone.getId(), pageable);
+        Names names = new Names();
+        names.preload(page.getContent());
+        return page.map(l -> toLocationView(l, names));
     }
 
     private TariffZoneView toView(TariffZone zone, List<TariffZoneLocation> zoneLocations, Names names) {
+        names.preload(zoneLocations);
         List<TariffZoneView.LocationView> views = zoneLocations.stream()
                 .map(l -> toLocationView(l, names))
                 .sorted(Comparator.comparingInt((TariffZoneView.LocationView v) -> -v.scope().rank())
@@ -412,6 +439,21 @@ public class TariffZoneServiceImpl implements TariffZoneService {
         private final Map<UUID, String> districts = new HashMap<>();
         private final Map<UUID, String> cities = new HashMap<>();
         private final Map<UUID, String> regionalZones = new HashMap<>();
+
+        /** Every name the locations need, a few batch queries instead of one per place. */
+        void preload(Collection<TariffZoneLocation> list) {
+            if (placeNames == null || list.isEmpty()) {
+                return;
+            }
+            states.putAll(placeNames.stateNames(ids(list, TariffZoneLocation::getStateId)));
+            districts.putAll(placeNames.districtNames(ids(list, TariffZoneLocation::getDistrictId)));
+            cities.putAll(placeNames.cityNames(ids(list, TariffZoneLocation::getCityId)));
+            regionalZones.putAll(placeNames.regionalZoneNames(ids(list, TariffZoneLocation::getRegionalZoneId)));
+        }
+
+        private Set<UUID> ids(Collection<TariffZoneLocation> list, Function<TariffZoneLocation, UUID> f) {
+            return list.stream().map(f).filter(Objects::nonNull).collect(Collectors.toSet());
+        }
 
         String regionalZone(UUID id) {
             return id == null ? null

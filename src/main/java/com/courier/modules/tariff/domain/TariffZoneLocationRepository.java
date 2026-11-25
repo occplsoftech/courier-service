@@ -20,6 +20,14 @@ public interface TariffZoneLocationRepository extends JpaRepository<TariffZoneLo
     @Query("select l from TariffZoneLocation l where l.companyId = :companyId and l.zoneId in :zoneIds")
     List<TariffZoneLocation> findByZones(@Param("companyId") UUID companyId, @Param("zoneIds") Collection<UUID> zoneIds);
 
+    /** One page of a zone's places, widest scope first then by pincode, for the zone page. */
+    @Query(value = "select l from TariffZoneLocation l where l.companyId = :companyId and l.zoneId = :zoneId"
+            + " order by l.scope desc, l.pincode, l.createdAt, l.id",
+            countQuery = "select count(l) from TariffZoneLocation l where l.companyId = :companyId and l.zoneId = :zoneId")
+    org.springframework.data.domain.Page<TariffZoneLocation> findPageByZone(@Param("companyId") UUID companyId,
+                                                                           @Param("zoneId") UUID zoneId,
+                                                                           org.springframework.data.domain.Pageable pageable);
+
     /** Live locations naming exactly this place at its own scope, in any zone of the company. */
     @Query("select l from TariffZoneLocation l where l.companyId = :companyId and l.scope = :scope and l.stateId = :id")
     List<TariffZoneLocation> findSameState(@Param("companyId") UUID companyId, @Param("scope") LocationScope scope, @Param("id") UUID id);

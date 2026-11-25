@@ -81,6 +81,17 @@ public class TariffZoneController {
         return ApiResponse.success(toResponse(service.getById(id), true));
     }
 
+    @GetMapping("/{id}/locations")
+    @Operation(summary = "A zone's places, page by page", description = "Widest scope first, then by pincode. "
+            + "`page` from 0, `size` up to 200 (default 50).")
+    public ApiResponse<com.courier.shared.api.PageResponse<LocationResponse>> locations(
+            @PathVariable UUID id, @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        var pageable = org.springframework.data.domain.PageRequest.of(Math.max(0, page), Math.min(Math.max(1, size), 200));
+        return ApiResponse.success(com.courier.shared.api.PageResponse.from(service.locations(id, pageable),
+                TariffZoneController::location));
+    }
+
     @PutMapping("/{id}")
     @Operation(summary = "Edit a zone", description = "`version` required; stale returns 409. Widening the usage is "
             + "refused if the zone would then share a place with another zone.")
@@ -130,7 +141,7 @@ public class TariffZoneController {
     private static ZoneResponse toResponse(TariffZoneView v, boolean withLocations) {
         var z = v.zone();
         return new ZoneResponse(z.getId(), z.getCode(), z.getName(), z.getZoneUsage(), z.getDescription(), z.getDisplayOrder(),
-                z.getStatus(), v.locations().size(),
+                z.getStatus(), v.locationCount(),
                 withLocations ? v.locations().stream().map(TariffZoneController::location).toList() : List.of(),
                 z.getCreatedAt(), z.getUpdatedAt(), z.getVersion());
     }
