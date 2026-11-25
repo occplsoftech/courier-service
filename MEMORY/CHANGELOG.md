@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-25 — Pincode master sheet stored verbatim
+
+- **V176** `pincode_master_sheet`: the user's Pincode_Master_NEW_DT_15-4-2024 exactly as given, 19,168 rows in sheet
+  order (row_no = Excel row), the 12 columns as text the way Excel shows them (TRUE/FALSE, "No Service", #N/A; nothing
+  skipped or cleaned). Read only: `GET /api/v1/global-masters/pincode-sheet?search=&region=&zone=&page=&size=`.
+- Web: Zone Tariff → Pincode Master Sheet, the sheet's own column headings, search and Region / zone filters, paged.
+
 ## 2026-11-25 — Zones list and zone page load fast
 
 - **V175** `tariff_zones.location_count`, back-filled and kept in step on create / add / remove. The zones list reads it
