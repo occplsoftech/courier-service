@@ -238,7 +238,8 @@ public class ShipmentMapper {
                 charge == null ? null : charge.getBranchCommissionOnOtherAmount(),
                 charge == null ? null : charge.getCompanyCommissionOnBasicFreight(),
                 s.getStatus(), deliveredAt, s.getCreatedAt(), s.getVersion(), invoiceNumber, receivedAt,
-                ewayBillNumber, s.getNumberOfPackages(), undelivered(s), s.getCodAmount(), s.isRto(), s.isReturnPickup());
+                ewayBillNumber, s.getNumberOfPackages(), undelivered(s), s.getCodAmount(), s.isRto(), s.isReturnPickup(),
+                s.getActualWeight(), s.getReceiverAddress(), s.getForwarderNumber());
     }
 
     public ShipmentItemResponse toResponse(ShipmentItem i) {

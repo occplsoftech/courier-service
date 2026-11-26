@@ -50,6 +50,9 @@ public record ShipmentSummaryResponse(
         /** Portal COD: the amount to collect from the receiver for the customer; null otherwise. */
         java.math.BigDecimal codAmount,
         @io.swagger.v3.oas.annotations.media.Schema(description = "Being (or was) returned to the sender") boolean rto,
-        @io.swagger.v3.oas.annotations.media.Schema(description = "A return pickup booked by a portal customer") boolean returnPickup
+        @io.swagger.v3.oas.annotations.media.Schema(description = "A return pickup booked by a portal customer") boolean returnPickup,
+        @io.swagger.v3.oas.annotations.media.Schema(description = "Actual weight (kg), for the outscan table") BigDecimal actualWeight,
+        @io.swagger.v3.oas.annotations.media.Schema(description = "Receiver address, for the DRS table") String receiverAddress,
+        @io.swagger.v3.oas.annotations.media.Schema(description = "The co-loader's own number for this AWB, given at outscan") String forwarderNumber
 ) {
 }
