@@ -53,6 +53,10 @@ public interface ManifestService {
     Manifest dispatch(UUID id, UUID vehicleId, UUID driverUserId, Instant departureTime,
             BigDecimal fuelCost, BigDecimal driverAdvance, BigDecimal tollAmount, BigDecimal otherAmount);
 
+    /** Dispatch with the outscan details: co-loader, forwarding number, bags. Vehicle and driver are optional then. */
+    Manifest dispatch(UUID id, UUID vehicleId, UUID driverUserId, Instant departureTime, BigDecimal fuelCost, BigDecimal driverAdvance,
+                      BigDecimal tollAmount, BigDecimal otherAmount, UUID coLoaderId, String forwardingNumber, Integer bagsCount);
+
     /**
      * Removes one shipment from a still-{@code CREATED} manifest, reverting it to
      * {@code BOOKED} (via {@code ShipmentService.detachFromManifest}) so it can be picked

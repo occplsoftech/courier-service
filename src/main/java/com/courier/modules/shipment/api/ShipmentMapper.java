@@ -293,7 +293,7 @@ public class ShipmentMapper {
     public com.courier.modules.shipment.api.dto.DrsSummaryResponse toResponse(ShipmentService.DrsSummary s) {
         return new com.courier.modules.shipment.api.dto.DrsSummaryResponse(
                 s.deliveryUserId(), s.deliveryBranchId(), s.runDate(), s.drsNumber(),
-                s.shipmentCount(), s.deliveredCount(), s.pendingCount());
+                s.shipmentCount(), s.deliveredCount(), s.pendingCount(), s.coLoaderId());
     }
 
     public com.courier.modules.shipment.api.dto.DrsDetailResponse toResponse(ShipmentService.DrsDetail d) {

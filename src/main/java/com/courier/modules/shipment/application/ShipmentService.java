@@ -489,6 +489,11 @@ public interface ShipmentService {
                                              UUID vehicleId, java.math.BigDecimal fuelCost,
                                              java.math.BigDecimal deliveryCharge);
 
+    /** As above, but delivered by a co-loader ({@code coLoaderId}) instead of a staff user; exactly one of the two. */
+    BulkMovementResult assignOutForDelivery(Collection<UUID> shipmentIds, UUID deliveryUserId,
+                                             UUID vehicleId, java.math.BigDecimal fuelCost,
+                                             java.math.BigDecimal deliveryCharge, UUID coLoaderId);
+
     /** Result of a successful delivery-OTP request — mirrors {@code ManifestService
      *  .DispatchOtpIssued}, kept as its own record since {@code modules.shipment} must not
      *  depend on {@code modules.manifest} (see {@code ManifestServiceImpl}'s class doc). */
@@ -607,11 +612,18 @@ public interface ShipmentService {
     /** Every shipment on one DRS run — same grouping key {@link #listDrs} used to build the row. */
     DrsDetail getDrsDetail(UUID deliveryUserId, UUID deliveryBranchId, java.time.LocalDate runDate);
 
+    /** One co-loader's DRS run (deliveryUserId null), or a staff user's when coLoaderId is null. */
+    DrsDetail getDrsDetail(UUID deliveryUserId, UUID coLoaderId, UUID deliveryBranchId, java.time.LocalDate runDate);
+
     /** {@code drsNumber} is the most recently generated number among the run's assignments
      *  (null for runs made entirely of pre-V31 rows) — the grouping key itself is still
      *  delivery user + delivery branch + calendar day, unchanged. */
     record DrsSummary(UUID deliveryUserId, UUID deliveryBranchId, java.time.LocalDate runDate,
-                      String drsNumber, int shipmentCount, int deliveredCount, int pendingCount) {
+                      String drsNumber, int shipmentCount, int deliveredCount, int pendingCount, UUID coLoaderId) {
+        public DrsSummary(UUID deliveryUserId, UUID deliveryBranchId, java.time.LocalDate runDate,
+                          String drsNumber, int shipmentCount, int deliveredCount, int pendingCount) {
+            this(deliveryUserId, deliveryBranchId, runDate, drsNumber, shipmentCount, deliveredCount, pendingCount, null);
+        }
     }
 
     record DrsShipmentRow(UUID shipmentId, String shipmentNumber, String trackingNumber,

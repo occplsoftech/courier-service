@@ -57,6 +57,7 @@ class ManifestServiceImplTest {
     @Mock private ManifestRepository manifestRepository;
     @Mock private ShipmentService shipmentService;
     @Mock private VehicleService vehicleService;
+    @Mock private CoLoaderService coLoaderService;
     @Mock private UserService userService;
     @Mock private AuditService auditService;
     @Mock private com.courier.modules.ewaybill.application.EwayBillService ewayBillService;
@@ -72,7 +73,7 @@ class ManifestServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new ManifestServiceImpl(manifestRepository, shipmentService, vehicleService,
+        service = new ManifestServiceImpl(manifestRepository, shipmentService, vehicleService, coLoaderService,
                 userService, auditService, ewayBillService, companySettingsService,
                 communicationSettingService, smsProvider, passwordEncoder, objectMapper,
                 branchDirectory, hubOutScanCheck);
@@ -221,6 +222,29 @@ class ManifestServiceImplTest {
         assertThatThrownBy(() -> service.dispatch(manifest.getId(), vehicleId, UUID.randomUUID(), null, null, null, null, null))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("not active");
+    }
+
+    @Test
+    @DisplayName("dispatch with a co-loader and no vehicle or driver (Scan → Assign to Branch, as on the earlier portal)")
+    void dispatchWithCoLoaderOnly() {
+        Manifest manifest = existingManifest(ManifestStatus.CREATED);
+        UUID coLoader = UUID.randomUUID();
+        Shipment ready = mock(Shipment.class);
+        when(ready.getId()).thenReturn(UUID.randomUUID());
+        when(manifestRepository.findByIdWithinCompany(manifest.getId(), COMPANY)).thenReturn(Optional.of(manifest));
+        when(shipmentService.findManifestCreatedShipments(manifest.getId())).thenReturn(List.of(ready));
+
+        Manifest dispatched = service.dispatch(manifest.getId(), null, null, null, null, null, null, null,
+                coLoader, " FWD-8821 ", 3);
+
+        assertThat(dispatched.getStatus()).isEqualTo(ManifestStatus.DISPATCHED);
+        assertThat(dispatched.getCoLoaderId()).isEqualTo(coLoader);
+        assertThat(dispatched.getForwardingNumber()).isEqualTo("FWD-8821");
+        assertThat(dispatched.getBagsCount()).isEqualTo(3);
+        verify(coLoaderService).requireActive(coLoader);
+        verify(vehicleService, never()).getById(any());
+        verify(shipmentService).transitionToDispatched(List.of(ready.getId()), manifest.getId(), null, manifest.getBookingBranchId());
+        com.courier.shared.activity.application.ActivityContext.clear();
     }
 
     @Test

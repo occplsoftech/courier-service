@@ -16,6 +16,7 @@ public record ManifestResponse(
         Instant dispatchedAt, Instant departureTime, Instant completedAt, String remarks,
         BigDecimal fuelCost, BigDecimal driverAdvance, BigDecimal tollAmount, BigDecimal otherAmount,
         Instant createdAt, Instant updatedAt, Long version,
-        int shipmentCount, BigDecimal totalWeight, int totalPackages
+        int shipmentCount, BigDecimal totalWeight, int totalPackages,
+        UUID coLoaderId, String forwardingNumber, Integer bagsCount
 ) {
 }

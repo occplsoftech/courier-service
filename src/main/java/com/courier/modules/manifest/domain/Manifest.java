@@ -98,6 +98,17 @@ public class Manifest extends CompanyOwnedEntity {
     @Column(name = "driver_user_id", columnDefinition = "BINARY(16)")
     private UUID driverUserId;
 
+    /** Outscan (Scan → Assign to Branch): the co-loader the parcels were handed to, its forwarding number, and bags. */
+    @JdbcTypeCode(SqlTypes.BINARY)
+    @Column(name = "co_loader_id", columnDefinition = "BINARY(16)")
+    private UUID coLoaderId;
+
+    @Column(name = "forwarding_number", length = 60)
+    private String forwardingNumber;
+
+    @Column(name = "bags_count")
+    private Integer bagsCount;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
