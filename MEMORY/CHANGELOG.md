@@ -8,6 +8,18 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-26 — Delivery Updation (as in the previous software)
+
+- **V178** `delivery_assignment.receiver_relation`, `proof_type` (DROP, SIGNATURE, STAMP_AND_SIGN). `POST /shipment-movement/deliver`
+  takes `receiverRelation`, `proofType` and `deliveredOn` (a past date is recorded at noon India time; not in the future
+  nor before the shipment went out). Undelivered reasons gain CUSTOMER_INSTRUCTION, HOLD, MISROUTE, NO_SERVICE, SHIFTED.
+- `GET /shipment-movement/delivery-updation?tab=PENDING|DELIVERED&search=&branchId=&page=&size=`: out-for-delivery shipments
+  waiting for their outcome, or closed deliveries with date, proof, receiver, relation, remarks, delivered by, updated by and
+  the POD photo. Branch users see their own branch.
+- Web: Operations → Delivery Updation, three tabs: Pending for Delivery (click → update dialog: delivered / undelivered
+  with the old reason list / RTO = return to sender), Update DRS (every shipment of a run at once, one photo for the run),
+  Delivered.
+
 ## 2026-11-26 — All to all rate calculator
 
 - `POST /api/v1/rate-calculator` {fromPincode, toPincode, weightKg, packageTypeId?, customerId?, declaredValue?}: every

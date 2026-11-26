@@ -64,6 +64,8 @@ import java.util.UUID;
 @Tag(name = "Shipment Movement", description = "Dispatch, In Scan, Out For Delivery, Deliver")
 public class ShipmentMovementController {
 
+    private final com.courier.modules.shipment.application.DeliveryUpdationService deliveryUpdation;
+
     private final ShipmentService shipmentService;
     private final ManifestService manifestService;
     private final VehicleService vehicleService;
@@ -195,7 +197,8 @@ public class ShipmentMovementController {
     public ApiResponse<ShipmentResponse> deliver(@Valid @RequestBody DeliverRequest request) {
         Shipment delivered = shipmentService.deliver(request.shipmentId(),
                 new ShipmentService.DeliverCommand(request.receiverName(), request.remarks(),
-                        request.otp(), request.signatureUrl(), request.photoUrl()));
+                        request.otp(), request.signatureUrl(), request.photoUrl(), request.receiverRelation(),
+                        request.proofType(), request.deliveredOn()));
         return ApiResponse.success(
                 shipmentMapper.toResponse(delivered, shipmentService.getItems(delivered.getId()),
                         shipmentService.getDeliveryAssignment(delivered.getId()),
@@ -323,6 +326,20 @@ public class ShipmentMovementController {
                 result.viaRealMethod(), result.warning());
         return ApiResponse.success(response,
                 result.warning() == null ? "Status overridden" : result.warning());
+    }
+
+    @GetMapping("/delivery-updation")
+    @Operation(summary = "Delivery Updation lists",
+            description = "tab PENDING: shipments out for delivery waiting for their outcome, newest DRS first. tab DELIVERED: "
+                    + "closed deliveries with date, proof, receiver, relation, remarks, delivered by, updated by and the POD "
+                    + "photo. search matches AWB, shipment number, consignee or DRS number. A company admin may pass "
+                    + "branchId; anyone else sees their own branch.")
+    public ApiResponse<com.courier.shared.api.PageResponse<com.courier.modules.shipment.application.DeliveryUpdationService.Row>> deliveryUpdation(
+            @RequestParam(defaultValue = "PENDING") com.courier.modules.shipment.application.DeliveryUpdationService.Tab tab,
+            @RequestParam(required = false) String search, @RequestParam(required = false) UUID branchId,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.success(com.courier.shared.api.PageResponse.from(
+                deliveryUpdation.list(tab, search, branchId, page, size)));
     }
 
     @GetMapping("/drs")

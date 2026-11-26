@@ -32,4 +32,26 @@ public interface DeliveryAssignmentRepository extends JpaRepository<DeliveryAssi
     List<DeliveryAssignment> findByCompanyAndAssignedAtBetween(@Param("companyId") UUID companyId,
                                                                 @Param("from") Instant from,
                                                                 @Param("to") Instant to);
+
+    /**
+     * Delivery Updation lists (V178): assignments in one status, optionally one delivery branch and one shipment status,
+     * searched by AWB, shipment number, consignee or DRS number ({@code q} lower-case, wrapped in %). Sort comes with
+     * {@code pageable}.
+     */
+    @Query(value = "select a from DeliveryAssignment a, com.courier.modules.shipment.domain.Shipment s"
+            + " where s.id = a.shipmentId and a.companyId = :companyId and s.companyId = :companyId and a.status = :status"
+            + " and (:branchId is null or a.deliveryBranchId = :branchId)"
+            + " and (:shipmentStatus is null or s.status = :shipmentStatus)"
+            + " and (:q is null or lower(s.trackingNumber) like :q or lower(s.shipmentNumber) like :q"
+            + " or lower(s.receiverName) like :q or lower(a.drsNumber) like :q)",
+            countQuery = "select count(a) from DeliveryAssignment a, com.courier.modules.shipment.domain.Shipment s"
+                    + " where s.id = a.shipmentId and a.companyId = :companyId and s.companyId = :companyId and a.status = :status"
+                    + " and (:branchId is null or a.deliveryBranchId = :branchId)"
+                    + " and (:shipmentStatus is null or s.status = :shipmentStatus)"
+                    + " and (:q is null or lower(s.trackingNumber) like :q or lower(s.shipmentNumber) like :q"
+                    + " or lower(s.receiverName) like :q or lower(a.drsNumber) like :q)")
+    org.springframework.data.domain.Page<DeliveryAssignment> searchForUpdation(
+            @Param("companyId") UUID companyId, @Param("status") DeliveryAssignmentStatus status,
+            @Param("branchId") UUID branchId, @Param("shipmentStatus") ShipmentStatus shipmentStatus,
+            @Param("q") String q, org.springframework.data.domain.Pageable pageable);
 }

@@ -637,8 +637,17 @@ public interface ShipmentService {
                      String drsNumber, List<DrsShipmentRow> shipments) {
     }
 
+    /**
+     * {@code receiverRelation}, {@code proof} and {@code deliveredOn} (V178, Delivery Updation) are optional: null
+     * {@code deliveredOn} or today means now; a past date is recorded at noon India time on that day.
+     */
     record DeliverCommand(String receiverName, String remarks, String otp, String signatureUrl,
-                          String photoUrl) {
+                          String photoUrl, String receiverRelation, com.courier.modules.shipment.domain.DeliveryProof proof,
+                          java.time.LocalDate deliveredOn) {
+
+        public DeliverCommand(String receiverName, String remarks, String otp, String signatureUrl, String photoUrl) {
+            this(receiverName, remarks, otp, signatureUrl, photoUrl, null, null, null);
+        }
     }
 
     /**

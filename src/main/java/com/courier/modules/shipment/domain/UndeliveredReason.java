@@ -8,6 +8,12 @@ public enum UndeliveredReason {
     PREMISES_CLOSED("Premises closed"),
     RESCHEDULE_REQUESTED("Receiver asked to deliver later"),
     COD_NOT_READY("COD amount not ready"),
+    // V178, as in the previous software's Delivery Updation
+    CUSTOMER_INSTRUCTION("As per the customer's instruction"),
+    HOLD("On hold"),
+    MISROUTE("Misrouted"),
+    NO_SERVICE("No service"),
+    SHIFTED("Receiver shifted"),
     OTHER("Other");
 
     private final String label;
