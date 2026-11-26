@@ -2332,7 +2332,11 @@ public class ShipmentServiceImpl implements ShipmentService {
         DeliveryAssignment assignment = deliveryAssignmentRepository
                 .findByShipmentIdWithinCompany(shipmentId, companyId)
                 .orElseThrow(() -> new ResourceNotFoundException("DeliveryAssignment", shipmentId));
-        assignment.markDelivered(command.receiverName(), command.remarks(), command.otp());
+        java.time.ZoneId india = java.time.ZoneId.of("Asia/Kolkata");
+        Instant deliveredAt = command.deliveredOn() == null || !command.deliveredOn().isBefore(LocalDate.now(india)) ? null
+                : command.deliveredOn().atTime(12, 0).atZone(india).toInstant();
+        assignment.markDelivered(command.receiverName(), command.remarks(), command.otp(), command.receiverRelation(),
+                command.proof(), deliveredAt);
         deliveryAssignmentRepository.save(assignment);
         recordAsset(shipmentId, companyId, ShipmentAssetType.POD, "SIGNATURE", command.signatureUrl());
         recordAsset(shipmentId, companyId, ShipmentAssetType.POD, "PHOTO", command.photoUrl());

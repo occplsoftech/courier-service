@@ -12,6 +12,9 @@ public record DeliverRequest(
         @Size(max = 500) String remarks,
         @Size(max = 10) String otp,
         @Size(max = 1000) String signatureUrl,
-        @Size(max = 1000) String photoUrl
+        @Size(max = 1000) String photoUrl,
+        @Size(max = 50) String receiverRelation,
+        com.courier.modules.shipment.domain.DeliveryProof proofType,
+        java.time.LocalDate deliveredOn
 ) {
 }

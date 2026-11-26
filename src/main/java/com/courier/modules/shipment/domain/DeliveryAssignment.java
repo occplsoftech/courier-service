@@ -100,6 +100,15 @@ public class DeliveryAssignment extends CompanyOwnedEntity {
     @Column(name = "delivery_remarks", length = 500)
     private String deliveryRemarks;
 
+    /** The receiver's relation to the consignee (V178), e.g. Self, Security, Neighbour. */
+    @Column(name = "receiver_relation", length = 50)
+    private String receiverRelation;
+
+    /** How the delivery was proved (V178). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "proof_type", length = 30)
+    private DeliveryProof proofType;
+
     @Column(name = "otp", length = 10)
     private String otp;
 
@@ -116,6 +125,22 @@ public class DeliveryAssignment extends CompanyOwnedEntity {
      *  (V33); {@code ShipmentServiceImpl.deliver} records them as {@code POD} assets in the
      *  same transaction as this call. */
     public void markDelivered(String receiverName, String remarks, String otp) {
+        markDelivered(receiverName, remarks, otp, null, null, null);
+    }
+
+    /**
+     * As {@link #markDelivered(String, String, String)}, with the receiver's relation, the proof and the moment of
+     * delivery ({@code null} = now). The moment cannot be in the future or before the shipment went out.
+     */
+    public void markDelivered(String receiverName, String remarks, String otp, String relation, DeliveryProof proof,
+                              Instant at) {
+        Instant when = at == null ? Instant.now() : at;
+        if (when.isAfter(Instant.now().plusSeconds(60))) {
+            throw new BusinessRuleException("The delivered date cannot be in the future.");
+        }
+        if (assignedAt != null && when.isBefore(assignedAt.truncatedTo(java.time.temporal.ChronoUnit.DAYS))) {
+            throw new BusinessRuleException("The delivered date cannot be before the shipment went out for delivery.");
+        }
         if (status == DeliveryAssignmentStatus.DELIVERED) {
             throw new BusinessRuleException("This shipment has already been delivered.");
         }
@@ -123,7 +148,9 @@ public class DeliveryAssignment extends CompanyOwnedEntity {
             throw new BusinessRuleException("A receiver name is required to close a delivery.");
         }
         this.status = DeliveryAssignmentStatus.DELIVERED;
-        this.deliveredAt = Instant.now();
+        this.deliveredAt = when;
+        this.receiverRelation = relation == null || relation.isBlank() ? null : relation.trim();
+        this.proofType = proof;
         this.receiverName = receiverName.trim();
         this.deliveryRemarks = remarks == null || remarks.isBlank() ? null : remarks.trim();
         this.otp = otp == null || otp.isBlank() ? null : otp.trim();
