@@ -151,7 +151,7 @@ public class ShipmentMapper {
                 items.stream().map(this::toResponse).toList(),
                 s.getForwardState() == null ? null : new ShipmentResponse.ForwardInfo(s.getForwardProvider(), s.getForwardService(),
                         s.getForwardState(), s.getForwardAwb(), s.getForwardLabelUrl(), s.getForwardCost(), s.getForwardedAt(), s.getForwardNote()),
-                undelivered(s), s.getCodAmount(), s.getCodCollectedAt(), rto(s), s.isReturnPickup());
+                undelivered(s), s.getCodAmount(), s.getCodCollectedAt(), rto(s), s.isReturnPickup(), s.getForwarderNumber());
     }
 
     static ShipmentResponse.RtoInfo rto(Shipment s) {

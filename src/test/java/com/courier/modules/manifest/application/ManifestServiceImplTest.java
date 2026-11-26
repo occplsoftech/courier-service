@@ -30,6 +30,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -244,6 +245,28 @@ class ManifestServiceImplTest {
         verify(coLoaderService).requireActive(coLoader);
         verify(vehicleService, never()).getById(any());
         verify(shipmentService).transitionToDispatched(List.of(ready.getId()), manifest.getId(), null, manifest.getBookingBranchId());
+        com.courier.shared.activity.application.ActivityContext.clear();
+    }
+
+    @Test
+    @DisplayName("With Forwarder No.: each AWB's number is saved on its shipment; a blank one or a shipment not on the manifest is refused")
+    void dispatchWithForwarderNumbers() {
+        Manifest manifest = existingManifest(ManifestStatus.CREATED);
+        Shipment ready = Shipment.builder().shipmentNumber("PUN-000001").build();
+        ready.setId(UUID.randomUUID());
+        when(manifestRepository.findByIdWithinCompany(manifest.getId(), COMPANY)).thenReturn(Optional.of(manifest));
+        when(shipmentService.findManifestCreatedShipments(manifest.getId())).thenReturn(List.of(ready));
+
+        assertThatThrownBy(() -> service.dispatch(manifest.getId(), null, null, null, null, null, null, null, null, null, null,
+                Map.of(ready.getId(), "  ")))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("PUN-000001");
+        assertThatThrownBy(() -> service.dispatch(manifest.getId(), null, null, null, null, null, null, null, null, null, null,
+                Map.of(UUID.randomUUID(), "X1")))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("not on this manifest");
+
+        service.dispatch(manifest.getId(), null, null, null, null, null, null, null, null, null, null,
+                Map.of(ready.getId(), " DTDC-77812 "));
+        assertThat(ready.getForwarderNumber()).isEqualTo("DTDC-77812");
         com.courier.shared.activity.application.ActivityContext.clear();
     }
 

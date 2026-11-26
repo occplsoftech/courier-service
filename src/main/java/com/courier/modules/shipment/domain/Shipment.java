@@ -325,6 +325,10 @@ public class Shipment extends CompanyOwnedEntity {
     @Column(name = "return_pickup", nullable = false)
     private boolean returnPickup = false;
 
+    /** The co-loader's own number for this AWB, given at outscan ("With Forwarder No.", V181). */
+    @Column(name = "forwarder_number", length = 60)
+    private String forwarderNumber;
+
     // ---- return to sender (V161, Phase 12.1) ------------------------------------------------------------------------------
 
     /** On its way back (or back) to the sender: its delivery branch is now the booking branch. */

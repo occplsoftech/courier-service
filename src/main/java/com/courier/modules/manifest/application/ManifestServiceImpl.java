@@ -227,6 +227,29 @@ public class ManifestServiceImpl implements ManifestService {
                 .add(nz(m.getTollAmount())).add(nz(m.getOtherAmount()));
     }
 
+    /** "With Forwarder No.": each given number is saved on its shipment (saved with the DISPATCHED move below). */
+    private static void applyForwarderNumbers(List<Shipment> onManifest, Map<UUID, String> forwarderNumbers) {
+        if (forwarderNumbers == null || forwarderNumbers.isEmpty()) {
+            return;
+        }
+        Map<UUID, Shipment> byId = new java.util.HashMap<>();
+        onManifest.forEach(s -> byId.put(s.getId(), s));
+        forwarderNumbers.forEach((shipmentId, number) -> {
+            Shipment s = byId.get(shipmentId);
+            if (s == null) {
+                throw new BusinessRuleException("A forwarder number was given for a shipment that is not on this manifest.");
+            }
+            String v = number == null ? "" : number.trim();
+            if (v.isEmpty()) {
+                throw new BusinessRuleException("Enter the forwarder number for %s.".formatted(s.getShipmentNumber()));
+            }
+            if (v.length() > 60) {
+                throw new BusinessRuleException("The forwarder number for %s is longer than 60 characters.".formatted(s.getShipmentNumber()));
+            }
+            s.setForwarderNumber(v);
+        });
+    }
+
     private static BigDecimal nz(BigDecimal v) {
         return v != null ? v : BigDecimal.ZERO;
     }
@@ -245,6 +268,16 @@ public class ManifestServiceImpl implements ManifestService {
     public Manifest dispatch(UUID id, UUID vehicleId, UUID driverUserId, Instant departureTime,
             BigDecimal fuelCost, BigDecimal driverAdvance, BigDecimal tollAmount, BigDecimal otherAmount,
             UUID coLoaderId, String forwardingNumber, Integer bagsCount) {
+        return dispatch(id, vehicleId, driverUserId, departureTime, fuelCost, driverAdvance, tollAmount, otherAmount,
+                coLoaderId, forwardingNumber, bagsCount, null);
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize("hasAuthority('MANIFEST_DISPATCH')")
+    public Manifest dispatch(UUID id, UUID vehicleId, UUID driverUserId, Instant departureTime,
+            BigDecimal fuelCost, BigDecimal driverAdvance, BigDecimal tollAmount, BigDecimal otherAmount,
+            UUID coLoaderId, String forwardingNumber, Integer bagsCount, Map<UUID, String> forwarderNumbers) {
         UUID companyId = requireCompany();
         Manifest manifest = loadOrThrow(id, companyId);
 
@@ -294,6 +327,7 @@ public class ManifestServiceImpl implements ManifestService {
         manifest.setCoLoaderId(coLoaderId);
         manifest.setForwardingNumber(forwardingNumber == null || forwardingNumber.isBlank() ? null : forwardingNumber.trim());
         manifest.setBagsCount(bagsCount);
+        applyForwarderNumbers(readyShipments, forwarderNumbers);
 
         String statusBefore = manifest.getStatus().name();
         manifest.dispatch(vehicleId, driverUserId, departureTime, fuelCost, driverAdvance, tollAmount, otherAmount);
