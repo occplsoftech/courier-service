@@ -10,7 +10,7 @@ All notable changes to this project. Format based on
 
 ## 2026-11-26 — Delivery Updation (as in the previous software)
 
-- **V178** `delivery_assignment.receiver_relation`, `proof_type` (DROP, SIGNATURE, STAMP_AND_SIGN). `POST /shipment-movement/deliver`
+- **V179** (renumbered from V178, which co-loaders took) `delivery_assignment.receiver_relation`, `proof_type` (DROP, SIGNATURE, STAMP_AND_SIGN). `POST /shipment-movement/deliver`
   takes `receiverRelation`, `proofType` and `deliveredOn` (a past date is recorded at noon India time; not in the future
   nor before the shipment went out). Undelivered reasons gain CUSTOMER_INSTRUCTION, HOLD, MISROUTE, NO_SERVICE, SHIFTED.
 - `GET /shipment-movement/delivery-updation?tab=PENDING|DELIVERED&search=&branchId=&page=&size=`: out-for-delivery shipments

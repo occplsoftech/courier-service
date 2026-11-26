@@ -1,5 +1,5 @@
 -- =============================================================================
--- V178 — Delivery Updation (as in the previous software): how a delivery was proved and who took it
+-- V179 — Delivery Updation (as in the previous software): how a delivery was proved and who took it
 --
 -- delivery_assignment gains
 --   receiver_relation  the receiver's relation to the consignee (Self, Security, Neighbour …), free text
