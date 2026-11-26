@@ -98,7 +98,8 @@ public class ShipmentMovementController {
     public ApiResponse<DispatchManifestResponse> dispatch(@Valid @RequestBody DispatchManifestRequest request) {
         Manifest manifest = manifestService.dispatch(request.manifestId(), request.vehicleId(),
                 request.driverUserId(), request.departureTime(),
-                request.fuelCost(), request.driverAdvance(), request.tollAmount(), request.otherAmount());
+                request.fuelCost(), request.driverAdvance(), request.tollAmount(), request.otherAmount(),
+                request.coLoaderId(), request.forwardingNumber(), request.bagsCount());
         // The shipments themselves are already DISPATCHED by the time this call returns —
         // count them by that status rather than MANIFEST_CREATED, which none of them are
         // anymore. A DIRECT_COMPANY_DELIVERY manifest's shipments go one hop further, to
@@ -183,7 +184,7 @@ public class ShipmentMovementController {
             }
         }
         var result = shipmentService.assignOutForDelivery(request.shipmentIds(), request.deliveryUserId(),
-                request.vehicleId(), request.fuelCost(), request.deliveryCharge());
+                request.vehicleId(), request.fuelCost(), request.deliveryCharge(), request.coLoaderId());
         return ApiResponse.success(shipmentMapper.toResponse(result));
     }
 
@@ -343,10 +344,10 @@ public class ShipmentMovementController {
             description = "Every shipment assigned to this delivery user, at this delivery branch, "
                     + "on this day.")
     public ApiResponse<com.courier.modules.shipment.api.dto.DrsDetailResponse> drsDetail(
-            @RequestParam UUID deliveryUserId, @RequestParam UUID deliveryBranchId,
-            @RequestParam java.time.LocalDate runDate) {
+            @RequestParam(required = false) UUID deliveryUserId, @RequestParam(required = false) UUID coLoaderId,
+            @RequestParam UUID deliveryBranchId, @RequestParam java.time.LocalDate runDate) {
         return ApiResponse.success(
-                shipmentMapper.toResponse(shipmentService.getDrsDetail(deliveryUserId, deliveryBranchId, runDate)));
+                shipmentMapper.toResponse(shipmentService.getDrsDetail(deliveryUserId, coLoaderId, deliveryBranchId, runDate)));
     }
 
     @PostMapping(value = "/{shipmentId}/pod-upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

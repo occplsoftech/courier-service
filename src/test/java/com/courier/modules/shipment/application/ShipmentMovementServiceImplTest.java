@@ -120,6 +120,8 @@ class ShipmentMovementServiceImplTest {
 
     private final com.courier.modules.shipment.application.ShipmentPaymentService shipmentPaymentService =
             org.mockito.Mockito.mock(com.courier.modules.shipment.application.ShipmentPaymentService.class);
+    private final com.courier.modules.manifest.application.CoLoaderService coLoaderLookup =
+            org.mockito.Mockito.mock(com.courier.modules.manifest.application.CoLoaderService.class);
     private ShipmentServiceImpl service;
 
     @BeforeEach
@@ -133,7 +135,7 @@ class ShipmentMovementServiceImplTest {
                 ewayBillService, freightCalculationService,
                 applicableChargesCalculator, auditService, eventPublisher, fileStoragePort,
                 shipmentAssetRepository, deliveryDispatchOtpRepository, passwordEncoder, companySettingsService,
-                communicationSettingService, smsProvider, objectMapper, shipmentPaymentService);
+                communicationSettingService, smsProvider, objectMapper, shipmentPaymentService, coLoaderLookup);
         CompanyContext.setCompanyId(COMPANY);
         AuthenticatedUser principal = new AuthenticatedUser(
                 CALLER, COMPANY, "ops@test.com", Set.of(Roles.COMPANY_ADMIN), "jti");
@@ -724,6 +726,28 @@ class ShipmentMovementServiceImplTest {
             when(shipmentRepository.findByIdWithinCompany(other.getId(), COMPANY)).thenReturn(Optional.of(other));
             service.returnToSender(other.getId(), " ");
         }).isInstanceOf(BusinessRuleException.class).hasMessageContaining("why");
+    }
+
+    @Test
+    @DisplayName("assignOutForDelivery hands shipments to a co-loader instead of a staff delivery boy; one of the two is required")
+    void outForDeliveryByCoLoader() {
+        Shipment shipment = shipment(ShipmentStatus.IN_SCAN);
+        UUID coLoader = UUID.randomUUID();
+        when(shipmentRepository.findByIdWithinCompany(shipment.getId(), COMPANY)).thenReturn(Optional.of(shipment));
+        when(deliveryAssignmentRepository.findByShipmentIdWithinCompany(shipment.getId(), COMPANY)).thenReturn(Optional.empty());
+        org.mockito.ArgumentCaptor<DeliveryAssignment> saved = org.mockito.ArgumentCaptor.forClass(DeliveryAssignment.class);
+        when(deliveryAssignmentRepository.save(saved.capture())).thenAnswer(inv -> inv.getArgument(0));
+
+        var result = service.assignOutForDelivery(List.of(shipment.getId()), null, null, null, null, coLoader);
+
+        assertThat(result.successCount()).isEqualTo(1);
+        assertThat(saved.getValue().getCoLoaderId()).isEqualTo(coLoader);
+        assertThat(saved.getValue().getDeliveryUserId()).isNull();
+        org.mockito.Mockito.verify(coLoaderLookup).requireActive(coLoader);
+        assertThatThrownBy(() -> service.assignOutForDelivery(List.of(shipment.getId()), null, null, null, null, null))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("delivery boy or the co-loader");
+        assertThatThrownBy(() -> service.assignOutForDelivery(List.of(shipment.getId()), UUID.randomUUID(), null, null, null, coLoader))
+                .isInstanceOf(BusinessRuleException.class);
     }
 
     // -------------------------------------------------------------------- deliver

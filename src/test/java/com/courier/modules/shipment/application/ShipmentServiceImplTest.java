@@ -134,6 +134,8 @@ class ShipmentServiceImplTest {
 
     private final com.courier.modules.shipment.application.ShipmentPaymentService shipmentPaymentService =
             org.mockito.Mockito.mock(com.courier.modules.shipment.application.ShipmentPaymentService.class);
+    private final com.courier.modules.manifest.application.CoLoaderService coLoaderLookup =
+            org.mockito.Mockito.mock(com.courier.modules.manifest.application.CoLoaderService.class);
     private ShipmentServiceImpl service;
 
     @BeforeEach
@@ -147,7 +149,7 @@ class ShipmentServiceImplTest {
                 ewayBillService, freightCalculationService,
                 applicableChargesCalculator, auditService, eventPublisher, fileStoragePort, shipmentAssetRepository,
                 deliveryDispatchOtpRepository, passwordEncoder, companySettingsService, communicationSettingService,
-                smsProvider, objectMapper, shipmentPaymentService);
+                smsProvider, objectMapper, shipmentPaymentService, coLoaderLookup);
 
         CompanyContext.setCompanyId(COMPANY);
         signedIn(Roles.COMPANY_ADMIN);

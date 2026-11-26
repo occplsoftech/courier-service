@@ -5,6 +5,7 @@ import java.util.UUID;
 
 public record DrsSummaryResponse(
         UUID deliveryUserId, UUID deliveryBranchId, LocalDate runDate,
-        String drsNumber, int shipmentCount, int deliveredCount, int pendingCount
+        String drsNumber, int shipmentCount, int deliveredCount, int pendingCount,
+        UUID coLoaderId
 ) {
 }

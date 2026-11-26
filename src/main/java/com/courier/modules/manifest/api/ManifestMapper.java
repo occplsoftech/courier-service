@@ -41,7 +41,8 @@ public class ManifestMapper {
                 m.getDispatchedAt(), m.getDepartureTime(), m.getCompletedAt(), m.getRemarks(),
                 m.getFuelCost(), m.getDriverAdvance(), m.getTollAmount(), m.getOtherAmount(),
                 m.getCreatedAt(), m.getUpdatedAt(), m.getVersion(),
-                aggregate.shipmentCount(), aggregate.totalWeight(), aggregate.totalPackages());
+                aggregate.shipmentCount(), aggregate.totalWeight(), aggregate.totalPackages(),
+                m.getCoLoaderId(), m.getForwardingNumber(), m.getBagsCount());
     }
 
     public ManifestSummaryStatsResponse toSummaryStats(ManifestSummaryStats s) {

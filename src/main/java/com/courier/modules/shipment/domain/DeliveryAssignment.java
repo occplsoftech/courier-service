@@ -58,8 +58,13 @@ public class DeliveryAssignment extends CompanyOwnedEntity {
     private UUID deliveryBranchId;
 
     @JdbcTypeCode(SqlTypes.BINARY)
-    @Column(name = "delivery_user_id", columnDefinition = "BINARY(16)", nullable = false)
+    /** The staff delivery boy, or null when a co-loader delivers it ({@link #coLoaderId}); exactly one is set. */
+    @Column(name = "delivery_user_id", columnDefinition = "BINARY(16)")
     private UUID deliveryUserId;
+
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.BINARY)
+    @Column(name = "co_loader_id", columnDefinition = "BINARY(16)")
+    private UUID coLoaderId;
 
     @Column(name = "assigned_at", nullable = false)
     private Instant assignedAt;
@@ -110,6 +115,12 @@ public class DeliveryAssignment extends CompanyOwnedEntity {
         this.deliveryUserId = deliveryUserId;
         this.deliveryBranchId = deliveryBranchId;
         this.assignedAt = Instant.now();
+    }
+
+    /** Re-assigned to a co-loader (or back to a staff user, with {@code coLoaderId} null). */
+    public void reassign(UUID deliveryUserId, UUID coLoaderId, UUID deliveryBranchId) {
+        reassign(deliveryUserId, deliveryBranchId);
+        this.coLoaderId = coLoaderId;
     }
 
     /** Signature/photo capture urls are no longer stored here — see {@code ShipmentAsset}

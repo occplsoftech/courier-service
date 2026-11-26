@@ -83,6 +83,7 @@ public class ManifestServiceImpl implements ManifestService {
     private final ManifestRepository manifestRepository;
     private final ShipmentService shipmentService;
     private final VehicleService vehicleService;
+    private final CoLoaderService coLoaderService;
     private final UserService userService;
     private final AuditService auditService;
     private final EwayBillService ewayBillService;
@@ -235,6 +236,15 @@ public class ManifestServiceImpl implements ManifestService {
     @PreAuthorize("hasAuthority('MANIFEST_DISPATCH')")
     public Manifest dispatch(UUID id, UUID vehicleId, UUID driverUserId, Instant departureTime,
             BigDecimal fuelCost, BigDecimal driverAdvance, BigDecimal tollAmount, BigDecimal otherAmount) {
+        return dispatch(id, vehicleId, driverUserId, departureTime, fuelCost, driverAdvance, tollAmount, otherAmount, null, null, null);
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize("hasAuthority('MANIFEST_DISPATCH')")
+    public Manifest dispatch(UUID id, UUID vehicleId, UUID driverUserId, Instant departureTime,
+            BigDecimal fuelCost, BigDecimal driverAdvance, BigDecimal tollAmount, BigDecimal otherAmount,
+            UUID coLoaderId, String forwardingNumber, Integer bagsCount) {
         UUID companyId = requireCompany();
         Manifest manifest = loadOrThrow(id, companyId);
 
@@ -264,14 +274,26 @@ public class ManifestServiceImpl implements ManifestService {
             }
         }
 
-        Vehicle vehicle = vehicleService.getById(vehicleId);
-        if (!vehicle.isActive()) {
-            throw new BusinessRuleException(
-                    "Vehicle %s is not active.".formatted(vehicle.getVehicleNumber()));
+        // A trip goes with our own vehicle and driver, or is handed to a co-loader (the earlier portal's outscan
+        // asked only for the co-loader). Each one given is checked.
+        if (vehicleId != null) {
+            Vehicle vehicle = vehicleService.getById(vehicleId);
+            if (!vehicle.isActive()) {
+                throw new BusinessRuleException(
+                        "Vehicle %s is not active.".formatted(vehicle.getVehicleNumber()));
+            }
         }
         // A driver is any real user of this company — see the module doc for why no
         // company role currently models "driver" cleanly enough to restrict further.
-        userService.getById(driverUserId);
+        if (driverUserId != null) {
+            userService.getById(driverUserId);
+        }
+        if (coLoaderId != null) {
+            coLoaderService.requireActive(coLoaderId);
+        }
+        manifest.setCoLoaderId(coLoaderId);
+        manifest.setForwardingNumber(forwardingNumber == null || forwardingNumber.isBlank() ? null : forwardingNumber.trim());
+        manifest.setBagsCount(bagsCount);
 
         String statusBefore = manifest.getStatus().name();
         manifest.dispatch(vehicleId, driverUserId, departureTime, fuelCost, driverAdvance, tollAmount, otherAmount);
@@ -304,8 +326,11 @@ public class ManifestServiceImpl implements ManifestService {
         // throws for a provider-side reason — a manifest dispatch must never fail
         // because of an E-Way Bill provider outage.
         try {
-            ewayBillService.triggerPartBForShipments(dispatchedShipmentIds, vehicle.getVehicleNumber(),
-                    null, "ROAD");
+            if (vehicleId != null) {
+                // Part-B needs a vehicle number; a co-loader trip without our vehicle has none to give.
+                ewayBillService.triggerPartBForShipments(dispatchedShipmentIds, vehicleService.getById(vehicleId).getVehicleNumber(),
+                        null, "ROAD");
+            }
         } catch (Exception e) {
             log.error("E-Way Bill Part-B trigger failed for manifest {} ({}) in company {}: {}",
                     saved.getManifestNumber(), saved.getId(), companyId, e.getMessage());

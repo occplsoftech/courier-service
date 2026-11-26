@@ -209,6 +209,7 @@ public class ShipmentServiceImpl implements ShipmentService {
     private final SmsProvider smsProvider;
     private final ObjectMapper objectMapper;
     private final ShipmentPaymentService shipmentPaymentService;
+    private final com.courier.modules.manifest.application.CoLoaderService coLoaderLookup;
 
     // ------------------------------------------------------------------- create
 
@@ -1669,7 +1670,7 @@ public class ShipmentServiceImpl implements ShipmentService {
             eventPublisher.publishEvent(new ShipmentEvent.Dispatched(s.getId(), companyId, Instant.now()));
         }
         auditService.record(AuditAction.MANIFEST_DISPATCHED, "Manifest", manifestId,
-                Map.of("shipmentCount", saved.size(), "vehicleId", vehicleId.toString()));
+                Map.of("shipmentCount", saved.size(), "vehicleId", String.valueOf(vehicleId)));
         return saved;
     }
 
@@ -1904,21 +1905,37 @@ public class ShipmentServiceImpl implements ShipmentService {
     @PreAuthorize(WRITERS)
     public BulkMovementResult assignOutForDelivery(Collection<UUID> shipmentIds, UUID deliveryUserId,
                                                     UUID vehicleId, BigDecimal fuelCost, BigDecimal deliveryCharge) {
+        return assignOutForDelivery(shipmentIds, deliveryUserId, vehicleId, fuelCost, deliveryCharge, null);
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(WRITERS)
+    public BulkMovementResult assignOutForDelivery(Collection<UUID> shipmentIds, UUID deliveryUserId,
+                                                    UUID vehicleId, BigDecimal fuelCost, BigDecimal deliveryCharge,
+                                                    UUID coLoaderId) {
         UUID companyId = requireCompany();
-        userService.getById(deliveryUserId); // 404s if foreign/missing — no role restriction, see module doc
+        if ((deliveryUserId == null) == (coLoaderId == null)) {
+            throw new BusinessRuleException("Choose the delivery boy or the co-loader who delivers these shipments.");
+        }
+        if (deliveryUserId != null) {
+            userService.getById(deliveryUserId); // 404s if foreign/missing — no role restriction, see module doc
+        } else {
+            coLoaderLookup.requireActive(coLoaderId);
+        }
 
         String drsNumber = nextDrsNumber(companyId);
         List<MovementOutcome> outcomes = new ArrayList<>();
         for (UUID shipmentId : shipmentIds) {
             outcomes.add(assignOneOutForDelivery(companyId, shipmentId, deliveryUserId, drsNumber,
-                    vehicleId, fuelCost, deliveryCharge));
+                    vehicleId, fuelCost, deliveryCharge, coLoaderId));
         }
         return new BulkMovementResult(outcomes, drsNumber);
     }
 
     private MovementOutcome assignOneOutForDelivery(UUID companyId, UUID shipmentId, UUID deliveryUserId,
                                                       String drsNumber, UUID vehicleId, BigDecimal fuelCost,
-                                                      BigDecimal deliveryCharge) {
+                                                      BigDecimal deliveryCharge, UUID coLoaderId) {
         Shipment shipment = shipmentRepository.findByIdWithinCompany(shipmentId, companyId).orElse(null);
         if (shipment == null) {
             return new MovementOutcome(shipmentId.toString(), false, "No such shipment.");
@@ -1960,9 +1977,10 @@ public class ShipmentServiceImpl implements ShipmentService {
         if (assignment.isNew()) {
             assignment.setDeliveryBranchId(shipment.getDeliveryBranchId());
             assignment.setDeliveryUserId(deliveryUserId);
+            assignment.setCoLoaderId(coLoaderId);
             assignment.setAssignedAt(Instant.now());
         } else {
-            assignment.reassign(deliveryUserId, shipment.getDeliveryBranchId());
+            assignment.reassign(deliveryUserId, coLoaderId, shipment.getDeliveryBranchId());
         }
         assignment.setDrsNumber(drsNumber);
         assignment.setVehicleId(vehicleId);
@@ -1981,7 +1999,9 @@ public class ShipmentServiceImpl implements ShipmentService {
             settleArrivalAtDeliveryBranch(saved, companyId, saved.getBookingBranchId());
         }
         auditService.record(AuditAction.SHIPMENT_OUT_FOR_DELIVERY_ASSIGNED, ENTITY, saved.getId(),
-                Map.of("shipmentNumber", saved.getShipmentNumber(), "deliveryUserId", deliveryUserId.toString()));
+                deliveryUserId != null
+                        ? Map.of("shipmentNumber", saved.getShipmentNumber(), "deliveryUserId", deliveryUserId.toString())
+                        : Map.of("shipmentNumber", saved.getShipmentNumber(), "coLoaderId", coLoaderId.toString()));
         eventPublisher.publishEvent(new ShipmentEvent.OutForDelivery(saved.getId(), companyId, Instant.now()));
         return new MovementOutcome(saved.getShipmentNumber(), true, null);
     }
@@ -2783,7 +2803,7 @@ public class ShipmentServiceImpl implements ShipmentService {
         }
 
         return rows.stream()
-                .collect(Collectors.groupingBy(d -> new DrsGroupKey(d.getDeliveryUserId(),
+                .collect(Collectors.groupingBy(d -> new DrsGroupKey(d.getDeliveryUserId(), d.getCoLoaderId(),
                         d.getDeliveryBranchId(), d.getAssignedAt().atZone(ZoneOffset.UTC).toLocalDate())))
                 .entrySet().stream()
                 .map(e -> {
@@ -2791,7 +2811,7 @@ public class ShipmentServiceImpl implements ShipmentService {
                             .filter(d -> d.getStatus() == DeliveryAssignmentStatus.DELIVERED).count();
                     return new DrsSummary(e.getKey().deliveryUserId(), e.getKey().deliveryBranchId(),
                             e.getKey().runDate(), representativeDrsNumber(e.getValue()), e.getValue().size(),
-                            (int) delivered, e.getValue().size() - (int) delivered);
+                            (int) delivered, e.getValue().size() - (int) delivered, e.getKey().coLoaderId());
                 })
                 .sorted(Comparator.comparing(DrsSummary::runDate).reversed())
                 .toList();
@@ -2801,12 +2821,20 @@ public class ShipmentServiceImpl implements ShipmentService {
     @Transactional(readOnly = true)
     @PreAuthorize(READERS)
     public DrsDetail getDrsDetail(UUID deliveryUserId, UUID deliveryBranchId, LocalDate runDate) {
+        return getDrsDetail(deliveryUserId, null, deliveryBranchId, runDate);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize(READERS)
+    public DrsDetail getDrsDetail(UUID deliveryUserId, UUID coLoaderId, UUID deliveryBranchId, LocalDate runDate) {
         UUID companyId = requireCompany();
         List<DeliveryAssignment> assignments = deliveryAssignmentRepository.findByCompanyAndAssignedAtBetween(
                 companyId, runDate.atStartOfDay(ZoneOffset.UTC).toInstant(),
                 runDate.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant())
                 .stream()
-                .filter(d -> d.getDeliveryUserId().equals(deliveryUserId)
+                .filter(d -> Objects.equals(d.getDeliveryUserId(), deliveryUserId)
+                        && Objects.equals(d.getCoLoaderId(), coLoaderId)
                         && d.getDeliveryBranchId().equals(deliveryBranchId))
                 .toList();
         if (assignments.isEmpty()) {
@@ -2842,7 +2870,7 @@ public class ShipmentServiceImpl implements ShipmentService {
                 .filter(Objects::nonNull).findFirst().orElse(null);
     }
 
-    private record DrsGroupKey(UUID deliveryUserId, UUID deliveryBranchId, LocalDate runDate) {
+    private record DrsGroupKey(UUID deliveryUserId, UUID coLoaderId, UUID deliveryBranchId, LocalDate runDate) {
     }
 
     // ------------------------------------------------------------- cross-module
