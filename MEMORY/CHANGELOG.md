@@ -8,6 +8,16 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-26 — All to all rate calculator
+
+- `POST /api/v1/rate-calculator` {fromPincode, toPincode, weightKg, packageTypeId?, customerId?, declaredValue?}: every
+  active service type priced for the route, in booking order (customer rate structure, customer pricing zone, Zone
+  Tariff; District Level Freight needs a branch, so it is not tried). Each row: source, basis, chargeable kg, freight,
+  other charges, GST at the company's GST %, total, delivery (pincode TAT or the service's days), or the reason it has no
+  price (network does not deliver, no rate, a refusal from the source). `AllRateCalculatorService`, not transactional
+  itself so one service's refusal stays on its own row.
+- Web: Zone Tariff → All to All Rate Calculator.
+
 ## 2026-11-25 — Business customer rate structure import (the printed rate card)
 
 - **V177** `customer_structure_rates`: per customer and service type, per-kg rates by origin region (NORTH, SOUTH, EAST,
