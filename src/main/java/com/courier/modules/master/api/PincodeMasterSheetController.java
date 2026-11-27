@@ -31,11 +31,14 @@ public class PincodeMasterSheetController {
     /** One sheet row, column for column. Every value is the text the sheet shows. */
     public record SheetRowResponse(Integer rowNo, String pincode, String city, String state, String region, String zone,
                                    String docIsOda, String docServ, String docTat, String surfaceServ,
-                                   String surfaceTat, String airService, String airTat) {
+                                   String surfaceTat, String airService, String airTat, String airCargoTat,
+                                   String surfaceCargoTat, String airCargoOda, String surfaceCargoOda, String premiumService,
+                                   String premiumTat) {
         static SheetRowResponse of(PincodeMasterSheetRow r) {
             return new SheetRowResponse(r.getRowNo(), r.getPincode(), r.getCity(), r.getState(), r.getRegion(),
                     r.getZone(), r.getDocIsOda(), r.getDocServ(), r.getDocTat(), r.getSurfaceServ(), r.getSurfaceTat(),
-                    r.getAirService(), r.getAirTat());
+                    r.getAirService(), r.getAirTat(), r.getAirCargoTat(), r.getSurfaceCargoTat(), r.getAirCargoOda(),
+                    r.getSurfaceCargoOda(), r.getPremiumService(), r.getPremiumTat());
         }
     }
 

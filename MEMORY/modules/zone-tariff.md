@@ -131,6 +131,11 @@ Service Type master: `SURFACE`, `AIR`, `PREMIUM`, `CARGO`. Package Type master: 
 - Owner's four sample sheets (2026-11-27): Aexonic 24 lanes, Adinath 41, Chandukaka 70 (incl. LAPTOP Per Box) passed;
   A&A Global had 20 swapped rows in 13 Non Document lanes, to be fixed in the sheet.
 
+## Rate zones from the customers' sheets (V186, 2026-11-27)
+OCCPL's zones: PUNE, X_PUNE, MAHARASHTRA, X_MAHARASHTRA, VIDHARBHA, METRO, WEST, CENTRAL, SOUTH, NORTH, EAST, NORTH_EAST
+(REST_OF_INDIA removed). Built from the 2026-11-27 pincode master: metros by pincode range, Rest of India by the sheet's
+zone column, the North East region split by state. See CHANGELOG 2026-11-27 for the ranges and the copied lanes.
+
 ## Next
 - Excel import (built 2026-10-28): header row found in the first 15 rows ("Admin" title row first); names matched ignoring case
   and punctuation against codes and names ("BY AIR" → AIR, "Document" → DOC by prefix, "EX PUNE" → EXPUNE); a row with State/City

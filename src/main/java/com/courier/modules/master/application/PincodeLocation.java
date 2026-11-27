@@ -12,12 +12,25 @@ import java.util.UUID;
 public record PincodeLocation(UUID pincodeId, UUID areaId, UUID cityId, UUID districtId,
                               boolean serviceable, boolean codAvailable, boolean odaApplicable,
                               UUID regionalZoneId, NetworkCoverage doc, NetworkCoverage surface,
-                              NetworkCoverage air, String zone) {
+                              NetworkCoverage air, String zone, NetworkCoverage airCargo,
+                              NetworkCoverage surfaceCargo, NetworkCoverage premium) {
 
     public PincodeLocation {
         doc = NetworkCoverage.orNone(doc);
         surface = NetworkCoverage.orNone(surface);
         air = NetworkCoverage.orNone(air);
+        airCargo = NetworkCoverage.orNone(airCargo);
+        surfaceCargo = NetworkCoverage.orNone(surfaceCargo);
+        premium = NetworkCoverage.orNone(premium);
+    }
+
+    /** Without the V185 cargo and premium coverage. */
+    public PincodeLocation(UUID pincodeId, UUID areaId, UUID cityId, UUID districtId,
+                           boolean serviceable, boolean codAvailable, boolean odaApplicable,
+                           UUID regionalZoneId, NetworkCoverage doc, NetworkCoverage surface, NetworkCoverage air,
+                           String zone) {
+        this(pincodeId, areaId, cityId, districtId, serviceable, codAvailable, odaApplicable, regionalZoneId, doc, surface,
+                air, zone, null, null, null);
     }
 
     /** Without the pincode's zone text (PUNE, X - PUNE, NORTH EAST …). */
@@ -31,7 +44,7 @@ public record PincodeLocation(UUID pincodeId, UUID areaId, UUID cityId, UUID dis
     /** Without the V171 data: no regional zone, no per-network coverage. */
     public PincodeLocation(UUID pincodeId, UUID areaId, UUID cityId, UUID districtId,
                            boolean serviceable, boolean codAvailable, boolean odaApplicable) {
-        this(pincodeId, areaId, cityId, districtId, serviceable, codAvailable, odaApplicable, null, null, null, null, null);
+        this(pincodeId, areaId, cityId, districtId, serviceable, codAvailable, odaApplicable, null, null, null, null, (String) null);
     }
 
     public NetworkCoverage coverage(ServiceNetwork network) {
@@ -39,6 +52,9 @@ public record PincodeLocation(UUID pincodeId, UUID areaId, UUID cityId, UUID dis
             case DOCUMENT -> doc;
             case SURFACE -> surface;
             case AIR -> air;
+            case AIR_CARGO -> airCargo;
+            case SURFACE_CARGO -> surfaceCargo;
+            case PREMIUM -> premium;
         };
     }
 
