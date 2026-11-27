@@ -428,25 +428,29 @@ class TariffRateCardServiceImplTest {
     }
 
     @Test
-    @DisplayName("volumetricDivisors: each parcel service of today's active cards; document-only services left out")
+    @DisplayName("volumetricDivisors: every active service type, its own divisor or 5000; a card's own divisor wins")
     void volumetricDivisors() {
         RateCardDetail card = activeCard();
         service.saveLane(card.card().getId(), parcels(surface, "150", "60"));
+        ServiceType cargo = new ServiceType();
+        cargo.setCode("CARGO");
+        cargo.setVolumetricDivisor(2700);
+        cargo.setPriority(3);
         surface.setVolumetricDivisor(4500);
         surface.setPriority(1);
         air.setPriority(2);
+        when(serviceTypeService.search(any(), any())).thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(cargo, air, surface)));
         when(cards.search(eq(COMPANY), any(), eq(TariffStatus.ACTIVE), any())).thenAnswer(i -> live(savedCards).stream()
                 .filter(c -> c.getStatus() == TariffStatus.ACTIVE).toList());
-        java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
-        assertThat(card.card().covers(today)).isTrue();
 
-        // AIR has documents only on this card, so only SURFACE prices parcels
-        assertThat(quotes.volumetricDivisors()).containsExactly(new TariffQuoteService.ServiceDivisor("SURFACE", "Surface", 4500));
-
-        service.saveLane(card.card().getId(), parcels(air, "300", "250"));
+        // CARGO has no rate card lane, AIR documents only: listed all the same
         assertThat(quotes.volumetricDivisors()).extracting(TariffQuoteService.ServiceDivisor::serviceTypeCode,
                 TariffQuoteService.ServiceDivisor::divisor).containsExactly(org.assertj.core.groups.Tuple.tuple("SURFACE", 4500),
-                org.assertj.core.groups.Tuple.tuple("AIR", 5000));
+                org.assertj.core.groups.Tuple.tuple("AIR", 5000), org.assertj.core.groups.Tuple.tuple("CARGO", 2700));
+
+        card.card().setVolumetricDivisor(6000);
+        assertThat(quotes.volumetricDivisors()).extracting(TariffQuoteService.ServiceDivisor::divisor)
+                .containsExactly(6000, 6000, 2700);
     }
 
     @Test
