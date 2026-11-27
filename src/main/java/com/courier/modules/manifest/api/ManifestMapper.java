@@ -31,7 +31,7 @@ public class ManifestMapper {
 
     public ManifestCriteria toCriteria(ManifestSearchRequest r) {
         ManifestSearchRequest safe = r == null ? ManifestSearchRequest.empty() : r;
-        return new ManifestCriteria(safe.status(), safe.bookingBranchId(), safe.deliveryBranchId(), safe.search(), safe.flowType());
+        return new ManifestCriteria(safe.status(), safe.bookingBranchId(), safe.deliveryBranchId(), safe.search(), safe.flowType(), safe.sent());
     }
 
     public ManifestResponse toResponse(Manifest m, ManifestShipmentAggregate aggregate) {

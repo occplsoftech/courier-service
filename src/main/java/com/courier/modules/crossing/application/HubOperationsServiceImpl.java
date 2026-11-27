@@ -253,7 +253,7 @@ public class HubOperationsServiceImpl implements HubOperationsService {
                         Sort.by(Sort.Direction.DESC, "createdAt")))
                 .getContent();
         long dispatchedToday = hubManifests.stream()
-                .filter(m -> m.getStatus() == ManifestStatus.DISPATCHED)
+                .filter(Manifest::isDispatched)
                 .filter(m -> m.getDispatchedAt() != null && !m.getDispatchedAt().isBefore(from)
                         && m.getDispatchedAt().isBefore(to))
                 .count();

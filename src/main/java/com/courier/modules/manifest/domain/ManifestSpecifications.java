@@ -22,6 +22,9 @@ public final class ManifestSpecifications {
             if (safe.status() != null) {
                 predicates.add(cb.equal(root.get("status"), safe.status()));
             }
+            if (Boolean.TRUE.equals(safe.sent())) {
+                predicates.add(cb.notEqual(root.get("status"), ManifestStatus.CREATED));
+            }
             if (safe.bookingBranchId() != null) {
                 predicates.add(cb.equal(root.get("bookingBranchId"), safe.bookingBranchId()));
             }

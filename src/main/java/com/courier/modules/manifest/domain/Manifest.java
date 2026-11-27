@@ -176,6 +176,13 @@ public class Manifest extends CompanyOwnedEntity {
         return status != ManifestStatus.CREATED;
     }
 
+    /** Every shipment on it has been received off the road: the manifest is closed (shown as "Received"). */
+    public void complete() {
+        if (status == ManifestStatus.DISPATCHED) {
+            this.status = ManifestStatus.COMPLETED;
+        }
+    }
+
     /**
      * @throws BusinessRuleException already dispatched — a manifest's vehicle/driver are
      *         fixed at the moment it leaves, the same "point of no return" DISPATCH
