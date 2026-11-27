@@ -16,6 +16,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -63,6 +64,23 @@ public class PublicRateController {
     }
 
     public record RatesResponse(List<Rate> rates) {
+    }
+
+    /** {@code service} as in {@link Rate}: the service type's name, else its code. */
+    public record Divisor(String service, int divisor) {
+    }
+
+    public record DivisorsResponse(List<Divisor> divisors) {
+    }
+
+    @GetMapping
+    @Operation(summary = "Volumetric divisors (public)", description = "The L × W × H (cm) divisor each parcel service is "
+            + "priced with, for the website's volumetric weight calculator. Rate-limited per caller address.")
+    public ApiResponse<DivisorsResponse> divisors(HttpServletRequest http) {
+        limiter.check(clientIp(http));
+        return ApiResponse.success(new DivisorsResponse(service.divisors().stream()
+                .map(d -> new Divisor(d.serviceTypeName() == null ? d.serviceTypeCode() : d.serviceTypeName(), d.divisor()))
+                .toList()));
     }
 
     @PostMapping
