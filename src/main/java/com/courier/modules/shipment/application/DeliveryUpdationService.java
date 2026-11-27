@@ -1,10 +1,11 @@
 package com.courier.modules.shipment.application;
 
-import com.courier.modules.company.application.BranchService;
-import com.courier.modules.company.application.UserService;
+import com.courier.modules.company.domain.BranchRepository;
+import com.courier.modules.company.domain.CompanyUserRepository;
 import com.courier.modules.company.domain.Branch;
 import com.courier.modules.company.domain.User;
-import com.courier.modules.master.application.PackageTypeService;
+import com.courier.modules.master.domain.PackageType;
+import com.courier.modules.master.domain.PackageTypeRepository;
 import com.courier.modules.shipment.domain.DeliveryAssignment;
 import com.courier.modules.shipment.domain.DeliveryAssignmentRepository;
 import com.courier.modules.shipment.domain.DeliveryAssignmentStatus;
@@ -60,16 +61,19 @@ public class DeliveryUpdationService {
     private final DeliveryAssignmentRepository assignments;
     private final ShipmentRepository shipments;
     private final ShipmentAssetRepository assets;
-    private final UserService users;
-    private final BranchService branches;
-    private final PackageTypeService packageTypes;
+    // Names come straight from the company's own records, not from UserService / BranchService / PackageTypeService:
+    // those check whether the caller may *see* the record (a branch manager may not see another branch), and a refusal
+    // inside this read-only transaction marks it rollback-only, so the whole list failed with a 500 for branch users.
+    private final CompanyUserRepository users;
+    private final BranchRepository branches;
+    private final PackageTypeRepository packageTypes;
 
     @Transactional(readOnly = true)
     @PreAuthorize("isAuthenticated()")
     public Page<Row> list(Tab tab, String search, UUID branchId, int page, int size) {
         UUID companyId = CompanyContext.getCompanyId().orElseThrow(() -> new BusinessRuleException(
                 "No company is bound to this request."));
-        UUID branch = scopeBranch(branchId);
+        UUID branch = scopeBranch(branchId, companyId);
         String q = search == null || search.isBlank() ? null : "%" + search.trim().toLowerCase(Locale.ROOT) + "%";
         boolean delivered = tab == Tab.DELIVERED;
         Sort sort = delivered ? Sort.by(Sort.Order.desc("deliveredAt")) : Sort.by(Sort.Order.desc("assignedAt"));
@@ -87,7 +91,7 @@ public class DeliveryUpdationService {
                 if ("PHOTO".equalsIgnoreCase(a.getKind())) photos.putIfAbsent(a.getShipmentId(), a.getAssetUrl());
             }
         }
-        Names names = new Names();
+        Names names = new Names(companyId);
         return found.map(a -> {
             Shipment s = byId.get(a.getShipmentId());
             return new Row(a.getShipmentId(), s == null ? null : s.getTrackingNumber(), s == null ? null : s.getShipmentNumber(),
@@ -104,12 +108,12 @@ public class DeliveryUpdationService {
     }
 
     /** Company admins and the platform see any branch; everyone else only their own. */
-    private UUID scopeBranch(UUID requested) {
+    private UUID scopeBranch(UUID requested, UUID companyId) {
         AuthenticatedUser caller = SecurityUtils.requireCurrentUser();
         if (caller.isPlatformTier() || caller.hasRole(Roles.COMPANY_ADMIN)) {
             return requested;
         }
-        UUID own = users.getById(caller.userId()).getBranchId();
+        UUID own = users.findByIdWithinCompany(caller.userId(), companyId).map(User::getBranchId).orElse(null);
         if (own == null) {
             throw new BusinessRuleException("You are not assigned to a branch, so there are no deliveries to update.");
         }
@@ -118,13 +122,19 @@ public class DeliveryUpdationService {
 
     /** Per-call memo of id → display name. */
     private final class Names {
+        private final UUID companyId;
         private final Map<UUID, String> people = new HashMap<>();
         private final Map<UUID, String> offices = new HashMap<>();
         private final Map<UUID, String> packages = new HashMap<>();
 
+        Names(UUID companyId) {
+            this.companyId = companyId;
+        }
+
         String user(UUID id) {
             return id == null ? null : people.computeIfAbsent(id, k -> safe(() -> {
-                User u = users.getById(k);
+                User u = users.findByIdWithinCompany(k, companyId).orElse(null);
+                if (u == null) return null;
                 String full = ((u.getFirstName() == null ? "" : u.getFirstName()) + " "
                         + (u.getLastName() == null ? "" : u.getLastName())).trim();
                 return !full.isEmpty() ? full : u.getDisplayName();
@@ -133,13 +143,12 @@ public class DeliveryUpdationService {
 
         String branch(UUID id) {
             return id == null ? null : offices.computeIfAbsent(id, k -> safe(() -> {
-                Branch b = branches.getById(k);
-                return b.getBranchName();
+                return branches.findByIdWithinCompany(k, companyId).map(Branch::getBranchName).orElse(null);
             }));
         }
 
         String packageType(UUID id) {
-            return id == null ? null : packages.computeIfAbsent(id, k -> safe(() -> packageTypes.getById(k).getName()));
+            return id == null ? null : packages.computeIfAbsent(id, k -> safe(() -> packageTypes.findByIdWithinCompany(k, companyId).map(PackageType::getName).orElse(null)));
         }
     }
 
