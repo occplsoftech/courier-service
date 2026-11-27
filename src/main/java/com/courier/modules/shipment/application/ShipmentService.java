@@ -632,7 +632,7 @@ public interface ShipmentService {
                           String receiverName, String receiverAddress, String receiverContact, UUID paymentModeId,
                           BigDecimal netAmount, com.courier.modules.shipment.domain.ShipmentStatus status,
                           java.time.Instant deliveredAt, String ewayBillNumber,
-                          String fromCity, String toCity) {
+                          String fromCity, String toCity, BigDecimal codAmount, String deliveryPincode) {
     }
 
     record DrsDetail(UUID deliveryUserId, UUID deliveryBranchId, java.time.LocalDate runDate,

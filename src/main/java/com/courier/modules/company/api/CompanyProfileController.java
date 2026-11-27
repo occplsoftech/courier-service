@@ -67,6 +67,8 @@ public class CompanyProfileController {
                 company.getPostalCode(),
                 company.getGstNumber(),
                 mobile,
-                website));
+                website,
+                settings != null && settings.getSupportEmail() != null && !settings.getSupportEmail().isBlank()
+                        ? settings.getSupportEmail() : company.getEmail()));
     }
 }

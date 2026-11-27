@@ -239,7 +239,8 @@ public class ShipmentMapper {
                 charge == null ? null : charge.getCompanyCommissionOnBasicFreight(),
                 s.getStatus(), deliveredAt, s.getCreatedAt(), s.getVersion(), invoiceNumber, receivedAt,
                 ewayBillNumber, s.getNumberOfPackages(), undelivered(s), s.getCodAmount(), s.isRto(), s.isReturnPickup(),
-                s.getActualWeight(), s.getReceiverAddress(), s.getForwarderNumber());
+                s.getActualWeight(), s.getReceiverAddress(), s.getForwarderNumber(),
+                s.getServiceTypeId(), s.getDeliveryPincode());
     }
 
     public ShipmentItemResponse toResponse(ShipmentItem i) {
@@ -308,7 +309,8 @@ public class ShipmentMapper {
         return new com.courier.modules.shipment.api.dto.DrsShipmentRowResponse(
                 r.shipmentId(), r.shipmentNumber(), r.trackingNumber(),
                 r.receiverName(), r.receiverAddress(), r.receiverContact(), r.paymentModeId(),
-                r.netAmount(), r.status(), r.deliveredAt(), r.ewayBillNumber(), r.fromCity(), r.toCity());
+                r.netAmount(), r.status(), r.deliveredAt(), r.ewayBillNumber(), r.fromCity(), r.toCity(),
+                r.codAmount(), r.deliveryPincode());
     }
 
     public ShipmentDocumentResponse toResponse(ShipmentDocument d) {

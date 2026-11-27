@@ -2877,7 +2877,7 @@ public class ShipmentServiceImpl implements ShipmentService {
                     return new DrsShipmentRow(s.getId(), s.getShipmentNumber(), s.getTrackingNumber(),
                             s.getReceiverName(), s.getReceiverAddress(), s.getReceiverContact(), s.getPaymentModeId(),
                             netAmounts.get(s.getId()), s.getStatus(), a.getDeliveredAt(),
-                            ewayBillNumbers.get(s.getId()), s.getFromCity(), s.getToCity());
+                            ewayBillNumbers.get(s.getId()), s.getFromCity(), s.getToCity(), s.getCodAmount(), s.getDeliveryPincode());
                 })
                 .filter(Objects::nonNull)
                 .toList();
