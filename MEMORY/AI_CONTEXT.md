@@ -40,8 +40,14 @@ below are in `MEMORY/CHANGELOG.md` → 2026-11-27.
   Use it for any new print (see Rules → Print format).
 - **Company logo:** company admins upload it in Settings → Company Logo (V182, the other account's work). The
   OCCPL logo is uploaded on dev and prints on the THC.
+- **Pending Delivery → Generate DRS** has **Delivery Boy**, **Co-Loader** and **Vehicle No**, as on the earlier portal
+  (CW#92). Either a staff delivery boy **or** a co-loader delivers the run; picking one clears the other. Checked live
+  on dev: DRS000012 with co-loader BAJRANG - OTC. The DRS card shows "Delivery by: <name> (co-loader)".
+- **Who sees a manifest** (owner asked, 2026-11-27): a branch user sees manifests their branch made, plus those
+  addressed to their branch **only once dispatched** (`ManifestServiceImpl.ownBranchScope`). So the receiving branch
+  sees it under Manifest → Incoming, and its AWBs in Pending Inscan, only after Dispatch. A company admin sees all.
 
-**Test data on dev:** TEST_BR-000005…000015 are To-Pay test shipments, nearly all delivered. DRS000009 has no
+**Test data on dev:** TEST_BR-000005…000016 are To-Pay test shipments, nearly all delivered. DRS000009 has no
 parcels left. MFT-261124-4828 (TEST_BR → SAMPLE_PDP) is an old draft.
 
 
