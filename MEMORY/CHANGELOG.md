@@ -8,6 +8,14 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-27 — Delivery Updation: fix the 500 for branch users
+
+- `GET /shipment-movement/delivery-updation` failed with 500 for every non-admin: row names (booking branch, package
+  type, people) were looked up through `BranchService` / `UserService` / `PackageTypeService`, which refuse a branch
+  the caller may not see; the refusal was caught, but it had already marked the read-only transaction rollback-only.
+  Names now come from `BranchRepository` / `CompanyUserRepository` / `PackageTypeRepository`, scoped to the company.
+  Found in the live booking-to-delivery run on dev (as Shaniwar Peth's manager).
+
 ## 2026-11-27 — Outscan ASSIGN redesign, manifest Received, DRS per number, letterhead prints
 
 - **V181** `shipments.forwarder_number`: Scan → ASSIGN "With Forwarder No." sends `forwarderNumbers` (shipment id → number) on

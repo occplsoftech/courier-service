@@ -1,9 +1,9 @@
 package com.courier.modules.shipment.application;
 
-import com.courier.modules.company.application.BranchService;
-import com.courier.modules.company.application.UserService;
+import com.courier.modules.company.domain.BranchRepository;
+import com.courier.modules.company.domain.CompanyUserRepository;
 import com.courier.modules.company.domain.User;
-import com.courier.modules.master.application.PackageTypeService;
+import com.courier.modules.master.domain.PackageTypeRepository;
 import com.courier.modules.shipment.domain.DeliveryAssignmentRepository;
 import com.courier.modules.shipment.domain.DeliveryAssignmentStatus;
 import com.courier.modules.shipment.domain.ShipmentAssetRepository;
@@ -45,9 +45,9 @@ class DeliveryUpdationServiceTest {
     @Mock private DeliveryAssignmentRepository assignments;
     @Mock private ShipmentRepository shipments;
     @Mock private ShipmentAssetRepository assets;
-    @Mock private UserService users;
-    @Mock private BranchService branches;
-    @Mock private PackageTypeService packageTypes;
+    @Mock private CompanyUserRepository users;
+    @Mock private BranchRepository branches;
+    @Mock private PackageTypeRepository packageTypes;
     @InjectMocks private DeliveryUpdationService service;
 
     @BeforeEach
@@ -68,7 +68,7 @@ class DeliveryUpdationServiceTest {
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(u, null, u.authorities()));
         User user = new User();
         user.setBranchId(OWN_BRANCH);
-        when(users.getById(userId)).thenReturn(user);
+        when(users.findByIdWithinCompany(userId, COMPANY)).thenReturn(java.util.Optional.of(user));
     }
 
     @Test
@@ -87,5 +87,38 @@ class DeliveryUpdationServiceTest {
         service.list(DeliveryUpdationService.Tab.DELIVERED, null, null, 0, 20);
         verify(assignments).searchForUpdation(eq(COMPANY), eq(DeliveryAssignmentStatus.DELIVERED), isNull(), isNull(),
                 isNull(), any());
+    }
+
+    @Test
+    @DisplayName("a branch user's rows still name the booking branch, package and people of other branches")
+    void branchUserGetsOtherBranchNames() {
+        signIn(Roles.BRANCH_MANAGER);
+        UUID shipmentId = UUID.randomUUID(), bookingBranch = UUID.randomUUID(), rider = UUID.randomUUID(), pkg = UUID.randomUUID();
+        com.courier.modules.shipment.domain.DeliveryAssignment a = org.mockito.Mockito.mock(com.courier.modules.shipment.domain.DeliveryAssignment.class);
+        when(a.getShipmentId()).thenReturn(shipmentId);
+        when(a.getDeliveryUserId()).thenReturn(rider);
+        com.courier.modules.shipment.domain.Shipment s = org.mockito.Mockito.mock(com.courier.modules.shipment.domain.Shipment.class);
+        when(s.getId()).thenReturn(shipmentId);
+        when(s.getBookingBranchId()).thenReturn(bookingBranch);
+        when(s.getPackageTypeId()).thenReturn(pkg);
+        when(assignments.searchForUpdation(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(java.util.List.of(a)));
+        when(shipments.findAllByCompanyIdAndIdIn(eq(COMPANY), any())).thenReturn(java.util.List.of(s));
+        com.courier.modules.company.domain.Branch b = new com.courier.modules.company.domain.Branch();
+        b.setBranchName("Pune Test Branch");
+        when(branches.findByIdWithinCompany(bookingBranch, COMPANY)).thenReturn(java.util.Optional.of(b));
+        User r = new User();
+        r.setFirstName("Chandrakant");
+        r.setLastName("Borse");
+        when(users.findByIdWithinCompany(rider, COMPANY)).thenReturn(java.util.Optional.of(r));
+        com.courier.modules.master.domain.PackageType p = new com.courier.modules.master.domain.PackageType();
+        p.setName("Non Document");
+        when(packageTypes.findByIdWithinCompany(pkg, COMPANY)).thenReturn(java.util.Optional.of(p));
+
+        var row = service.list(DeliveryUpdationService.Tab.PENDING, null, null, 0, 20).getContent().get(0);
+
+        org.assertj.core.api.Assertions.assertThat(row.bookingBranch()).isEqualTo("Pune Test Branch");
+        org.assertj.core.api.Assertions.assertThat(row.deliveryPerson()).isEqualTo("Chandrakant Borse");
+        org.assertj.core.api.Assertions.assertThat(row.packageType()).isEqualTo("Non Document");
     }
 }
