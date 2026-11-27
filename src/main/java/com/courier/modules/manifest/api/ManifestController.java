@@ -147,4 +147,45 @@ public class ManifestController {
         manifestService.removeShipment(id, shipmentId);
         return ApiResponse.success("Shipment removed from the manifest");
     }
+
+    // ---- draft (CREATED) editing: Scan → Manifest tab → Edit, before Dispatch
+
+    /** Co-loader, own vehicle / driver and bags of a draft manifest. */
+    public record UpdateManifestDraftRequest(UUID coLoaderId, UUID vehicleId, UUID driverUserId,
+                                             @jakarta.validation.constraints.Min(0) @jakarta.validation.constraints.Max(9999) Integer bagsCount) {
+    }
+
+    public record AddManifestShipmentsRequest(@jakarta.validation.constraints.NotEmpty java.util.List<UUID> shipmentIds) {
+    }
+
+    public record ForwarderNumbersRequest(@jakarta.validation.constraints.NotNull Map<UUID, @jakarta.validation.constraints.Size(max = 60) String> forwarderNumbers) {
+    }
+
+    @org.springframework.web.bind.annotation.PatchMapping("/{id}")
+    @Operation(summary = "Change a draft manifest's trip details", description = "Only while CREATED: co-loader, vehicle, driver, bags.")
+    public ApiResponse<ManifestResponse> updateDraft(@PathVariable UUID id, @Valid @RequestBody UpdateManifestDraftRequest request) {
+        Manifest m = manifestService.updateDraft(id, request.coLoaderId(), request.vehicleId(), request.driverUserId(), request.bagsCount());
+        return ApiResponse.success(mapper.toResponse(m, aggregateFor(m.getId())));
+    }
+
+    @PostMapping("/{id}/shipments")
+    @Operation(summary = "Add shipments to a draft manifest", description = "Only while CREATED; same checks as create.")
+    public ApiResponse<ManifestResponse> addShipments(@PathVariable UUID id, @Valid @RequestBody AddManifestShipmentsRequest request) {
+        Manifest m = manifestService.addShipments(id, request.shipmentIds());
+        return ApiResponse.success(mapper.toResponse(m, aggregateFor(m.getId())));
+    }
+
+    @org.springframework.web.bind.annotation.PutMapping("/{id}/forwarder-numbers")
+    @Operation(summary = "Set the co-loader's number per AWB on a draft manifest", description = "Shipment id → number; blank clears.")
+    public ApiResponse<Void> setForwarderNumbers(@PathVariable UUID id, @Valid @RequestBody ForwarderNumbersRequest request) {
+        manifestService.setForwarderNumbers(id, request.forwarderNumbers());
+        return ApiResponse.success("Forwarder numbers saved");
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Delete a draft manifest", description = "Only while CREATED; its shipments go back to BOOKED (Pending Outscan).")
+    public ApiResponse<Void> deleteDraft(@PathVariable UUID id) {
+        manifestService.deleteDraft(id);
+        return ApiResponse.success("Manifest deleted");
+    }
 }
