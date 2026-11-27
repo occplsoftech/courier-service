@@ -7,6 +7,8 @@ import com.courier.modules.master.application.ServiceTypeService;
 import com.courier.modules.master.domain.PackageType;
 import com.courier.modules.master.domain.ServiceNetwork;
 import com.courier.modules.master.domain.ServiceType;
+import com.courier.modules.pricing.application.PricingProperties;
+import com.courier.modules.pricing.domain.VolumetricCalculator;
 import com.courier.modules.tariff.domain.TariffChargeRule;
 import com.courier.modules.tariff.domain.TariffChargeRuleRepository;
 import com.courier.modules.tariff.domain.TariffPriceCalculator;
@@ -28,6 +30,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +53,7 @@ public class TariffQuoteServiceImpl implements TariffQuoteService {
     private final ServiceTypeService serviceTypeService;
     private final PackageTypeService packageTypeService;
     private final PincodeService pincodeService;
+    private final PricingProperties pricingProperties;
 
     /** The card that prices shipments from the pickup pincode on the date, with where they start. */
     private record Origin(UUID companyId, TariffZoneService.Resolution from, TariffRateCard card) {
@@ -191,10 +195,47 @@ public class TariffQuoteServiceImpl implements TariffQuoteService {
         TariffPriceCalculator.Shipment shipment = new TariffPriceCalculator.Shipment(in.actualWeightKg(), in.lengthCm(),
                 in.widthCm(), in.heightCm(), in.pieces() == null ? 1 : in.pieces(), in.declaredValue(), in.cod(),
                 oda, packageType.isDocumentType(), destination.to().zone().getId(), serviceType.getId(),
-                packageType.getId(), fromState != null && Objects.equals(fromState, toState));
+                packageType.getId(), fromState != null && Objects.equals(fromState, toState),
+                serviceDivisor(serviceType)); // used only when the card has no divisor of its own
         TariffPriceCalculator.Price price = TariffPriceCalculator.price(origin.card(), lane, rules, shipment);
         return new Quote(origin.card(), origin.from(), destination.to(), serviceType.getId(), serviceType.getCode(),
                 serviceType.getName(), deliveryDays, packageType.getId(), packageType.getCode(), oda, price, tatHours);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize("isAuthenticated()")
+    public List<ServiceDivisor> volumetricDivisors() {
+        UUID companyId = requireCompany();
+        LocalDate today = LocalDate.now(INDIA);
+        Map<UUID, Boolean> documentType = new HashMap<>();
+        Map<UUID, ServiceType> services = new LinkedHashMap<>();
+        Map<UUID, Integer> divisors = new HashMap<>();
+        cards.search(companyId, null, TariffStatus.ACTIVE, null).stream()
+                .filter(c -> c.covers(today))
+                .sorted(Comparator.comparing(TariffRateCard::getEffectiveFrom).reversed())
+                .forEach(card -> slabs.findByCard(companyId, card.getId()).forEach(slab -> {
+                    if (divisors.containsKey(slab.getServiceTypeId())
+                            || documentType.computeIfAbsent(slab.getPackageTypeId(),
+                                    id -> packageTypeService.getById(id).isDocumentType())) {
+                        return;
+                    }
+                    ServiceType type = serviceTypeService.getById(slab.getServiceTypeId());
+                    services.put(type.getId(), type);
+                    divisors.put(type.getId(), card.getVolumetricDivisor() != null ? card.getVolumetricDivisor()
+                            : serviceDivisor(type));
+                }));
+        return services.values().stream()
+                .sorted(Comparator.comparing((ServiceType t) -> t.getPriority() == null ? 0 : t.getPriority())
+                        .thenComparing(ServiceType::getCode))
+                .map(t -> new ServiceDivisor(t.getCode(), t.getName(), divisors.get(t.getId())))
+                .toList();
+    }
+
+    /** As bookings weigh it: the service type's divisor, else the deployment default. */
+    private int serviceDivisor(ServiceType serviceType) {
+        return VolumetricCalculator.divisor(serviceType.getVolumetricDivisor(),
+                pricingProperties.toConfiguration().volumetricDivisor()).intValue();
     }
 
     private Optional<TariffRateCard> activeCard(UUID companyId, TariffZoneService.Resolution from, LocalDate date) {

@@ -71,6 +71,18 @@ class PublicRateServiceTest {
     }
 
     @Test
+    void divisorsForTheConfiguredCompanyWithoutRoles() {
+        when(quotes.volumetricDivisors()).thenAnswer(i -> {
+            assertThat(CompanyContext.getCompanyId()).contains(companyId);
+            assertThat(SecurityUtils.requireCurrentUser().authorities()).isEmpty();
+            return List.of(new TariffQuoteService.ServiceDivisor("SURFACE", "Surface", 4500));
+        });
+        assertThat(service.divisors()).extracting(TariffQuoteService.ServiceDivisor::divisor).containsExactly(4500);
+        assertThat(CompanyContext.isSet()).isFalse();
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    }
+
+    @Test
     void noOptionsMeansNoRate() {
         when(quotes.quoteAll(any())).thenReturn(new TariffQuoteService.Options(List.of(), List.of()));
         assertThatThrownBy(() -> service.rates(input)).hasMessage(PublicRateService.NO_RATE);

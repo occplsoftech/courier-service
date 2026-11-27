@@ -121,6 +121,22 @@ class TariffPriceCalculatorTest {
     }
 
     @Test
+    @DisplayName("a card without a divisor uses the shipment's (service type) divisor; the card's own divisor wins")
+    void volumetricFallbackDivisor() {
+        Shipment box = new Shipment(new BigDecimal("2"), new BigDecimal("40"), new BigDecimal("30"), new BigDecimal("20"),
+                2, null, false, false, false, CENTRAL, AIR, NONDOC, true, 4000);
+        assertThat(TariffPriceCalculator.price(card(null, TotalRounding.NONE), AIR_DOC, List.of(), box).chargeableWeightKg())
+                .isEqualByComparingTo("12");
+        assertThat(TariffPriceCalculator.price(card(5000, TotalRounding.NONE), AIR_DOC, List.of(), box).chargeableWeightKg())
+                .isEqualByComparingTo("9.6");
+
+        Shipment envelope = new Shipment(new BigDecimal("0.3"), new BigDecimal("40"), new BigDecimal("30"), new BigDecimal("20"),
+                1, null, false, false, true, CENTRAL, AIR, DOC, true, 4000);
+        assertThat(TariffPriceCalculator.price(card(null, TotalRounding.NONE), AIR_DOC, List.of(), envelope).chargeableWeightKg())
+                .isEqualByComparingTo("0.3");
+    }
+
+    @Test
     @DisplayName("charges, GST in the same state and rounding: fuel % of freight, hamali per kg with a minimum, docket not taxed")
     void fullQuoteSameState() {
         TariffChargeRule fuel = rule("FUEL", ChargeCalcMethod.PERCENT_OF_FREIGHT, "10");
