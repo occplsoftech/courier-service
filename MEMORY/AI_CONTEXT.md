@@ -5234,6 +5234,15 @@ Before implementing anything:
 The `MEMORY/` folder is the project's source of truth. If code and MEMORY disagree,
 MEMORY is wrong and must be corrected — never silently drift.
 
+**Print format (owner's decision, 2026-11-27): every printed sheet uses the same header** —
+"C · Boxed form": a bordered box with the company logo, the title (e.g. DELIVERY RUN SHEET,
+MANIFEST) over the office address / mobile / email, and a QR code of the sheet's number; under
+it a bordered grid of the sheet's details; then a grey-headed table. Table and details text are
+15 px (2 px above the old 13 px). Use `courier-web` `src/app/shared/utils/letterhead-print.util.ts`
+(`printLetterhead`) for any new print instead of a one-off layout. Letterhead data comes from
+`GET /company-profile` (logo, address, mobile, email, GSTIN). The DRS print keeps 38 mm rows so a
+receiver's stamp stays inside its own row.
+
 ---
 
 ## Invariants (never violate)

@@ -8,6 +8,20 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-27 — Outscan ASSIGN redesign, manifest Received, DRS per number, letterhead prints
+
+- **V181** `shipments.forwarder_number`: Scan → ASSIGN "With Forwarder No." sends `forwarderNumbers` (shipment id → number) on
+  `POST /shipment-movement/dispatch`; saved per AWB and printed. ASSIGN creates a Manifest (default) or a DRS; RTO moved to a
+  "Return to Origin" button on Pending Outscan.
+- A manifest closes as COMPLETED ("Received") once its last shipment is in-scanned (`ShipmentEvent.ArrivedOffManifest` →
+  `ManifestReceiptListener`, after commit). `GET /manifests?sent=true` = dispatched or received (THC report).
+- `GET /shipment-movement/drs` has one row per DRS number (pre-V31 rows still group by user + branch + day);
+  `/drs/detail` takes `drsNumber`. DRS detail rows carry `codAmount`, `deliveryPincode`; the detail carries `vehicleId`.
+- Shipment list rows add `actualWeight`, `receiverAddress`, `forwarderNumber`, `serviceTypeId`, `deliveryPincode`;
+  `/company-profile` adds `email`; pincode `/geo` adds `stateName`.
+- Prints: DRS and manifest use the house "Boxed form" header (see AI_CONTEXT → Rules → Print format), QR of the sheet number,
+  15 px text, 38 mm DRS rows for stamps.
+
 ## 2026-11-26 — Delivery Updation (as in the previous software)
 
 - **V179** (renumbered from V178, which co-loaders took) `delivery_assignment.receiver_relation`, `proof_type` (DROP, SIGNATURE, STAMP_AND_SIGN). `POST /shipment-movement/deliver`
