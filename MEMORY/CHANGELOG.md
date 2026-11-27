@@ -8,6 +8,10 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-27 — Delivery Updation: Delivered tab photo opens
+
+- The Delivered tab returned the POD photo's stored bucket address, which the private bucket refuses (403), so "View photo"
+  showed a broken image. It now goes through `SignedLinks` (1-hour signed link), like every other screen showing an upload.
 ## 2026-11-27 — Company admins upload the company logo
 
 - **V182** `companies.logo_data_url` (MEDIUMTEXT): the logo a company admin uploads, as a data: URL (PNG, JPEG or WebP,

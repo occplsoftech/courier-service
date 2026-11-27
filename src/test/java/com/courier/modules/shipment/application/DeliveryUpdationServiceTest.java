@@ -48,6 +48,7 @@ class DeliveryUpdationServiceTest {
     @Mock private CompanyUserRepository users;
     @Mock private BranchRepository branches;
     @Mock private PackageTypeRepository packageTypes;
+    @Mock private com.courier.modules.shipment.application.storage.SignedLinks links;
     @InjectMocks private DeliveryUpdationService service;
 
     @BeforeEach
@@ -120,5 +121,26 @@ class DeliveryUpdationServiceTest {
         org.assertj.core.api.Assertions.assertThat(row.bookingBranch()).isEqualTo("Pune Test Branch");
         org.assertj.core.api.Assertions.assertThat(row.deliveryPerson()).isEqualTo("Chandrakant Borse");
         org.assertj.core.api.Assertions.assertThat(row.packageType()).isEqualTo("Non Document");
+    }
+
+    @Test
+    @DisplayName("the Delivered tab's photo is a signed link, not the private bucket address")
+    void deliveredPhotoIsSigned() {
+        signIn(Roles.COMPANY_ADMIN);
+        UUID shipmentId = UUID.randomUUID();
+        com.courier.modules.shipment.domain.DeliveryAssignment a = org.mockito.Mockito.mock(com.courier.modules.shipment.domain.DeliveryAssignment.class);
+        when(a.getShipmentId()).thenReturn(shipmentId);
+        when(assignments.searchForUpdation(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(java.util.List.of(a)));
+        com.courier.modules.shipment.domain.ShipmentAsset photo = org.mockito.Mockito.mock(com.courier.modules.shipment.domain.ShipmentAsset.class);
+        when(photo.getShipmentId()).thenReturn(shipmentId);
+        when(photo.getKind()).thenReturn("PHOTO");
+        when(photo.getAssetUrl()).thenReturn("https://bucket/pod/photo.jpg");
+        when(assets.findByShipmentIdInAndAssetTypeWithinCompany(any(), any(), eq(COMPANY))).thenReturn(java.util.List.of(photo));
+        when(links.of("https://bucket/pod/photo.jpg")).thenReturn("https://bucket/pod/photo.jpg?X-Amz-Signature=abc");
+
+        var row = service.list(DeliveryUpdationService.Tab.DELIVERED, null, null, 0, 20).getContent().get(0);
+
+        org.assertj.core.api.Assertions.assertThat(row.photoUrl()).isEqualTo("https://bucket/pod/photo.jpg?X-Amz-Signature=abc");
     }
 }

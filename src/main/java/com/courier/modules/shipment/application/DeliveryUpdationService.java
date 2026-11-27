@@ -67,6 +67,8 @@ public class DeliveryUpdationService {
     private final CompanyUserRepository users;
     private final BranchRepository branches;
     private final PackageTypeRepository packageTypes;
+    /** The bucket is private: the stored photo address answers 403, so the Delivered tab gets a signed link. */
+    private final com.courier.modules.shipment.application.storage.SignedLinks links;
 
     @Transactional(readOnly = true)
     @PreAuthorize("isAuthenticated()")
@@ -90,6 +92,7 @@ public class DeliveryUpdationService {
             for (ShipmentAsset a : assets.findByShipmentIdInAndAssetTypeWithinCompany(ids, ShipmentAssetType.POD, companyId)) {
                 if ("PHOTO".equalsIgnoreCase(a.getKind())) photos.putIfAbsent(a.getShipmentId(), a.getAssetUrl());
             }
+            photos.replaceAll((id, url) -> links.of(url));
         }
         Names names = new Names(companyId);
         return found.map(a -> {
