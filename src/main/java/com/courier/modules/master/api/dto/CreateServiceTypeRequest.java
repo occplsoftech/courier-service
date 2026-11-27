@@ -33,7 +33,8 @@ public record CreateServiceTypeRequest(
                 + "empty uses the default (5000)", example = "5000")
         Integer volumetricDivisor,
         @Schema(description = "Network parcels on this service travel by, checked against the pincode's coverage: "
-                + "SURFACE or AIR; empty is SURFACE. Documents always use the document network.", example = "SURFACE")
+                + "SURFACE, AIR, AIR_CARGO, SURFACE_CARGO or PREMIUM; empty is SURFACE. Documents use the document network, "
+                + "except on PREMIUM.", example = "SURFACE")
         ServiceNetwork network
 ) {
 }

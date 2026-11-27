@@ -36,4 +36,11 @@ public class PincodeMasterSheetRow {
     @Column(name = "surface_tat") private String surfaceTat;
     @Column(name = "air_service") private String airService;
     @Column(name = "air_tat") private String airTat;
+    // V185 columns.
+    @Column(name = "air_cargo_tat") private String airCargoTat;
+    @Column(name = "surface_cargo_tat") private String surfaceCargoTat;
+    @Column(name = "air_cargo_oda") private String airCargoOda;
+    @Column(name = "surface_cargo_oda") private String surfaceCargoOda;
+    @Column(name = "premium_service") private String premiumService;
+    @Column(name = "premium_tat") private String premiumTat;
 }

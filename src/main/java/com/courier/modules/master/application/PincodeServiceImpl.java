@@ -195,7 +195,8 @@ public class PincodeServiceImpl extends AbstractMasterDataService<Pincode> imple
                             pincode.isServiceable(), pincode.isCodAvailable(), pincode.isOdaApplicable(),
                             pincode.getRegionalZoneId(), pincode.coverage(ServiceNetwork.DOCUMENT),
                             pincode.coverage(ServiceNetwork.SURFACE), pincode.coverage(ServiceNetwork.AIR),
-                            pincode.getZone());
+                            pincode.getZone(), pincode.coverage(ServiceNetwork.AIR_CARGO),
+                            pincode.coverage(ServiceNetwork.SURFACE_CARGO), pincode.coverage(ServiceNetwork.PREMIUM));
                 }));
     }
 

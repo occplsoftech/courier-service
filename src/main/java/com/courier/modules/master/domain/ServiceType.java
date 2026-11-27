@@ -68,11 +68,11 @@ public class ServiceType extends MasterDataEntity {
      * document network, whatever the service.
      */
     @Enumerated(EnumType.STRING)
-    @Column(name = "network", length = 10)
+    @Column(name = "network", length = 20)
     private ServiceNetwork network;
 
     public ServiceNetwork networkOrSurface() {
-        return network == ServiceNetwork.AIR ? ServiceNetwork.AIR : ServiceNetwork.SURFACE;
+        return network == null || network == ServiceNetwork.DOCUMENT ? ServiceNetwork.SURFACE : network;
     }
 
     @Override

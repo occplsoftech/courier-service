@@ -8,6 +8,26 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-27 — Latest pincode master (V185) and the customers' rate zones (V186)
+
+- **V185** (generated from `Pincode_Master_NEW - SHUBHAM.xls`, 19,127 pincodes): zone (Region) and regional zone (zone
+  column) re-set (unchanged from the 2024 sheet), Document / Surface / Air coverage refreshed (Doc TAT changed for about
+  13,000 pincodes), and new per-pincode coverage for **Air Cargo, Surface Cargo, Premium** (`master_pincodes.air_cargo_*`,
+  `surface_cargo_*`, `premium_*`). Cargo is serviceable when its ODA column is Y/N ("42" = no service); premium when "Yes".
+  `ServiceNetwork` gains AIR_CARGO, SURFACE_CARGO, PREMIUM (`master_service_types.network` VARCHAR(20)); services coded
+  AIR_CARGO, SURFACE_CARGO, PREMIUM/PRM use them. Documents use DOCUMENT coverage except on PREMIUM.
+  `pincode_master_sheet` replaced by the new sheet with its six extra columns.
+- **V186** (OCCPL companies): Zone Tariff zones are now PUNE, X_PUNE, MAHARASHTRA, X_MAHARASHTRA, VIDHARBHA, METRO, WEST,
+  CENTRAL, SOUTH, NORTH, EAST, NORTH_EAST, matching the old customer rate sheets. METRO = Mumbai 400001-400104, Delhi
+  110xxx, Kolkata 700001-700160, Chennai 600001-600130, Bengaluru 560xxx, Hyderabad 500001-500100. Rest of India split
+  by the sheet's zone column; the North East region split by state (8 north-eastern states = NORTH_EAST, rest = EAST).
+  Places rebuilt the V173 way; REST_OF_INDIA lanes and charges copied to METRO/WEST/CENTRAL/SOUTH/NORTH, NORTH_EAST's to
+  EAST, then REST_OF_INDIA removed. Mumbai and Kolkata now take the Rest of India rate on existing cards. Backup in
+  `backup_20261127_*`.
+- Web: service type Network offers Air Cargo / Surface Cargo / Premium; Pincode Master Sheet shows the new columns.
+- Checked on MySQL 8 with real pincodes and an OCCPL company seeded as on dev: all migrations apply, app starts with
+  schema validation, sample pincodes resolve to the expected zones, no pincode or city in two zones.
+
 ## 2026-11-27 — One cargo service (V184); EX / X zone names match
 
 - **V184**: a company whose cargo service has another code than CARGO (OCCPL dev: CRG "CARGO") kept it through V183 and got

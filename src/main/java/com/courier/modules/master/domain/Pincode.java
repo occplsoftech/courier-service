@@ -99,6 +99,25 @@ public class Pincode extends MasterDataEntity {
     private Boolean airOda;
     @Column(name = "air_tat_hours")
     private Integer airTatHours;
+    // Air cargo, surface cargo and premium coverage (V185).
+    @Column(name = "air_cargo_serviceable")
+    private Boolean airCargoServiceable;
+    @Column(name = "air_cargo_oda")
+    private Boolean airCargoOda;
+    @Column(name = "air_cargo_tat_hours")
+    private Integer airCargoTatHours;
+    @Column(name = "surface_cargo_serviceable")
+    private Boolean surfaceCargoServiceable;
+    @Column(name = "surface_cargo_oda")
+    private Boolean surfaceCargoOda;
+    @Column(name = "surface_cargo_tat_hours")
+    private Integer surfaceCargoTatHours;
+    @Column(name = "premium_serviceable")
+    private Boolean premiumServiceable;
+    @Column(name = "premium_oda")
+    private Boolean premiumOda;
+    @Column(name = "premium_tat_hours")
+    private Integer premiumTatHours;
 
     /** How {@code network} covers this pincode. */
     public NetworkCoverage coverage(ServiceNetwork network) {
@@ -106,6 +125,9 @@ public class Pincode extends MasterDataEntity {
             case DOCUMENT -> new NetworkCoverage(docServiceable, docOda, docTatHours);
             case SURFACE -> new NetworkCoverage(surfaceServiceable, surfaceOda, surfaceTatHours);
             case AIR -> new NetworkCoverage(airServiceable, airOda, airTatHours);
+            case AIR_CARGO -> new NetworkCoverage(airCargoServiceable, airCargoOda, airCargoTatHours);
+            case SURFACE_CARGO -> new NetworkCoverage(surfaceCargoServiceable, surfaceCargoOda, surfaceCargoTatHours);
+            case PREMIUM -> new NetworkCoverage(premiumServiceable, premiumOda, premiumTatHours);
         };
     }
 
@@ -115,6 +137,10 @@ public class Pincode extends MasterDataEntity {
             case DOCUMENT -> { docServiceable = c.serviceable(); docOda = c.oda(); docTatHours = c.tatHours(); }
             case SURFACE -> { surfaceServiceable = c.serviceable(); surfaceOda = c.oda(); surfaceTatHours = c.tatHours(); }
             case AIR -> { airServiceable = c.serviceable(); airOda = c.oda(); airTatHours = c.tatHours(); }
+            case AIR_CARGO -> { airCargoServiceable = c.serviceable(); airCargoOda = c.oda(); airCargoTatHours = c.tatHours(); }
+            case SURFACE_CARGO -> { surfaceCargoServiceable = c.serviceable(); surfaceCargoOda = c.oda();
+                surfaceCargoTatHours = c.tatHours(); }
+            case PREMIUM -> { premiumServiceable = c.serviceable(); premiumOda = c.oda(); premiumTatHours = c.tatHours(); }
         }
     }
 
