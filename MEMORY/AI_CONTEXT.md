@@ -7,6 +7,18 @@
 
 ## Current Version
 
+## HANDOFF — V187: zones, regions and customer rates cleared (2026-11-27, read before anything about pricing)
+
+On the owner's instruction ("delete all customer rates, and all zone, and all region", nothing loaded back) V187
+soft-deletes, for companies OCCPL and OCCPL_COURIER: **every Zone Tariff zone, place, rate card (PUNE_CASH_2025 and
+the customers' CUST-… cards), lane and charge**, and **all customer pricing** (pricing zones, zone rates, structure
+rates). Globally it soft-deletes the **Regional Zones master** (codes renamed `…~V187-<id>` so NORTH, SOUTH… can be
+created again) and blanks **every pincode's Zone and Regional zone**. Everything is copied first into
+`backup_20261127c_*` (pincode zones in `backup_20261127c_pincode_zones`). The raw sheet table `pincode_master_sheet` is
+untouched. Until the owner sets up new zones and rates, bookings are priced by District Level Freight or refused.
+Anything below that describes zones, regions or customer cards (incl. the V186 rate zones) describes the state before
+V187. **Next free Flyway migration: V188.**
+
 ## HANDOFF — update on 2026-11-27 (read this, then the 2026-11-20 block below)
 
 Two Claude accounts work on these repos at the same time: fetch `main` before branching, and check open PRs first.
