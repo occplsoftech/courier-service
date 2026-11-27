@@ -57,6 +57,12 @@ public interface ManifestService {
     Manifest dispatch(UUID id, UUID vehicleId, UUID driverUserId, Instant departureTime, BigDecimal fuelCost, BigDecimal driverAdvance,
                       BigDecimal tollAmount, BigDecimal otherAmount, UUID coLoaderId, String forwardingNumber, Integer bagsCount);
 
+    /** As above, plus "With Forwarder No.": shipment id → the co-loader's own number for that AWB, saved on each shipment.
+     *  Every key must be a shipment on this manifest. */
+    Manifest dispatch(UUID id, UUID vehicleId, UUID driverUserId, Instant departureTime, BigDecimal fuelCost, BigDecimal driverAdvance,
+                      BigDecimal tollAmount, BigDecimal otherAmount, UUID coLoaderId, String forwardingNumber, Integer bagsCount,
+                      java.util.Map<UUID, String> forwarderNumbers);
+
     /**
      * Removes one shipment from a still-{@code CREATED} manifest, reverting it to
      * {@code BOOKED} (via {@code ShipmentService.detachFromManifest}) so it can be picked

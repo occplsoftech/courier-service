@@ -101,7 +101,7 @@ public class ShipmentMovementController {
         Manifest manifest = manifestService.dispatch(request.manifestId(), request.vehicleId(),
                 request.driverUserId(), request.departureTime(),
                 request.fuelCost(), request.driverAdvance(), request.tollAmount(), request.otherAmount(),
-                request.coLoaderId(), request.forwardingNumber(), request.bagsCount());
+                request.coLoaderId(), request.forwardingNumber(), request.bagsCount(), request.forwarderNumbers());
         // The shipments themselves are already DISPATCHED by the time this call returns —
         // count them by that status rather than MANIFEST_CREATED, which none of them are
         // anymore. A DIRECT_COMPANY_DELIVERY manifest's shipments go one hop further, to
