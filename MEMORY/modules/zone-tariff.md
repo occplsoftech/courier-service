@@ -123,6 +123,7 @@ Service Type master: `SURFACE`, `AIR`, `PREMIUM`, `CARGO`. Package Type master: 
 - **Mode matching** (both imports): a word naming a package type plus a service ("LAPTOP-SURFACE" = SURFACE for LAPTOP); words in
   any order ("Cargo SURFACE" = SURFACE CARGO); then code/name; then a service holding every word, preferring surface ("Cargo" =
   SURFACE CARGO).
+- V184 then renamed a cargo service with another code (CRG) to SURFACE_CARGO and removed V183's empty duplicate. Zone names "EX…" and "X …" match each other in sheet imports.
 - V183 also renamed service type CARGO → SURFACE_CARGO "Surface Cargo" (same row, rates and bookings follow), added AIR_CARGO
   (network AIR) and package type LAPTOP for every company with service types.
 - Web (courier-web): Business Customer → Customer → row menu → **Upload Rates (Excel)** (`business-customer/customers/:id/upload-rates`,

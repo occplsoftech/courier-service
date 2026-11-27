@@ -230,7 +230,7 @@ public class CustomerTariffImportService {
                 .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
         String top = named.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey)
                 .orElseThrow(() -> new BusinessRuleException("The sheet names no From zone. Choose the from zone."));
-        TariffZone z = fromZones.get(top);
+        TariffZone z = TariffRateImportService.zone(fromZones, top);
         if (z == null) {
             throw new BusinessRuleException("No active from zone matches \"%s\" from the sheet. Create it or choose the from zone.".formatted(top));
         }
