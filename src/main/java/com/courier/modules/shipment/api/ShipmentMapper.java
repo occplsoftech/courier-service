@@ -240,7 +240,7 @@ public class ShipmentMapper {
                 s.getStatus(), deliveredAt, s.getCreatedAt(), s.getVersion(), invoiceNumber, receivedAt,
                 ewayBillNumber, s.getNumberOfPackages(), undelivered(s), s.getCodAmount(), s.isRto(), s.isReturnPickup(),
                 s.getActualWeight(), s.getReceiverAddress(), s.getForwarderNumber(),
-                s.getServiceTypeId(), s.getDeliveryPincode());
+                s.getServiceTypeId(), s.getDeliveryPincode(), s.getDestinationAreaId());
     }
 
     public ShipmentItemResponse toResponse(ShipmentItem i) {

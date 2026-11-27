@@ -55,6 +55,7 @@ public record ShipmentSummaryResponse(
         @io.swagger.v3.oas.annotations.media.Schema(description = "Receiver address, for the DRS table") String receiverAddress,
         @io.swagger.v3.oas.annotations.media.Schema(description = "The co-loader's own number for this AWB, given at outscan") String forwarderNumber,
         @io.swagger.v3.oas.annotations.media.Schema(description = "Service (Surface, Premium…), the manifest's Mode column") UUID serviceTypeId,
-        String deliveryPincode
+        String deliveryPincode,
+        @io.swagger.v3.oas.annotations.media.Schema(description = "The Area picked at booking (manifest print Destination)") UUID destinationAreaId
 ) {
 }
