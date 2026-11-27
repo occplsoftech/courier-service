@@ -40,6 +40,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -71,6 +72,15 @@ public class PublicTrackingServiceImpl implements PublicTrackingService {
     private final FileStoragePort fileStoragePort;
     private final PublicTrackVerificationLimiter verificationLimiter;
     private final java.util.Optional<com.courier.modules.shipment.domain.CourierBookingTrackingPort> courierBookings;
+
+    /** The delivery record, for a POD captured from Delivery Updation (no POD Review entry). Optional so the
+     *  hand-built service in tests keeps working; Spring always sets it. */
+    private com.courier.modules.shipment.domain.DeliveryAssignmentRepository deliveryAssignments;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setDeliveryAssignments(com.courier.modules.shipment.domain.DeliveryAssignmentRepository deliveryAssignments) {
+        this.deliveryAssignments = deliveryAssignments;
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -265,30 +275,65 @@ public class PublicTrackingServiceImpl implements PublicTrackingService {
     }
 
     /**
-     * Only surfaced once a human reviewer has approved the capture ({@code PASS}) — a
-     * shipment still awaiting review, or with a rejected capture, gets no POD block. Photo
-     * and signature links are always presigned here: this response goes to an
-     * unauthenticated caller, so a permanent link is never handed out, unlike the
-     * authenticated POD endpoints.
+     * Proof of delivery for a verified caller.
+     * <ul>
+     *   <li>POD Review approved the capture ({@code PASS}): shown, with the reviewer's delivered-by and time.</li>
+     *   <li>POD Review holds the capture (awaiting review or rejected): not shown; the reviewer's decision wins.</li>
+     *   <li>No POD Review entry (the delivery was saved from Delivery or Delivery Updation): shown once the shipment
+     *       is delivered, with the delivered time and who received it.</li>
+     * </ul>
+     * Photo and signature links are always presigned here: this response goes to an unauthenticated caller, so a
+     * permanent link is never handed out, unlike the authenticated POD endpoints.
      */
     private PublicTrackPodResponse resolvePod(Shipment shipment, UUID companyId) {
         Optional<PodVerification> latest = podVerificationRepository
                 .findLatestByShipmentIdWithinCompany(shipment.getId(), companyId);
-        if (latest.isEmpty() || latest.get().getVerificationStatus() != PodVerificationStatus.PASS) {
-            return null;
+        String deliveredBy;
+        Instant deliveredAt;
+        String receivedBy = null;
+        if (latest.isPresent()) {
+            if (latest.get().getVerificationStatus() != PodVerificationStatus.PASS) {
+                return null;
+            }
+            deliveredBy = latest.get().getDeliveredBy();
+            deliveredAt = latest.get().getVerifiedAt();
+        } else {
+            if (shipment.getStatus() != ShipmentStatus.DELIVERED || deliveryAssignments == null) {
+                return null;
+            }
+            var delivery = deliveryAssignments.findByShipmentIdWithinCompany(shipment.getId(), companyId)
+                    .filter(a -> a.getStatus() == com.courier.modules.shipment.domain.DeliveryAssignmentStatus.DELIVERED)
+                    .orElse(null);
+            if (delivery == null) {
+                return null;
+            }
+            deliveredBy = null;
+            deliveredAt = delivery.getDeliveredAt();
+            receivedBy = receivedBy(delivery.getReceiverName(), delivery.getReceiverRelation());
         }
-        PodVerification verification = latest.get();
 
         List<ShipmentAsset> assets = shipmentAssetRepository
                 .findAllByShipmentIdWithinCompany(shipment.getId(), companyId);
         String photoUrl = latestAssetUrl(assets, ShipmentAssetType.POD, "PHOTO");
         String signatureUrl = latestAssetUrl(assets, ShipmentAssetType.POD, "SIGNATURE");
+        if (latest.isEmpty() && photoUrl == null && signatureUrl == null && receivedBy == null) {
+            return null;
+        }
 
         return new PublicTrackPodResponse(
                 photoUrl != null ? fileStoragePort.presignGet(photoUrl, POD_LINK_TTL) : null,
                 signatureUrl != null ? fileStoragePort.presignGet(signatureUrl, POD_LINK_TTL) : null,
-                verification.getDeliveredBy(),
-                verification.getVerifiedAt());
+                deliveredBy,
+                deliveredAt,
+                receivedBy);
+    }
+
+    /** "Ramesh (Security)", "Ramesh", or null. */
+    private static String receivedBy(String name, String relation) {
+        if (name == null || name.isBlank()) {
+            return null;
+        }
+        return relation == null || relation.isBlank() ? name.trim() : name.trim() + " (" + relation.trim() + ")";
     }
 
     /** Same "newest row for this (type, kind) wins" idiom as {@code ShipmentMapper}. */
