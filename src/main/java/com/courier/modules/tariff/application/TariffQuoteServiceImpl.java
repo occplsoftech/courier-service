@@ -5,6 +5,8 @@ import com.courier.modules.master.application.PackageTypeService;
 import com.courier.modules.master.application.PincodeLocation;
 import com.courier.modules.master.application.PincodeService;
 import com.courier.modules.master.application.ServiceTypeService;
+import com.courier.modules.master.domain.MasterDataCriteria;
+import com.courier.modules.master.domain.MasterStatus;
 import com.courier.modules.master.domain.PackageType;
 import com.courier.modules.master.domain.ServiceNetwork;
 import com.courier.modules.master.domain.ServiceType;
@@ -24,6 +26,7 @@ import com.courier.shared.exception.BusinessRuleException;
 import com.courier.shared.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 
@@ -245,27 +249,19 @@ public class TariffQuoteServiceImpl implements TariffQuoteService {
     public List<ServiceDivisor> volumetricDivisors() {
         UUID companyId = requireCompany();
         LocalDate today = LocalDate.now(INDIA);
-        Map<UUID, Boolean> documentType = new HashMap<>();
-        Map<UUID, ServiceType> services = new LinkedHashMap<>();
-        Map<UUID, Integer> divisors = new HashMap<>();
+        // A card's own divisor overrides the service type's for the services it prices (newest card first).
+        Map<UUID, Integer> cardDivisors = new HashMap<>();
         cards.search(companyId, null, TariffStatus.ACTIVE, null).stream()
-                .filter(c -> c.covers(today))
+                .filter(c -> c.covers(today) && c.getVolumetricDivisor() != null)
                 .sorted(Comparator.comparing(TariffRateCard::getEffectiveFrom).reversed())
-                .forEach(card -> slabs.findByCard(companyId, card.getId()).forEach(slab -> {
-                    if (divisors.containsKey(slab.getServiceTypeId())
-                            || documentType.computeIfAbsent(slab.getPackageTypeId(),
-                                    id -> packageTypeService.getById(id).isDocumentType())) {
-                        return;
-                    }
-                    ServiceType type = serviceTypeService.getById(slab.getServiceTypeId());
-                    services.put(type.getId(), type);
-                    divisors.put(type.getId(), card.getVolumetricDivisor() != null ? card.getVolumetricDivisor()
-                            : serviceDivisor(type));
-                }));
-        return services.values().stream()
+                .forEach(card -> slabs.findByCard(companyId, card.getId())
+                        .forEach(slab -> cardDivisors.putIfAbsent(slab.getServiceTypeId(), card.getVolumetricDivisor())));
+        return serviceTypeService.search(new MasterDataCriteria(null, Set.of(MasterStatus.ACTIVE), null, null, Map.of()),
+                        PageRequest.of(0, 500)).getContent().stream()
                 .sorted(Comparator.comparing((ServiceType t) -> t.getPriority() == null ? 0 : t.getPriority())
                         .thenComparing(ServiceType::getCode))
-                .map(t -> new ServiceDivisor(t.getCode(), t.getName(), divisors.get(t.getId())))
+                .map(t -> new ServiceDivisor(t.getCode(), t.getName(),
+                        cardDivisors.getOrDefault(t.getId(), serviceDivisor(t))))
                 .toList();
     }
 
