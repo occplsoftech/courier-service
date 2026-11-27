@@ -96,7 +96,8 @@ class TariffRateCardServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new TariffRateCardServiceImpl(cards, slabs, charges, zones, serviceTypeService, packageTypeService, auditService);
-        quotes = new TariffQuoteServiceImpl(zoneService, cards, slabs, charges, serviceTypeService, packageTypeService, pincodeService);
+        quotes = new TariffQuoteServiceImpl(zoneService, cards, slabs, charges, serviceTypeService, packageTypeService, pincodeService,
+                new com.courier.modules.pricing.application.PricingProperties());
         CompanyContext.setCompanyId(COMPANY);
 
         pune = zone("PUNE", ZoneUsage.BOTH);
@@ -412,6 +413,48 @@ class TariffRateCardServiceImplTest {
     }
 
     @Test
+    @DisplayName("box size: parcels on a card without a divisor use the service type's divisor, else the default 5000; documents never")
+    void quoteBoxSize() {
+        RateCardDetail card = activeCard();
+        service.saveLane(card.card().getId(), parcels(air, "300", "250"));
+        service.saveLane(card.card().getId(), parcels(surface, "150", "60"));
+        surface.setVolumetricDivisor(4000);
+        pincodes();
+
+        TariffQuoteService.Options all = quotes.quoteAll(new TariffQuoteService.QuoteInput("411030", "462001", null, null,
+                BigDecimal.ONE, new BigDecimal("40"), new BigDecimal("30"), new BigDecimal("30"), 1, null, false,
+                LocalDate.of(2025, 6, 1)));
+
+        Map<String, BigDecimal> weight = new HashMap<>();
+        all.quotes().forEach(q -> weight.put(q.serviceTypeCode() + " " + q.packageTypeCode(), q.price().chargeableWeightKg()));
+        assertThat(weight.get("SURFACE NONDOC")).isEqualByComparingTo("9");
+        assertThat(weight.get("AIR NONDOC")).isEqualByComparingTo("7.2");
+        assertThat(weight.get("AIR DOC")).isEqualByComparingTo("1");
+    }
+
+    @Test
+    @DisplayName("volumetricDivisors: each parcel service of today's active cards; document-only services left out")
+    void volumetricDivisors() {
+        RateCardDetail card = activeCard();
+        service.saveLane(card.card().getId(), parcels(surface, "150", "60"));
+        surface.setVolumetricDivisor(4500);
+        surface.setPriority(1);
+        air.setPriority(2);
+        when(cards.search(eq(COMPANY), any(), eq(TariffStatus.ACTIVE), any())).thenAnswer(i -> live(savedCards).stream()
+                .filter(c -> c.getStatus() == TariffStatus.ACTIVE).toList());
+        java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
+        assertThat(card.card().covers(today)).isTrue();
+
+        // AIR has documents only on this card, so only SURFACE prices parcels
+        assertThat(quotes.volumetricDivisors()).containsExactly(new TariffQuoteService.ServiceDivisor("SURFACE", "Surface", 4500));
+
+        service.saveLane(card.card().getId(), parcels(air, "300", "250"));
+        assertThat(quotes.volumetricDivisors()).extracting(TariffQuoteService.ServiceDivisor::serviceTypeCode,
+                TariffQuoteService.ServiceDivisor::divisor).containsExactly(org.assertj.core.groups.Tuple.tuple("SURFACE", 4500),
+                org.assertj.core.groups.Tuple.tuple("AIR", 5000));
+    }
+
+    @Test
     @DisplayName("quoteAll: documents and parcels together, cheapest first; too-heavy lanes listed with why; uncovered pickup refused")
     void quoteAll() {
         RateCardDetail card = activeCard();
@@ -436,7 +479,7 @@ class TariffRateCardServiceImplTest {
                 .hasMessageContaining("No from zone covers pickup pincode 999999");
     }
 
-    // ------------------------------------------------- a business customer's own card (V182)
+    // ------------------------------------------------- a business customer's own card (V183)
 
     private static final UUID CUSTOMER = UUID.randomUUID();
 

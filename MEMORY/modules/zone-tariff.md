@@ -104,7 +104,7 @@ Service Type master: `SURFACE`, `AIR`, `PREMIUM`, `CARGO`. Package Type master: 
   left empty on purpose (its towns are also in the old MAHARASHTRA list, and only MAHARASHTRA has Cargo rates).
 - Still no zone: Andaman & Nicobar, Dadra & Nagar Haveli, Daman & Diu is WEST, Lakshadweep none. EXMAHARASHTRA stays empty.
 
-## A business customer's own card (V182, 2026-11-27)
+## A business customer's own card (V183, 2026-11-27)
 - `tariff_rate_cards.customer_id`: NULL = the company's card; set = that business customer's card. One per customer per from
   zone (code `CUST-<customer code>-<from zone>`). `findByFromZone` and the Rate Cards list are company cards only;
   `findByCustomer` lists a customer's. "Only one active card per from zone and date" is checked per owner.
@@ -123,7 +123,7 @@ Service Type master: `SURFACE`, `AIR`, `PREMIUM`, `CARGO`. Package Type master: 
 - **Mode matching** (both imports): a word naming a package type plus a service ("LAPTOP-SURFACE" = SURFACE for LAPTOP); words in
   any order ("Cargo SURFACE" = SURFACE CARGO); then code/name; then a service holding every word, preferring surface ("Cargo" =
   SURFACE CARGO).
-- V182 also renamed service type CARGO → SURFACE_CARGO "Surface Cargo" (same row, rates and bookings follow), added AIR_CARGO
+- V183 also renamed service type CARGO → SURFACE_CARGO "Surface Cargo" (same row, rates and bookings follow), added AIR_CARGO
   (network AIR) and package type LAPTOP for every company with service types.
 - Web (courier-web): Business Customer → Customer → row menu → **Upload Rates (Excel)** (`business-customer/customers/:id/upload-rates`,
   company admin, active business customers). The card opens in Zone Tariff → Rate Cards (`/zone-tariff/rate-cards/:id`).

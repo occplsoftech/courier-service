@@ -69,7 +69,7 @@ public class TariffRateCard extends CompanyOwnedEntity {
     @Builder.Default
     private BigDecimal gstPercent = new BigDecimal("18.00");
 
-    /** L × W × H (cm) divided by this gives volumetric kg. Null: this card prices on actual weight only. */
+    /** L × W × H (cm) divided by this gives volumetric kg. Null: the service type's divisor, else the deployment default. */
     @Column(name = "volumetric_divisor")
     private Integer volumetricDivisor;
 

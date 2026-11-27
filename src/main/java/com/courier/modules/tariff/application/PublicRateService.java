@@ -12,6 +12,7 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -35,9 +36,7 @@ public class PublicRateService {
     private String companyCode;
 
     public TariffQuoteService.Options rates(TariffQuoteService.QuoteInput input) {
-        UUID companyId = companies.findByCompanyCode(companyCode == null ? "" : companyCode.trim())
-                .filter(c -> c.isActive()).map(c -> c.getCompanyId())
-                .orElseThrow(() -> new BusinessRuleException(ErrorCode.SERVICE_UNAVAILABLE, "Online rates are not available right now."));
+        UUID companyId = companyId();
         TariffQuoteService.Options options;
         try {
             options = CompanyContext.runAs(companyId, () -> asPublic(companyId, () -> quotes.quoteAll(input)));
@@ -49,6 +48,18 @@ public class PublicRateService {
             throw new BusinessRuleException(NO_RATE);
         }
         return options;
+    }
+
+    /** The volumetric divisor of each parcel service the website's company prices online. Read-only. */
+    public List<TariffQuoteService.ServiceDivisor> divisors() {
+        UUID companyId = companyId();
+        return CompanyContext.runAs(companyId, () -> asPublic(companyId, quotes::volumetricDivisors));
+    }
+
+    private UUID companyId() {
+        return companies.findByCompanyCode(companyCode == null ? "" : companyCode.trim())
+                .filter(c -> c.isActive()).map(c -> c.getCompanyId())
+                .orElseThrow(() -> new BusinessRuleException(ErrorCode.SERVICE_UNAVAILABLE, "Online rates are not available right now."));
     }
 
     private static <T> T asPublic(UUID companyId, Supplier<T> action) {

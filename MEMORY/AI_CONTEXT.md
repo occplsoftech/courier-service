@@ -21,7 +21,7 @@ The project is being continued from another Claude account. Read this block firs
 
 Every merge to `main` deploys to dev: CS → the API, CW → https://courier.dev.occplsoftech.com, EC → the portal.
 
-**Status:** everything below is merged, deployed and checked live on dev. No PRs were open on 2026-11-20. The latest are CS#117 and CW#53. The next free Flyway migration is **V183** (2026-11-27): fetch `main` first in case someone has taken it.
+**Status:** everything below is merged, deployed and checked live on dev. No PRs were open on 2026-11-20. The latest are CS#117 and CW#53. The next free Flyway migration is **V184** (2026-11-27): fetch `main` first in case someone has taken it.
 
 **Done:**
 

@@ -39,6 +39,16 @@ public interface TariffQuoteService {
      */
     Options quoteAll(QuoteInput input);
 
+    /**
+     * The volumetric divisor each parcel service of today's active rate cards prices with: the card's own when it has
+     * one, else the service type's, else the deployment default — the divisor {@link #quote} uses. Services with
+     * document lanes only are left out (documents never use volumetric weight). Ordered by service priority, then code.
+     */
+    List<ServiceDivisor> volumetricDivisors();
+
+    record ServiceDivisor(String serviceTypeCode, String serviceTypeName, int divisor) {
+    }
+
     record Unavailable(String serviceTypeCode, String serviceTypeName, String packageTypeCode, String reason) {
     }
 
@@ -48,7 +58,7 @@ public interface TariffQuoteService {
     /**
      * {@code bookingDate} null means today (India time). Dimensions per piece in cm, optional. {@code customerId}: the
      * business customer booked for, or null; when that customer uses business rates, a lane on their own rate card
-     * (V182) prices before the company's card.
+     * (V183) prices before the company's card.
      */
     record QuoteInput(String originPincode, String destinationPincode, UUID serviceTypeId, UUID packageTypeId,
                       BigDecimal actualWeightKg, BigDecimal lengthCm, BigDecimal widthCm, BigDecimal heightCm,

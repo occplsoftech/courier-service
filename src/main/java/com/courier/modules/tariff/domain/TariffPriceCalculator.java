@@ -16,8 +16,9 @@ import java.util.UUID;
  * is tested on its own.
  *
  * <ol>
- *   <li>Chargeable weight: the larger of actual and volumetric (volumetric only when the card has a divisor and the
- *       package is not a document), rounded up to the gram.</li>
+ *   <li>Chargeable weight: the larger of actual and volumetric (never for documents), rounded up to the gram. The
+ *       divisor is the card's own when it has one, else the shipment's ({@link Shipment#volumetricDivisor()}: the
+ *       service type's divisor or the deployment default, as bookings use).</li>
  *   <li>Freight: the first slab whose upper weight reaches the chargeable weight. FIXED is its rate; PER_EXTRA_KG is the
  *       rate of the fixed slab before it plus {@code rate} for each step (1 kg) or part of a step above that slab;
  *       PER_BOX is its rate times the number of boxes (pieces).</li>
@@ -35,10 +36,21 @@ public final class TariffPriceCalculator {
     private TariffPriceCalculator() {
     }
 
-    /** What is being priced. Dimensions are per piece, in cm, and may be null. */
+    /**
+     * What is being priced. Dimensions are per piece, in cm, and may be null. {@code volumetricDivisor} is used when the
+     * card has none; null there too prices on actual weight only.
+     */
     public record Shipment(BigDecimal actualWeightKg, BigDecimal lengthCm, BigDecimal widthCm, BigDecimal heightCm,
                            int pieces, BigDecimal declaredValue, boolean cod, boolean oda, boolean document,
-                           UUID toZoneId, UUID serviceTypeId, UUID packageTypeId, boolean sameState) {
+                           UUID toZoneId, UUID serviceTypeId, UUID packageTypeId, boolean sameState,
+                           Integer volumetricDivisor) {
+
+        public Shipment(BigDecimal actualWeightKg, BigDecimal lengthCm, BigDecimal widthCm, BigDecimal heightCm,
+                        int pieces, BigDecimal declaredValue, boolean cod, boolean oda, boolean document,
+                        UUID toZoneId, UUID serviceTypeId, UUID packageTypeId, boolean sameState) {
+            this(actualWeightKg, lengthCm, widthCm, heightCm, pieces, declaredValue, cod, oda, document, toZoneId,
+                    serviceTypeId, packageTypeId, sameState, null);
+        }
     }
 
     public record Freight(BigDecimal amount, TariffRateSlab slab, TariffRateSlab baseSlab, int extraSteps, String basis) {
@@ -85,7 +97,8 @@ public final class TariffPriceCalculator {
     }
 
     static BigDecimal volumetric(TariffRateCard card, Shipment s, int pieces) {
-        if (card.getVolumetricDivisor() == null || s.document()
+        Integer divisor = card.getVolumetricDivisor() != null ? card.getVolumetricDivisor() : s.volumetricDivisor();
+        if (divisor == null || divisor <= 0 || s.document()
                 || s.lengthCm() == null || s.widthCm() == null || s.heightCm() == null) {
             return null;
         }
@@ -93,7 +106,7 @@ public final class TariffPriceCalculator {
             throw new BusinessRuleException("Length, width and height must be above 0 cm, or left empty.");
         }
         return s.lengthCm().multiply(s.widthCm()).multiply(s.heightCm()).multiply(BigDecimal.valueOf(pieces))
-                .divide(BigDecimal.valueOf(card.getVolumetricDivisor()), 3, RoundingMode.CEILING);
+                .divide(BigDecimal.valueOf(divisor), 3, RoundingMode.CEILING);
     }
 
     /** Freight for {@code weight} on one lane, one box. {@code laneSlabs} need not be sorted. */
