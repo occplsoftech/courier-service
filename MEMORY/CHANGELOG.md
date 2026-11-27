@@ -21,6 +21,14 @@ All notable changes to this project. Format based on
   `/company-profile` adds `email`; pincode `/geo` adds `stateName`.
 - Prints: DRS and manifest use the house "Boxed form" header (see AI_CONTEXT → Rules → Print format), QR of the sheet number,
   15 px text, 38 mm DRS rows for stamps.
+## 2026-11-27 — Public tracking shows the Delivery Updation photo
+
+- `POST /api/v1/track/{number}/verify` (receiver's phone, last 4 digits) now returns proof of delivery also when the delivery
+  was saved from Delivery / Delivery Updation with no POD Review entry: once the shipment is DELIVERED, the POD photo and
+  signature (15-minute presigned links), the delivered time and `receivedBy` ("Ramesh (Security)"). A capture POD Review
+  approved shows as before; one awaiting review or rejected stays hidden.
+- `PublicTrackPodResponse` gains `receivedBy`.
+- Web: the public Track Shipment page offers "Show proof of delivery" on a delivered shipment.
 
 ## 2026-11-26 — Delivery Updation (as in the previous software)
 
