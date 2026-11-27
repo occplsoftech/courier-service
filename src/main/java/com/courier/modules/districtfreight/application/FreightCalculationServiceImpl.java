@@ -145,7 +145,7 @@ public class FreightCalculationServiceImpl implements FreightCalculationService 
         if (originPincode != null) {
             FreightCalculationResult tariffPriced = zoneTariff.price(originPincode, coverage.pincodeCode(),
                             tariff.serviceTypeId(), tariff.packageTypeId(), chargeableWeight, tariff.pieces(), declaredValue,
-                            tariff.bookingDate())
+                            tariff.bookingDate(), businessCustomerId)
                     .map(p -> fromTariff(p, branch, coverage, chargeableWeight))
                     .orElse(null);
             if (tariffPriced != null) {

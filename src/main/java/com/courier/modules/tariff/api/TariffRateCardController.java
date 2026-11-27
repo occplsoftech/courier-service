@@ -254,6 +254,7 @@ public class TariffRateCardController {
                                      List<LaneResponse> lanes, List<ChargeResponse> charges) {
         return new CardResponse(c.getId(), c.getCode(), c.getName(), c.getFromZoneId(), fromZoneCode, c.getEffectiveFrom(),
                 c.getEffectiveTo(), c.getGstPercent(), c.getVolumetricDivisor(), c.getTotalRounding(), c.getDescription(),
-                c.getStatus(), laneCount, chargeCount, lanes, charges, c.getCreatedAt(), c.getUpdatedAt(), c.getVersion());
+                c.getStatus(), laneCount, chargeCount, lanes, charges, c.getCreatedAt(), c.getUpdatedAt(), c.getVersion(),
+                c.getCustomerId());
     }
 }

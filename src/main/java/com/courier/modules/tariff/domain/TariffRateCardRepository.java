@@ -14,7 +14,8 @@ public interface TariffRateCardRepository extends JpaRepository<TariffRateCard, 
     @Query("select c from TariffRateCard c where c.id = :id and c.companyId = :companyId")
     Optional<TariffRateCard> findByIdWithinCompany(@Param("id") UUID id, @Param("companyId") UUID companyId);
 
-    @Query("select c from TariffRateCard c where c.companyId = :companyId"
+    /** The company's own cards; a business customer's card is listed with that customer instead. */
+    @Query("select c from TariffRateCard c where c.companyId = :companyId and c.customerId is null"
             + " and (:fromZoneId is null or c.fromZoneId = :fromZoneId)"
             + " and (:status is null or c.status = :status)"
             + " and (:search is null or lower(c.code) like :search or lower(c.name) like :search)"
@@ -22,9 +23,19 @@ public interface TariffRateCardRepository extends JpaRepository<TariffRateCard, 
     List<TariffRateCard> search(@Param("companyId") UUID companyId, @Param("fromZoneId") UUID fromZoneId,
                                 @Param("status") TariffStatus status, @Param("search") String search);
 
-    @Query("select c from TariffRateCard c where c.companyId = :companyId and c.fromZoneId = :fromZoneId and c.status = :status")
+    /** The company's cards of a from zone (customer cards excluded). */
+    @Query("select c from TariffRateCard c where c.companyId = :companyId and c.customerId is null"
+            + " and c.fromZoneId = :fromZoneId and c.status = :status")
     List<TariffRateCard> findByFromZone(@Param("companyId") UUID companyId, @Param("fromZoneId") UUID fromZoneId,
                                         @Param("status") TariffStatus status);
+
+    /** One business customer's cards, newest start first; {@code fromZoneId} and {@code status} null = any. */
+    @Query("select c from TariffRateCard c where c.companyId = :companyId and c.customerId = :customerId"
+            + " and (:fromZoneId is null or c.fromZoneId = :fromZoneId)"
+            + " and (:status is null or c.status = :status)"
+            + " order by c.effectiveFrom desc")
+    List<TariffRateCard> findByCustomer(@Param("companyId") UUID companyId, @Param("customerId") UUID customerId,
+                                        @Param("fromZoneId") UUID fromZoneId, @Param("status") TariffStatus status);
 
     @Query("select count(c) > 0 from TariffRateCard c where c.companyId = :companyId"
             + " and c.code = :code and (:excludeId is null or c.id <> :excludeId)")

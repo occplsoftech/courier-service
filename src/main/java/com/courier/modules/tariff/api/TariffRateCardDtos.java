@@ -81,7 +81,8 @@ public final class TariffRateCardDtos {
                                LocalDate effectiveFrom, LocalDate effectiveTo, BigDecimal gstPercent,
                                Integer volumetricDivisor, TotalRounding totalRounding, String description,
                                TariffStatus status, int laneCount, int chargeCount, List<LaneResponse> lanes,
-                               List<ChargeResponse> charges, Instant createdDate, Instant updatedDate, Long version) {
+                               List<ChargeResponse> charges, Instant createdDate, Instant updatedDate, Long version,
+                               UUID customerId) {
     }
 
     public record QuoteRequest(

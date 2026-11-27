@@ -55,10 +55,21 @@ public interface TariffQuoteService {
     record Options(List<Quote> quotes, List<Unavailable> unavailable) {
     }
 
-    /** {@code bookingDate} null means today (India time). Dimensions per piece in cm, optional. */
+    /**
+     * {@code bookingDate} null means today (India time). Dimensions per piece in cm, optional. {@code customerId}: the
+     * business customer booked for, or null; when that customer uses business rates, a lane on their own rate card
+     * (V183) prices before the company's card.
+     */
     record QuoteInput(String originPincode, String destinationPincode, UUID serviceTypeId, UUID packageTypeId,
                       BigDecimal actualWeightKg, BigDecimal lengthCm, BigDecimal widthCm, BigDecimal heightCm,
-                      Integer pieces, BigDecimal declaredValue, boolean cod, LocalDate bookingDate) {
+                      Integer pieces, BigDecimal declaredValue, boolean cod, LocalDate bookingDate, UUID customerId) {
+
+        public QuoteInput(String originPincode, String destinationPincode, UUID serviceTypeId, UUID packageTypeId,
+                          BigDecimal actualWeightKg, BigDecimal lengthCm, BigDecimal widthCm, BigDecimal heightCm,
+                          Integer pieces, BigDecimal declaredValue, boolean cod, LocalDate bookingDate) {
+            this(originPincode, destinationPincode, serviceTypeId, packageTypeId, actualWeightKg, lengthCm, widthCm,
+                    heightCm, pieces, declaredValue, cod, bookingDate, null);
+        }
     }
 
     /**

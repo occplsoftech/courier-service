@@ -328,7 +328,7 @@ both previously toasted "available once the shipments module ships."
 
 ### Service rate cards (2026-11-19, CW#51–#53)
 
-- `shipment-create.ts` has no Service Type dropdown. `serviceRates$()` prices every active service type with `POST /district-level-freight/calculate`, using the same pricing chain as the booking: business-customer zone → zone tariff → District Level Freight.
+- `shipment-create.ts` has no Service Type dropdown. `serviceRates$()` prices every active service type with `POST /district-level-freight/calculate`, using the same pricing chain as the booking: business-customer zone → zone tariff (the customer's own card first since V183, see `zone-tariff.md`) → District Level Freight.
 - Each `ServiceRate` holds freight, oda, extras, gst, roundOff, total, days and basis, or an error. The GST is `round((freight+oda+extras) * branch GST %) / 100`.
 - `availableRates`, `unavailableRates` and `cheapestRate` are computed.
 - The aside `lr__sum` shows "Choose a service" with the cards until `serviceTypeId` is set. After that it shows the Booking Summary with a `.chosen` bar ("LABEL · delivery date · Change"). `changeService()` clears it.

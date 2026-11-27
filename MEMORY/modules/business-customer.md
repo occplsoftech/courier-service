@@ -99,6 +99,6 @@ carried as Other Charges (server minimum, operator may raise; screen prefills). 
 
 - ~~Shipment booking does not use customer zone rates~~ — done 2026-10-14, see "Booking pricing" above.
 - The pre-existing legacy-site data (77 customers, 71 rate cards at sumansoftwares.com) is not imported.
-- No bulk import/export for zones or rates; no "copy zone" action.
+- Bulk import: `CustomerRateImportService` (template layout) and, since V183, the old-software rate sheet onto the customer's own zone-tariff card (`zone-tariff.md`, "A business customer's own card"). No "copy zone" action.
 - Dev fixtures in `courier_db`: business customer "Verify Traders Pvt Ltd" (3 addresses),
   zone "Zone A" on an individual customer GURUDATTA AGENCY (created before the BUSINESS-only rule).

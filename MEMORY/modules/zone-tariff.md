@@ -104,6 +104,32 @@ Service Type master: `SURFACE`, `AIR`, `PREMIUM`, `CARGO`. Package Type master: 
   left empty on purpose (its towns are also in the old MAHARASHTRA list, and only MAHARASHTRA has Cargo rates).
 - Still no zone: Andaman & Nicobar, Dadra & Nagar Haveli, Daman & Diu is WEST, Lakshadweep none. EXMAHARASHTRA stays empty.
 
+## A business customer's own card (V183, 2026-11-27)
+- `tariff_rate_cards.customer_id`: NULL = the company's card; set = that business customer's card. One per customer per from
+  zone (code `CUST-<customer code>-<from zone>`). `findByFromZone` and the Rate Cards list are company cards only;
+  `findByCustomer` lists a customer's. "Only one active card per from zone and date" is checked per owner.
+- **Upload** (`CustomerTariffImportService`, `/api/v1/customer-tariff/{customerId}`: `GET /cards`, `POST /upload/preview`,
+  `POST /upload`, params `fromZoneId` (default: the sheet's), `additionStepKg` 0.5 (default) or 1). Same sheet layout as the
+  company import (old software export). The first upload creates the card (effective from the sheet's Applicable From) and copies
+  GST, rounding, volumetric divisor and the charge rules of the company's active card for that from zone. All or nothing; then
+  the card is activated and the customer switched to business rates (`CustomerRateSourceService`).
+- **Strict checks** (customer uploads only): a lane whose lightest band is Per Kg/Addition, or whose last band (≥ 10 kg) is Fixed
+  at no more than the band before it ("0.5 kg ₹45 Fixed, 0.501–99 kg ₹45 Fixed") is an error per row.
+- **Pricing**: `QuoteInput.customerId` (port `ZoneTariffPort.price(..., businessCustomerId)`; portal `OccplNetworkAdapter`).
+  While the customer uses business rates, a lane on their card prices first; a lane it lacks comes from the company card;
+  `quoteAll`/`quoteOptions` merge both, theirs winning. Booking order: customer rate structure → customer zone rate card →
+  **customer's tariff card** → company tariff card → District Level Freight.
+- **Per Box** (`SlabRateType.PER_BOX`): freight = rate × pieces whatever the weight in the slab; may be the lightest slab.
+- **Mode matching** (both imports): a word naming a package type plus a service ("LAPTOP-SURFACE" = SURFACE for LAPTOP); words in
+  any order ("Cargo SURFACE" = SURFACE CARGO); then code/name; then a service holding every word, preferring surface ("Cargo" =
+  SURFACE CARGO).
+- V183 also renamed service type CARGO → SURFACE_CARGO "Surface Cargo" (same row, rates and bookings follow), added AIR_CARGO
+  (network AIR) and package type LAPTOP for every company with service types.
+- Web (courier-web): Business Customer → Customer → row menu → **Upload Rates (Excel)** (`business-customer/customers/:id/upload-rates`,
+  company admin, active business customers). The card opens in Zone Tariff → Rate Cards (`/zone-tariff/rate-cards/:id`).
+- Owner's four sample sheets (2026-11-27): Aexonic 24 lanes, Adinath 41, Chandukaka 70 (incl. LAPTOP Per Box) passed;
+  A&A Global had 20 swapped rows in 13 Non Document lanes, to be fixed in the sheet.
+
 ## Next
 - Excel import (built 2026-10-28): header row found in the first 15 rows ("Admin" title row first); names matched ignoring case
   and punctuation against codes and names ("BY AIR" → AIR, "Document" → DOC by prefix, "EX PUNE" → EXPUNE); a row with State/City

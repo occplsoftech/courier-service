@@ -8,6 +8,18 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-27 — Business customer rates from Excel (own tariff card), Per Box, cargo service types
+
+- **V183** (renumbered from V182, which the company logo took) `tariff_rate_cards.customer_id`: a business customer's own zone-tariff card. `tariff_rate_slabs.rate_type` gains
+  `PER_BOX` (rate × boxes). Service type CARGO → SURFACE_CARGO "Surface Cargo"; AIR_CARGO "Air Cargo" (AIR network) and
+  package type LAPTOP added for every company with service types.
+- `/api/v1/customer-tariff/{customerId}`: `GET /cards`, `POST /upload/preview`, `POST /upload` (`fromZoneId`, `additionStepKg`
+  0.5|1). Reads the old software's rate sheet; first upload creates `CUST-…` with the company card's charges; refuses lanes with
+  swapped Fixed / Per Kg; activates the card and turns on business rates.
+- Booking, the all-rates calculator and the portal pass the business customer to the zone tariff: their card's lane first, then
+  the company's. `CardResponse.customerId` added.
+- Both sheet imports: "LAPTOP-SURFACE", "Cargo SURFACE", plain "Cargo" and "Per Box" are understood.
+- Web: Business Customer → Customer → Upload Rates (Excel); Per Box in the rate card editor.
 ## 2026-11-27 — Delivery Updation: Delivered tab photo opens
 
 - The Delivered tab returned the POD photo's stored bucket address, which the private bucket refuses (403), so "View photo"

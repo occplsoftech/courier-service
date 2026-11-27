@@ -1,5 +1,6 @@
 package com.courier.modules.tariff.application;
 
+import com.courier.modules.customer.application.CustomerPortalLookup;
 import com.courier.modules.master.application.PackageTypeService;
 import com.courier.modules.master.application.PincodeLocation;
 import com.courier.modules.master.application.PincodeService;
@@ -24,6 +25,7 @@ import com.courier.shared.company.CompanyContext;
 import com.courier.shared.exception.BusinessRuleException;
 import com.courier.shared.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -58,9 +60,18 @@ public class TariffQuoteServiceImpl implements TariffQuoteService {
     private final PackageTypeService packageTypeService;
     private final PincodeService pincodeService;
     private final PricingProperties pricingProperties;
+    private CustomerPortalLookup customerLookup;
 
-    /** The card that prices shipments from the pickup pincode on the date, with where they start. */
-    private record Origin(UUID companyId, TariffZoneService.Resolution from, TariffRateCard card) {
+    @Autowired(required = false)
+    void setCustomerLookup(CustomerPortalLookup customerLookup) {
+        this.customerLookup = customerLookup;
+    }
+
+    /**
+     * Where shipments start on the date and the cards that price them: the business customer's own card ({@code
+     * customerCard}, may be null) first, lane by lane, then the company's ({@code card}, may be null). At least one is set.
+     */
+    private record Origin(UUID companyId, TariffZoneService.Resolution from, TariffRateCard card, TariffRateCard customerCard) {
     }
 
     /** Where the shipment goes, once a card applies. */
@@ -71,16 +82,8 @@ public class TariffQuoteServiceImpl implements TariffQuoteService {
     @Transactional(readOnly = true)
     @PreAuthorize("isAuthenticated()")
     public Quote quote(QuoteInput in) {
-        UUID companyId = requireCompany();
         requireTypes(in);
-        TariffZoneService.Resolution from = zoneService.resolve(in.originPincode(), ZoneUsage.FROM)
-                .orElseThrow(() -> new BusinessRuleException("No from zone covers pickup pincode " + in.originPincode().trim()
-                        + ". Add it (or its city, district or state) to a from zone."));
-        LocalDate date = dateOf(in);
-        TariffRateCard card = activeCard(companyId, from, date)
-                .orElseThrow(() -> new BusinessRuleException("No active rate card for from zone %s on %s."
-                        .formatted(from.zone().getCode(), date)));
-        return priceLane(new Origin(companyId, from, card), destination(in), in);
+        return priceLane(requireOrigin(in), destination(in), in);
     }
 
     @Override
@@ -102,30 +105,37 @@ public class TariffQuoteServiceImpl implements TariffQuoteService {
     @Transactional(readOnly = true)
     @PreAuthorize("isAuthenticated()")
     public Options quoteAll(QuoteInput in) {
-        UUID companyId = requireCompany();
         if (in.actualWeightKg() == null || in.actualWeightKg().signum() <= 0) {
             throw new BusinessRuleException("Enter the weight in kg, above 0.");
         }
-        TariffZoneService.Resolution from = zoneService.resolve(in.originPincode(), ZoneUsage.FROM)
-                .orElseThrow(() -> new BusinessRuleException("No from zone covers pickup pincode " + in.originPincode().trim()
-                        + ". Add it (or its city, district or state) to a from zone."));
-        LocalDate date = dateOf(in);
-        TariffRateCard card = activeCard(companyId, from, date)
-                .orElseThrow(() -> new BusinessRuleException("No active rate card for from zone %s on %s."
-                        .formatted(from.zone().getCode(), date)));
-        return priceAllLanes(new Origin(companyId, from, card), destination(in), in, null);
+        return priceAllLanes(requireOrigin(in), destination(in), in, null);
     }
 
-    /** Every lane of the card to the destination's zone; {@code documents} null takes documents and parcels alike. */
+    /**
+     * Every lane to the destination's zone, the customer's card first: a service and package type the customer's card has
+     * is priced from it, the rest from the company's card. {@code documents} null takes documents and parcels alike.
+     */
     private Options priceAllLanes(Origin origin, Destination destination, QuoteInput in, Boolean documents) {
         Map<String, List<TariffRateSlab>> lanes = new LinkedHashMap<>();
-        slabs.findByCard(origin.companyId(), origin.card().getId()).stream()
-                .filter(s -> s.getToZoneId().equals(destination.to().zone().getId()))
-                .forEach(s -> lanes.computeIfAbsent(s.getServiceTypeId() + ":" + s.getPackageTypeId(), k -> new ArrayList<>()).add(s));
-        List<TariffChargeRule> rules = charges.findByCard(origin.companyId(), origin.card().getId());
+        Map<String, TariffRateCard> laneCard = new LinkedHashMap<>();
+        for (TariffRateCard card : cardsInOrder(origin)) {
+            Map<String, List<TariffRateSlab>> ofCard = new LinkedHashMap<>();
+            slabs.findByCard(origin.companyId(), card.getId()).stream()
+                    .filter(s -> s.getToZoneId().equals(destination.to().zone().getId()))
+                    .forEach(s -> ofCard.computeIfAbsent(s.getServiceTypeId() + ":" + s.getPackageTypeId(), k -> new ArrayList<>()).add(s));
+            ofCard.forEach((k, lane) -> {
+                if (lanes.putIfAbsent(k, lane) == null) {
+                    laneCard.put(k, card);
+                }
+            });
+        }
+        Map<UUID, List<TariffChargeRule>> rulesByCard = new HashMap<>();
         List<Quote> quotes = new ArrayList<>();
         List<Unavailable> unavailable = new ArrayList<>();
-        for (List<TariffRateSlab> lane : lanes.values()) {
+        for (Map.Entry<String, List<TariffRateSlab>> entry : lanes.entrySet()) {
+            List<TariffRateSlab> lane = entry.getValue();
+            TariffRateCard card = laneCard.get(entry.getKey());
+            List<TariffChargeRule> rules = rulesByCard.computeIfAbsent(card.getId(), id -> charges.findByCard(origin.companyId(), id));
             ServiceType serviceType = tryGet(lane.get(0).getServiceTypeId(), serviceTypeService::getById);
             PackageType packageType = tryGet(lane.get(0).getPackageTypeId(), packageTypeService::getById);
             if (serviceType == null || packageType == null
@@ -133,7 +143,7 @@ public class TariffQuoteServiceImpl implements TariffQuoteService {
                 continue;
             }
             try {
-                quotes.add(price(origin, destination, in, serviceType, packageType, lane, rules));
+                quotes.add(price(origin, card, destination, in, serviceType, packageType, lane, rules));
             } catch (BusinessRuleException tooHeavy) {
                 // This lane has no slab for the weight; the others may.
                 unavailable.add(new Unavailable(serviceType.getCode(), serviceType.getName(), packageType.getCode(), tooHeavy.getMessage()));
@@ -148,11 +158,35 @@ public class TariffQuoteServiceImpl implements TariffQuoteService {
         if (in.originPincode() == null || in.originPincode().isBlank()) {
             return Optional.empty();
         }
-        Optional<TariffZoneService.Resolution> from = zoneService.resolve(in.originPincode(), ZoneUsage.FROM);
-        if (from.isEmpty()) {
-            return Optional.empty();
+        return zoneService.resolve(in.originPincode(), ZoneUsage.FROM).flatMap(from -> originAt(companyId, from, in));
+    }
+
+    /** Like {@link #origin} but says why there is no card. */
+    private Origin requireOrigin(QuoteInput in) {
+        UUID companyId = requireCompany();
+        TariffZoneService.Resolution from = zoneService.resolve(in.originPincode(), ZoneUsage.FROM)
+                .orElseThrow(() -> new BusinessRuleException("No from zone covers pickup pincode " + in.originPincode().trim()
+                        + ". Add it (or its city, district or state) to a from zone."));
+        return originAt(companyId, from, in).orElseThrow(() -> new BusinessRuleException("No active rate card for from zone %s on %s."
+                .formatted(from.zone().getCode(), dateOf(in))));
+    }
+
+    private Optional<Origin> originAt(UUID companyId, TariffZoneService.Resolution from, QuoteInput in) {
+        LocalDate date = dateOf(in);
+        TariffRateCard company = activeCard(companyId, from, date).orElse(null);
+        TariffRateCard customer = customerCard(companyId, in.customerId(), from, date).orElse(null);
+        return company == null && customer == null ? Optional.empty() : Optional.of(new Origin(companyId, from, company, customer));
+    }
+
+    private static List<TariffRateCard> cardsInOrder(Origin origin) {
+        List<TariffRateCard> order = new ArrayList<>(2);
+        if (origin.customerCard() != null) {
+            order.add(origin.customerCard());
         }
-        return activeCard(companyId, from.get(), dateOf(in)).map(card -> new Origin(companyId, from.get(), card));
+        if (origin.card() != null) {
+            order.add(origin.card());
+        }
+        return order;
     }
 
     private Destination destination(QuoteInput in) {
@@ -172,17 +206,20 @@ public class TariffQuoteServiceImpl implements TariffQuoteService {
     private Quote priceLane(Origin origin, Destination destination, QuoteInput in) {
         ServiceType serviceType = lookup(in.serviceTypeId(), serviceTypeService::getById, "service type");
         PackageType packageType = lookup(in.packageTypeId(), packageTypeService::getById, "package type");
-        TariffRateCard card = origin.card();
-        List<TariffRateSlab> lane = slabs.findLane(origin.companyId(), card.getId(), destination.to().zone().getId(),
-                serviceType.getId(), packageType.getId());
-        if (lane.isEmpty()) {
-            throw new BusinessRuleException("Rate card %s has no %s %s rate to zone %s."
-                    .formatted(card.getCode(), serviceType.getCode(), packageType.getCode(), destination.to().zone().getCode()));
+        for (TariffRateCard card : cardsInOrder(origin)) {
+            List<TariffRateSlab> lane = slabs.findLane(origin.companyId(), card.getId(), destination.to().zone().getId(),
+                    serviceType.getId(), packageType.getId());
+            if (!lane.isEmpty()) {
+                return price(origin, card, destination, in, serviceType, packageType, lane,
+                        charges.findByCard(origin.companyId(), card.getId()));
+            }
         }
-        return price(origin, destination, in, serviceType, packageType, lane, charges.findByCard(origin.companyId(), card.getId()));
+        TariffRateCard shown = origin.card() != null ? origin.card() : origin.customerCard();
+        throw new BusinessRuleException("Rate card %s has no %s %s rate to zone %s."
+                .formatted(shown.getCode(), serviceType.getCode(), packageType.getCode(), destination.to().zone().getCode()));
     }
 
-    private Quote price(Origin origin, Destination destination, QuoteInput in, ServiceType serviceType,
+    private Quote price(Origin origin, TariffRateCard card, Destination destination, QuoteInput in, ServiceType serviceType,
                         PackageType packageType, List<TariffRateSlab> lane, List<TariffChargeRule> rules) {
         UUID fromState = origin.from().place().stateId();
         UUID toState = destination.to().place().stateId();
@@ -201,8 +238,8 @@ public class TariffQuoteServiceImpl implements TariffQuoteService {
                 oda, packageType.isDocumentType(), destination.to().zone().getId(), serviceType.getId(),
                 packageType.getId(), fromState != null && Objects.equals(fromState, toState),
                 serviceDivisor(serviceType)); // used only when the card has no divisor of its own
-        TariffPriceCalculator.Price price = TariffPriceCalculator.price(origin.card(), lane, rules, shipment);
-        return new Quote(origin.card(), origin.from(), destination.to(), serviceType.getId(), serviceType.getCode(),
+        TariffPriceCalculator.Price price = TariffPriceCalculator.price(card, lane, rules, shipment);
+        return new Quote(card, origin.from(), destination.to(), serviceType.getId(), serviceType.getCode(),
                 serviceType.getName(), deliveryDays, packageType.getId(), packageType.getCode(), oda, price, tatHours);
     }
 
@@ -236,6 +273,16 @@ public class TariffQuoteServiceImpl implements TariffQuoteService {
 
     private Optional<TariffRateCard> activeCard(UUID companyId, TariffZoneService.Resolution from, LocalDate date) {
         return cards.findByFromZone(companyId, from.zone().getId(), TariffStatus.ACTIVE).stream()
+                .filter(c -> c.covers(date))
+                .max(Comparator.comparing(TariffRateCard::getEffectiveFrom));
+    }
+
+    /** The customer's own active card for the from zone on the date, only while they use business rates. */
+    private Optional<TariffRateCard> customerCard(UUID companyId, UUID customerId, TariffZoneService.Resolution from, LocalDate date) {
+        if (customerId == null || customerLookup == null || !customerLookup.usesBusinessRates(companyId, customerId)) {
+            return Optional.empty();
+        }
+        return cards.findByCustomer(companyId, customerId, from.zone().getId(), TariffStatus.ACTIVE).stream()
                 .filter(c -> c.covers(date))
                 .max(Comparator.comparing(TariffRateCard::getEffectiveFrom));
     }
