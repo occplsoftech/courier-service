@@ -310,7 +310,7 @@ public class ShipmentMapper {
                 r.shipmentId(), r.shipmentNumber(), r.trackingNumber(),
                 r.receiverName(), r.receiverAddress(), r.receiverContact(), r.paymentModeId(),
                 r.netAmount(), r.status(), r.deliveredAt(), r.ewayBillNumber(), r.fromCity(), r.toCity(),
-                r.codAmount(), r.deliveryPincode());
+                r.codAmount(), r.deliveryPincode(), r.numberOfPackages(), r.actualWeight());
     }
 
     public ShipmentDocumentResponse toResponse(ShipmentDocument d) {

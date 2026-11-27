@@ -368,6 +368,22 @@ public class ShipmentMovementController {
                 shipmentService.getDrsDetail(deliveryUserId, coLoaderId, deliveryBranchId, runDate, drsNumber)));
     }
 
+    public record DrsShipmentsRequest(@jakarta.validation.constraints.NotEmpty java.util.List<UUID> shipmentIds) {
+    }
+
+    @PostMapping("/drs/{drsNumber}/shipments")
+    @Operation(summary = "Add parcels to an existing DRS", description = "Pending Delivery parcels of the DRS's branch; same number, delivery boy, vehicle and day.")
+    public ApiResponse<BulkMovementResponse> addToDrs(@PathVariable String drsNumber, @Valid @RequestBody DrsShipmentsRequest request) {
+        return ApiResponse.success(shipmentMapper.toResponse(shipmentService.addToDrs(drsNumber, request.shipmentIds())));
+    }
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/drs/{drsNumber}/shipments/{shipmentId}")
+    @Operation(summary = "Take an undelivered parcel off a DRS", description = "It goes back to Pending Delivery (IN_SCAN).")
+    public ApiResponse<Void> removeFromDrs(@PathVariable String drsNumber, @PathVariable UUID shipmentId) {
+        shipmentService.removeFromDrs(drsNumber, shipmentId);
+        return ApiResponse.success("Taken off the DRS");
+    }
+
     @PostMapping(value = "/{shipmentId}/pod-upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Upload a POD file",
             description = "Stores a delivery photo or signature capture (JPEG/PNG/WEBP/HEIC image, "

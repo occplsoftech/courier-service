@@ -609,6 +609,12 @@ public interface ShipmentService {
      */
     List<DrsSummary> listDrs(java.time.LocalDate from, java.time.LocalDate to, UUID deliveryBranchId);
 
+    /** Scan → DRS → Edit: more parcels on an existing DRS (same number, delivery boy / co-loader, vehicle and day). */
+    BulkMovementResult addToDrs(String drsNumber, java.util.Collection<UUID> shipmentIds);
+
+    /** Scan → DRS → Edit: an undelivered parcel comes off the DRS and goes back to Pending Delivery (IN_SCAN). */
+    void removeFromDrs(String drsNumber, UUID shipmentId);
+
     /** Every shipment on one DRS run — same grouping key {@link #listDrs} used to build the row. */
     DrsDetail getDrsDetail(UUID deliveryUserId, UUID deliveryBranchId, java.time.LocalDate runDate);
 
@@ -632,7 +638,8 @@ public interface ShipmentService {
                           String receiverName, String receiverAddress, String receiverContact, UUID paymentModeId,
                           BigDecimal netAmount, com.courier.modules.shipment.domain.ShipmentStatus status,
                           java.time.Instant deliveredAt, String ewayBillNumber,
-                          String fromCity, String toCity, BigDecimal codAmount, String deliveryPincode) {
+                          String fromCity, String toCity, BigDecimal codAmount, String deliveryPincode,
+                          Integer numberOfPackages, BigDecimal actualWeight) {
     }
 
     record DrsDetail(UUID deliveryUserId, UUID deliveryBranchId, java.time.LocalDate runDate,

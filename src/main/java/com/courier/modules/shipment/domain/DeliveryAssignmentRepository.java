@@ -12,6 +12,18 @@ import java.util.UUID;
 
 public interface DeliveryAssignmentRepository extends JpaRepository<DeliveryAssignment, UUID> {
 
+    /** Every row of one DRS (Scan → DRS → Edit). */
+    @Query("select d from DeliveryAssignment d where d.companyId = :companyId and d.drsNumber = :drsNumber order by d.assignedAt")
+    List<DeliveryAssignment> findByDrsNumberWithinCompany(@Param("companyId") UUID companyId, @Param("drsNumber") String drsNumber);
+
+    /** A parcel taken off a DRS keeps its (soft-deleted) row, and there is one row per shipment: un-delete it before the
+     *  shipment goes out on a run again. Native, as the entity's own queries never see deleted rows. */
+    @org.springframework.data.jpa.repository.Modifying
+    @Query(value = "UPDATE delivery_assignment SET deleted = FALSE, deleted_at = NULL, deleted_by = NULL "
+            + "WHERE company_id = :companyId AND shipment_id = :shipmentId AND deleted = TRUE", nativeQuery = true)
+    int restoreRemoved(@Param("companyId") byte[] companyId, @Param("shipmentId") byte[] shipmentId);
+
+
     @Query("select d from DeliveryAssignment d where d.shipmentId = :shipmentId and d.companyId = :companyId")
     Optional<DeliveryAssignment> findByShipmentIdWithinCompany(@Param("shipmentId") UUID shipmentId,
                                                                 @Param("companyId") UUID companyId);
