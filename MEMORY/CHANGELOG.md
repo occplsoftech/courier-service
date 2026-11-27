@@ -88,6 +88,11 @@ All notable changes to this project. Format based on
   `DELETE /manifests/{id}` (AWBs back to BOOKED). Qty / weight go through Edit Shipment (`?manifest=` puts the AWB back on
   save). Statuses shown: Created → Dispatched → Received. The destination branch sees a manifest (Manifest tab → Incoming)
   only once it is dispatched.
+- Pending Delivery → Generate DRS: Delivery Boy, Co-Loader and Vehicle No (one of delivery boy / co-loader) — CW#92.
+- Loading Sheet, THC (landscape, expenses + terms) and Out for Delivery DRS prints moved onto the house header (CW#88);
+  `printLetterhead` gained totals, sections, signatures, landscape and table font size.
+- Edit DRS: removing the last parcel ends the run with a clear message (CW#86); the Pending Delivery list refreshes after
+  a removal so a parcel can be scanned straight back on (CW#85).
 - Prints: DRS and manifest use the house "Boxed form" header (see AI_CONTEXT → Rules → Print format), QR of the sheet number,
   15 px text, 38 mm DRS rows for stamps.
 ## 2026-11-27 — Public tracking shows the Delivery Updation photo
