@@ -8,7 +8,7 @@
 --   * the empty SURFACE_CARGO V183 added is removed first.
 -- A company is left as it is when that SURFACE_CARGO row is already used by any rate, charge or shipment, or when
 -- another service already holds the name "Surface Cargo". Service types have no physical FKs; the tables below are
--- every table with a service_type_id.
+-- every table with a service_type_id (charge_settings has none: it hangs off charges).
 -- =============================================================================
 
 CREATE TEMPORARY TABLE v184_pairs AS
@@ -33,7 +33,7 @@ DELETE FROM v184_pairs WHERE dup_id IN (SELECT service_type_id FROM customer_zon
 DELETE FROM v184_pairs WHERE dup_id IN (SELECT service_type_id FROM customer_structure_rates WHERE service_type_id IS NOT NULL);
 DELETE FROM v184_pairs WHERE dup_id IN (SELECT service_type_id FROM rate_master WHERE service_type_id IS NOT NULL);
 DELETE FROM v184_pairs WHERE dup_id IN (SELECT service_type_id FROM charges WHERE service_type_id IS NOT NULL);
-DELETE FROM v184_pairs WHERE dup_id IN (SELECT service_type_id FROM charge_settings WHERE service_type_id IS NOT NULL);
+-- charge_settings has no service_type_id: it belongs to a charge (charge_id), covered by the charges check above.
 
 -- ...or when a third row already holds the name.
 CREATE TEMPORARY TABLE v184_taken AS
