@@ -26,6 +26,11 @@ public interface CompanyRepository extends JpaRepository<Company, UUID>,
 
     Optional<Company> findByCompanyId(UUID companyId);
 
+    /** Sets (or clears, with null) the uploaded logo; returns the rows changed. */
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update Company c set c.logoDataUrl = :logo where c.companyId = :companyId")
+    int setLogoDataUrl(@Param("companyId") UUID companyId, @Param("logo") String logo);
+
     Optional<Company> findByCompanyCode(String companyCode);
 
     Optional<Company> findByExternalCompanyId(UUID externalCompanyId);
