@@ -7,6 +7,17 @@
 
 ## Current Version
 
+## HANDOFF — V188: zones and regions from the pincode master (2026-11-27, newest)
+
+After V187 cleared everything, V188 loads, from `Pincode_Master_NEW - SHUBHAM.xls` with the **owner's rule "zone = the
+sheet's zone column, region = the sheet's Region column"**:
+- **Regional Zones master** (global): PUNE, X_PUNE, MAHARASHTRA, X_MAHARASHTRA, VIDHARBHA, REST_OF_INDIA, NORTH_EAST
+  (sheet EXPUNE / EXMAHARASHTRA = X_PUNE / X_MAHARASHTRA). Each pincode's Regional zone is its Region.
+- **Pincode Zone**: NORTH, SOUTH, EAST, WEST, CENTRAL (Pune, Maharashtra and Vidharbha are WEST).
+- **Zone Tariff zones** (OCCPL, OCCPL_COURIER): NORTH, SOUTH, EAST, WEST, CENTRAL with places (whole cities, else
+  pincodes). **No rate cards** yet — bookings use District Level Freight until cards are set up on these zones.
+**Next free Flyway migration: V189.**
+
 ## HANDOFF — V187: zones, regions and customer rates cleared (2026-11-27, read before anything about pricing)
 
 On the owner's instruction ("delete all customer rates, and all zone, and all region", nothing loaded back) V187
@@ -17,7 +28,7 @@ created again) and blanks **every pincode's Zone and Regional zone**. Everything
 `backup_20261127c_*` (pincode zones in `backup_20261127c_pincode_zones`). The raw sheet table `pincode_master_sheet` is
 untouched. Until the owner sets up new zones and rates, bookings are priced by District Level Freight or refused.
 Anything below that describes zones, regions or customer cards (incl. the V186 rate zones) describes the state before
-V187. **Next free Flyway migration: V188.**
+V187. (Next free migration: see the V188 block above.)
 
 ## HANDOFF — update on 2026-11-27 (read this, then the 2026-11-20 block below)
 
