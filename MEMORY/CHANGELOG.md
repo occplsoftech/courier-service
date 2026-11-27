@@ -71,6 +71,13 @@ All notable changes to this project. Format based on
   Names now come from `BranchRepository` / `CompanyUserRepository` / `PackageTypeRepository`, scoped to the company.
   Found in the live booking-to-delivery run on dev (as Shaniwar Peth's manager).
 
+## 2026-11-27 — V187: zones, regions and customer rates cleared
+
+- **V187** (owner's request): soft-deletes every Zone Tariff zone, place, rate card, lane and charge and all customer
+  pricing (OCCPL, OCCPL_COURIER); soft-deletes the Regional Zones master (codes freed) and blanks every pincode's Zone and
+  Regional zone. Backup in `backup_20261127c_*`. Checked on MySQL 8 (local copy at V186): 12 zones, 5,896 places, 176
+  lanes, 5 regions and 19,126 pincode zones cleared; the app starts.
+
 ## 2026-11-27 — Outscan ASSIGN redesign, manifest Received, DRS per number, letterhead prints
 
 - **V181** `shipments.forwarder_number`: Scan → ASSIGN "With Forwarder No." sends `forwarderNumbers` (shipment id → number) on
