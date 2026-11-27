@@ -82,20 +82,25 @@ public class PincodeMasterMapper {
     }
 
     private PincodeResponse toResponse(Pincode p, Geography geo) {
-        UUID cityId = geo.areaToCity.get(p.getAreaId());
-        UUID districtId = geo.cityToDistrict.get(cityId);
-        UUID stateId = geo.districtToState.get(districtId);
+        // Null-safe lookups: a pincode may have no regional zone (V187 cleared them) and the name maps do not take null keys.
+        UUID cityId = get(geo.areaToCity, p.getAreaId());
+        UUID districtId = get(geo.cityToDistrict, cityId);
+        UUID stateId = get(geo.districtToState, districtId);
         return new PincodeResponse(p.getId(), p.getCompanyId(), p.getCode(), p.getName(),
                 p.getDescription(), p.getStatus(), p.getDisplayOrder(),
-                p.getAreaId(), geo.areaNames.get(p.getAreaId()),
+                p.getAreaId(), get(geo.areaNames, p.getAreaId()),
                 p.isServiceable(), p.isCodAvailable(), p.isPrepaidAvailable(),
                 p.isPickupAvailable(), p.getZone(), p.isOdaApplicable(),
-                districtId, geo.districtNames.get(districtId),
-                stateId, geo.stateNames.get(stateId),
-                p.getRegionalZoneId(), geo.regionalZoneNames.get(p.getRegionalZoneId()),
+                districtId, get(geo.districtNames, districtId),
+                stateId, get(geo.stateNames, stateId),
+                p.getRegionalZoneId(), get(geo.regionalZoneNames, p.getRegionalZoneId()),
                 dto(p.coverage(ServiceNetwork.DOCUMENT)), dto(p.coverage(ServiceNetwork.SURFACE)),
                 dto(p.coverage(ServiceNetwork.AIR)),
                 p.getCreatedBy(), p.getCreatedAt(), p.getUpdatedBy(), p.getUpdatedAt(), p.getVersion());
+    }
+
+    private static <V> V get(Map<UUID, V> map, UUID key) {
+        return key == null ? null : map.get(key);
     }
 
     /**
