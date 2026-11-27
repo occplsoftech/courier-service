@@ -19,6 +19,12 @@ All notable changes to this project. Format based on
   `/drs/detail` takes `drsNumber`. DRS detail rows carry `codAmount`, `deliveryPincode`; the detail carries `vehicleId`.
 - Shipment list rows add `actualWeight`, `receiverAddress`, `forwarderNumber`, `serviceTypeId`, `deliveryPincode`;
   `/company-profile` adds `email`; pincode `/geo` adds `stateName`.
+- Draft manifests: Scan → ASSIGN → Manifest saves a **Created** manifest (co-loader, vehicle / driver, bags, forwarder
+  numbers); it leaves only on **Dispatch** from Scan → Manifest tab. While Created: `PATCH /manifests/{id}` (trip details),
+  `POST /manifests/{id}/shipments` (add), `DELETE /manifests/{id}/shipments/{sid}` (remove), `PUT /manifests/{id}/forwarder-numbers`,
+  `DELETE /manifests/{id}` (AWBs back to BOOKED). Qty / weight go through Edit Shipment (`?manifest=` puts the AWB back on
+  save). Statuses shown: Created → Dispatched → Received. The destination branch sees a manifest (Manifest tab → Incoming)
+  only once it is dispatched.
 - Prints: DRS and manifest use the house "Boxed form" header (see AI_CONTEXT → Rules → Print format), QR of the sheet number,
   15 px text, 38 mm DRS rows for stamps.
 ## 2026-11-27 — Public tracking shows the Delivery Updation photo

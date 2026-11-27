@@ -71,6 +71,18 @@ public interface ManifestService {
      */
     void removeShipment(UUID manifestId, UUID shipmentId);
 
+    /** Draft (CREATED) only: scans more shipments onto it — same checks as {@link #create}. */
+    Manifest addShipments(UUID manifestId, java.util.List<UUID> shipmentIds);
+
+    /** Draft only: co-loader, own vehicle and driver, bags — what ASSIGN entered, changed before dispatch. */
+    Manifest updateDraft(UUID manifestId, UUID coLoaderId, UUID vehicleId, UUID driverUserId, Integer bagsCount);
+
+    /** Draft only: the co-loader's number for each AWB on it (blank clears it). */
+    void setForwarderNumbers(UUID manifestId, java.util.Map<UUID, String> forwarderNumbers);
+
+    /** Draft only: every shipment goes back to Pending Outscan (BOOKED) and the manifest is deleted. */
+    void deleteDraft(UUID manifestId);
+
     /** Result of a successful OTP request — never the raw code itself, only enough for the
      *  UI to tell the operator where it went and how long it lasts. */
     record DispatchOtpIssued(String maskedMobile, int expiresInMinutes) {

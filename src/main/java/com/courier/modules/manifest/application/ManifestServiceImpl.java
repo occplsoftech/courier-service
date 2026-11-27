@@ -475,6 +475,101 @@ public class ManifestServiceImpl implements ManifestService {
                 Map.of("shipmentId", shipmentId.toString()));
     }
 
+    private Manifest loadDraft(UUID id, UUID companyId) {
+        Manifest manifest = loadOrThrow(id, companyId);
+        if (manifest.isDispatched()) {
+            throw new BusinessRuleException(
+                    "Manifest %s has already been dispatched and can no longer be changed.".formatted(manifest.getManifestNumber()));
+        }
+        return manifest;
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize("hasAuthority('MANIFEST_CREATE')")
+    public Manifest addShipments(UUID manifestId, List<UUID> shipmentIds) {
+        UUID companyId = requireCompany();
+        Manifest manifest = loadDraft(manifestId, companyId);
+        if (shipmentIds == null || shipmentIds.isEmpty()) {
+            throw new BusinessRuleException("Add at least one shipment.");
+        }
+        shipmentService.requireFlowType(shipmentIds, manifest.getFlowType() == null ? FlowType.STANDARD : manifest.getFlowType());
+        boolean toHub = manifest.getDeliveryBranchId() != null && branchDirectory.findBranch(manifest.getDeliveryBranchId(), companyId)
+                .map(branch -> "HUB".equals(branch.branchType())).orElse(false);
+        for (UUID shipmentId : shipmentIds) {
+            shipmentService.attachToManifest(shipmentId, manifest.getId(), manifest.getBookingBranchId(),
+                    manifest.getDeliveryBranchId(), manifest.getDestinationCity(), toHub);
+        }
+        log.info("{} shipment(s) added to manifest {} ({}) in company {} by {}", shipmentIds.size(),
+                manifest.getManifestNumber(), manifestId, companyId, currentActor());
+        return manifest;
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize("hasAuthority('MANIFEST_CREATE')")
+    public Manifest updateDraft(UUID manifestId, UUID coLoaderId, UUID vehicleId, UUID driverUserId, Integer bagsCount) {
+        UUID companyId = requireCompany();
+        Manifest manifest = loadDraft(manifestId, companyId);
+        if (coLoaderId != null) {
+            coLoaderService.requireActive(coLoaderId);
+        }
+        if (vehicleId != null && !vehicleService.getById(vehicleId).isActive()) {
+            throw new BusinessRuleException("This vehicle is not active.");
+        }
+        if (driverUserId != null) {
+            userService.getById(driverUserId);
+        }
+        if (bagsCount != null && (bagsCount < 0 || bagsCount > 9999)) {
+            throw new BusinessRuleException("Bags must be between 0 and 9999.");
+        }
+        manifest.setCoLoaderId(coLoaderId);
+        manifest.setVehicleId(vehicleId);
+        manifest.setDriverUserId(driverUserId);
+        manifest.setBagsCount(bagsCount);
+        return manifestRepository.save(manifest);
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize("hasAuthority('MANIFEST_CREATE')")
+    public void setForwarderNumbers(UUID manifestId, Map<UUID, String> forwarderNumbers) {
+        UUID companyId = requireCompany();
+        Manifest manifest = loadDraft(manifestId, companyId);
+        if (forwarderNumbers == null || forwarderNumbers.isEmpty()) {
+            return;
+        }
+        Map<UUID, Shipment> onManifest = new java.util.HashMap<>();
+        shipmentService.findManifestCreatedShipments(manifest.getId()).forEach(s -> onManifest.put(s.getId(), s));
+        forwarderNumbers.forEach((shipmentId, number) -> {
+            Shipment s = onManifest.get(shipmentId);
+            if (s == null) {
+                throw new BusinessRuleException("A forwarder number was given for a shipment that is not on this manifest.");
+            }
+            String v = number == null ? "" : number.trim();
+            if (v.length() > 60) {
+                throw new BusinessRuleException("The forwarder number for %s is longer than 60 characters.".formatted(s.getShipmentNumber()));
+            }
+            s.setForwarderNumber(v.isEmpty() ? null : v);
+        });
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize("hasAuthority('MANIFEST_CREATE')")
+    public void deleteDraft(UUID manifestId) {
+        UUID companyId = requireCompany();
+        Manifest manifest = loadDraft(manifestId, companyId);
+        for (Shipment s : shipmentService.findManifestCreatedShipments(manifest.getId())) {
+            shipmentService.detachFromManifest(s.getId(), manifest.getId());
+        }
+        manifest.softDelete(SecurityUtils.requireCurrentUser().userId());
+        manifestRepository.save(manifest);
+        log.info("Draft manifest {} ({}) deleted in company {} by {}", manifest.getManifestNumber(), manifestId, companyId, currentActor());
+        auditService.record(AuditAction.MANIFEST_SHIPMENT_REMOVED, ENTITY, manifestId,
+                Map.of("manifestNumber", manifest.getManifestNumber(), "deleted", true));
+    }
+
     @Override
     @Transactional
     public boolean completeIfAllReceived(UUID manifestId) {

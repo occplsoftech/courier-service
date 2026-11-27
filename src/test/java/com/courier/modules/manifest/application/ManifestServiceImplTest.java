@@ -249,6 +249,42 @@ class ManifestServiceImplTest {
     }
 
     @Test
+    @DisplayName("Draft manifest: trip details, forwarder numbers, add and delete — refused once dispatched")
+    void draftEditing() {
+        Manifest draft = existingManifest(ManifestStatus.CREATED);
+        when(manifestRepository.findByIdWithinCompany(draft.getId(), COMPANY)).thenReturn(Optional.of(draft));
+        when(manifestRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        UUID coLoader = UUID.randomUUID();
+
+        service.updateDraft(draft.getId(), coLoader, null, null, 4);
+        assertThat(draft.getCoLoaderId()).isEqualTo(coLoader);
+        assertThat(draft.getBagsCount()).isEqualTo(4);
+
+        Shipment onIt = Shipment.builder().shipmentNumber("TEST_BR-000011").build();
+        onIt.setId(UUID.randomUUID());
+        when(shipmentService.findManifestCreatedShipments(draft.getId())).thenReturn(List.of(onIt));
+        service.setForwarderNumbers(draft.getId(), Map.of(onIt.getId(), " DT-1 "));
+        assertThat(onIt.getForwarderNumber()).isEqualTo("DT-1");
+        service.setForwarderNumbers(draft.getId(), Map.of(onIt.getId(), ""));
+        assertThat(onIt.getForwarderNumber()).isNull();
+
+        UUID more = UUID.randomUUID();
+        service.addShipments(draft.getId(), List.of(more));
+        verify(shipmentService).attachToManifest(more, draft.getId(), draft.getBookingBranchId(), draft.getDeliveryBranchId(),
+                draft.getDestinationCity(), false);
+
+        service.deleteDraft(draft.getId());
+        verify(shipmentService).detachFromManifest(onIt.getId(), draft.getId());
+        assertThat(draft.isDeleted()).isTrue();
+
+        Manifest sent = existingManifest(ManifestStatus.DISPATCHED);
+        when(manifestRepository.findByIdWithinCompany(sent.getId(), COMPANY)).thenReturn(Optional.of(sent));
+        assertThatThrownBy(() -> service.updateDraft(sent.getId(), null, null, null, 1))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("already been dispatched");
+        assertThatThrownBy(() -> service.deleteDraft(sent.getId())).isInstanceOf(BusinessRuleException.class);
+    }
+
+    @Test
     @DisplayName("completeIfAllReceived: a dispatched manifest closes once none of its shipments is still DISPATCHED")
     void completeOnceAllReceived() {
         Manifest manifest = existingManifest(ManifestStatus.DISPATCHED);
