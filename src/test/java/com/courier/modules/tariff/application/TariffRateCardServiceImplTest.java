@@ -134,7 +134,12 @@ class TariffRateCardServiceImplTest {
         when(cards.existsByCode(eq(COMPANY), any(), any())).thenAnswer(i -> live(savedCards).stream()
                 .anyMatch(c -> c.getCode().equals(i.getArgument(1)) && !c.getId().equals(i.getArgument(2))));
         when(cards.findByFromZone(eq(COMPANY), any(), any())).thenAnswer(i -> live(savedCards).stream()
+                .filter(c -> c.getCustomerId() == null)
                 .filter(c -> c.getFromZoneId().equals(i.getArgument(1)) && c.getStatus() == i.getArgument(2)).toList());
+        when(cards.findByCustomer(eq(COMPANY), any(), any(), any())).thenAnswer(i -> live(savedCards).stream()
+                .filter(c -> i.getArgument(1).equals(c.getCustomerId()))
+                .filter(c -> i.getArgument(2) == null || c.getFromZoneId().equals(i.getArgument(2)))
+                .filter(c -> i.getArgument(3) == null || c.getStatus() == i.getArgument(3)).toList());
 
         when(slabs.save(any(TariffRateSlab.class))).thenAnswer(i -> keep(savedSlabs, i.getArgument(0)));
         when(slabs.findByCard(eq(COMPANY), any())).thenAnswer(i -> live(savedSlabs).stream()
@@ -429,5 +434,95 @@ class TariffRateCardServiceImplTest {
         assertThatThrownBy(() -> quotes.quoteAll(new TariffQuoteService.QuoteInput("999999", "462001", null, null,
                 BigDecimal.ONE, null, null, null, null, null, false, LocalDate.of(2025, 6, 1))))
                 .hasMessageContaining("No from zone covers pickup pincode 999999");
+    }
+
+    // ------------------------------------------------- a business customer's own card (V182)
+
+    private static final UUID CUSTOMER = UUID.randomUUID();
+
+    /** The customer's own card for PUNE, active, with one AIR DOC lane to CENTRAL at a lower rate. */
+    private TariffRateCard customerCard(String perKg) {
+        TariffRateCard c = TariffRateCard.builder().customerId(CUSTOMER).code("CUST-A-PUNE").name("A rates")
+                .fromZoneId(pune.getId()).effectiveFrom(LocalDate.of(2025, 4, 1)).status(TariffStatus.INACTIVE).build();
+        c.applyInvariants();
+        cards.save(c);
+        service.saveLane(c.getId(), new LaneInput(central.getId(), air.getId(), doc.getId(), List.of(
+                new SlabInput(new BigDecimal("0.001"), new BigDecimal("0.5"), SlabRateType.FIXED, new BigDecimal("60"), null),
+                new SlabInput(new BigDecimal("0.501"), new BigDecimal("99"), SlabRateType.PER_EXTRA_KG, new BigDecimal(perKg),
+                        new BigDecimal("0.5")))));
+        service.activate(c.getId());
+        return c;
+    }
+
+    private void businessRates(boolean on) {
+        com.courier.modules.customer.application.CustomerPortalLookup lookup =
+                org.mockito.Mockito.mock(com.courier.modules.customer.application.CustomerPortalLookup.class);
+        when(lookup.usesBusinessRates(COMPANY, CUSTOMER)).thenReturn(on);
+        quotes.setCustomerLookup(lookup);
+    }
+
+    private TariffQuoteService.QuoteInput customerQuote(UUID serviceTypeId, UUID packageTypeId, String kg, Integer pieces) {
+        return new TariffQuoteService.QuoteInput("411030", "462001", serviceTypeId, packageTypeId, new BigDecimal(kg),
+                null, null, null, pieces, null, false, LocalDate.of(2025, 6, 1), CUSTOMER);
+    }
+
+    @Test
+    @DisplayName("customer card: their lane prices first (per extra 500 g); the company card covers what theirs lacks")
+    void customerCardFirst() {
+        activeCard();
+        TariffRateCard own = customerCard("100");
+        businessRates(true);
+        pincodes();
+
+        // 1.2 kg: 60 up to 0.5 kg + 2 steps of 0.5 kg × 100.
+        TariffQuoteService.Quote q = quotes.quote(customerQuote(air.getId(), doc.getId(), "1.2", null));
+        assertThat(q.card().getId()).isEqualTo(own.getId());
+        assertThat(q.price().freight().amount()).isEqualByComparingTo("260");
+        assertThat(q.price().freight().basis()).contains("per extra 0.5 kg");
+
+        // The same customer without business rates: the company card.
+        businessRates(false);
+        assertThat(quotes.quote(customerQuote(air.getId(), doc.getId(), "1.2", null)).card().getCode()).isEqualTo("PUNE_CASH");
+    }
+
+    @Test
+    @DisplayName("customer card: a lane it lacks falls back to the company's; options merge both, theirs winning")
+    void customerCardFallsBack() {
+        RateCardDetail company = activeCard();
+        service.saveLane(company.card().getId(), new LaneInput(central.getId(), surface.getId(), nondoc.getId(), List.of(
+                new SlabInput(new BigDecimal("0.001"), new BigDecimal("5"), SlabRateType.FIXED, new BigDecimal("150"), null))));
+        customerCard("100");
+        businessRates(true);
+        pincodes();
+
+        assertThat(quotes.quote(customerQuote(surface.getId(), nondoc.getId(), "2", null)).card().getCode()).isEqualTo("PUNE_CASH");
+        TariffQuoteService.Options all = quotes.quoteAll(customerQuote(null, null, "1", null));
+        assertThat(all.quotes()).extracting(x -> x.serviceTypeCode() + "/" + x.card().getCode())
+                .containsExactlyInAnyOrder("AIR/CUST-A-PUNE", "SURFACE/PUNE_CASH");
+    }
+
+    @Test
+    @DisplayName("Per Box: rate × boxes whatever the weight; a lane may start with it")
+    void perBox() {
+        PackageType laptop = new PackageType();
+        laptop.setCode("LAPTOP");
+        org.mockito.Mockito.doReturn(laptop).when(packageTypeService).getById(laptop.getId());
+        RateCardDetail company = activeCard();
+        service.saveLane(company.card().getId(), new LaneInput(central.getId(), surface.getId(), laptop.getId(), List.of(
+                new SlabInput(new BigDecimal("0.001"), new BigDecimal("5"), SlabRateType.PER_BOX, new BigDecimal("650"), null))));
+        pincodes();
+
+        TariffQuoteService.Quote q = quotes.quote(new TariffQuoteService.QuoteInput("411030", "462001", surface.getId(),
+                laptop.getId(), new BigDecimal("4"), null, null, null, 3, null, false, LocalDate.of(2025, 6, 1)));
+        assertThat(q.price().freight().amount()).isEqualByComparingTo("1950");
+        assertThat(q.price().freight().basis()).contains("650 per box × 3");
+    }
+
+    @Test
+    @DisplayName("a customer's card and the company's card for the same from zone may both be active")
+    void customerCardOverlapIsPerOwner() {
+        activeCard();
+        TariffRateCard own = customerCard("100");
+        assertThat(own.getStatus()).isEqualTo(TariffStatus.ACTIVE);
     }
 }

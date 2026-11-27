@@ -329,9 +329,15 @@ public class TariffRateCardServiceImpl implements TariffRateCardService {
         }
     }
 
-    /** Refuses an active card of the same from zone whose dates meet this card's. */
+    /**
+     * Refuses an active card of the same from zone whose dates meet this card's, among the company's cards, or among the
+     * same business customer's cards for a customer's card.
+     */
     private void requireNoOverlap(UUID companyId, TariffRateCard card) {
-        for (TariffRateCard other : cards.findByFromZone(companyId, card.getFromZoneId(), TariffStatus.ACTIVE)) {
+        List<TariffRateCard> same = card.isCustomerCard()
+                ? cards.findByCustomer(companyId, card.getCustomerId(), card.getFromZoneId(), TariffStatus.ACTIVE)
+                : cards.findByFromZone(companyId, card.getFromZoneId(), TariffStatus.ACTIVE);
+        for (TariffRateCard other : same) {
             if (!other.getId().equals(card.getId()) && other.overlaps(card)) {
                 throw new BusinessRuleException("Rate card %s is already active for this from zone from %s%s. Change the dates or deactivate it first."
                         .formatted(other.getCode(), other.getEffectiveFrom(),

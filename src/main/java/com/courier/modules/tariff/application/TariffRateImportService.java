@@ -39,6 +39,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -100,10 +101,28 @@ public class TariffRateImportService {
                          List<LanePreview> lanes, List<Issue> errors, List<Issue> warnings, boolean imported) {
     }
 
+    /**
+     * How a sheet is read. {@code additionStepKg}: the weight one "Addition 500GM" rate buys (0.5 or 1 kg); "Per Kg" is
+     * always 1 kg. {@code strict}: also refuse lanes whose rate types look swapped (a business customer's upload).
+     */
+    record Options(BigDecimal additionStepKg, boolean strict) {
+        static final Options COMPANY = new Options(BigDecimal.ONE, false);
+    }
+
     @Transactional(readOnly = true)
     @PreAuthorize(WRITE)
     public Result preview(UUID cardId, MultipartFile file) {
         return plan(cardId, file).result(false);
+    }
+
+    /** Saves every lane of a plan with no errors onto its (saved) card. */
+    void save(Plan plan, String fileName) {
+        for (PlannedLane lane : plan.lanes.values()) {
+            rateCardService.saveLane(plan.card.getId(), new LaneInput(lane.toZone.getId(), lane.serviceType.getId(), lane.packageType.getId(),
+                    lane.slabs.stream().map(s -> new SlabInput(s.getWeightFromKg(), s.getWeightToKg(), s.getRateType(), s.getRate(),
+                            s.getStepKg())).toList()));
+        }
+        log.info("Imported {} lane(s) from '{}' into rate card {}", plan.lanes.size(), fileName, plan.card.getCode());
     }
 
     @Transactional
@@ -117,22 +136,17 @@ public class TariffRateImportService {
         if (plan.lanes.isEmpty()) {
             throw new BusinessRuleException("No rates for rate card " + plan.card.getCode() + " were found in the sheet.");
         }
-        for (PlannedLane lane : plan.lanes.values()) {
-            rateCardService.saveLane(cardId, new LaneInput(lane.toZone.getId(), lane.serviceType.getId(), lane.packageType.getId(),
-                    lane.slabs.stream().map(s -> new SlabInput(s.getWeightFromKg(), s.getWeightToKg(), s.getRateType(), s.getRate(),
-                            s.getStepKg())).toList()));
-        }
-        log.info("Imported {} lane(s) from '{}' into rate card {}", plan.lanes.size(), file.getOriginalFilename(), plan.card.getCode());
+        save(plan, file.getOriginalFilename());
         return plan.result(true);
     }
 
     // ------------------------------------------------------------------ planning
 
-    private record SheetRow(int row, String fromZone, String toZone, String state, String city, String mode, String product,
+    record SheetRow(int row, String fromZone, String toZone, String state, String city, String mode, String product,
                             String applicableFrom, BigDecimal weightFrom, BigDecimal weightTo, BigDecimal rate, String rateType) {
     }
 
-    private static final class PlannedLane {
+    static final class PlannedLane {
         final TariffZone toZone;
         final MasterDataEntity serviceType;
         final MasterDataEntity packageType;
@@ -148,7 +162,7 @@ public class TariffRateImportService {
         }
     }
 
-    private final class Plan {
+    static final class Plan {
         TariffRateCard card;
         TariffZone fromZone;
         int rowsRead;
@@ -170,14 +184,22 @@ public class TariffRateImportService {
     private Plan plan(UUID cardId, MultipartFile file) {
         UUID companyId = CompanyContext.getCompanyId().orElseThrow(() -> new BusinessRuleException(
                 "No company is bound to this request. Rate cards belong to a company."));
-        Plan plan = new Plan();
-        plan.card = cards.findByIdWithinCompany(cardId, companyId)
+        TariffRateCard card = cards.findByIdWithinCompany(cardId, companyId)
                 .orElseThrow(() -> new ResourceNotFoundException("TariffRateCard", cardId));
+        return plan(card, companyId, Options.COMPANY, read(file));
+    }
+
+    /**
+     * Plans the rows onto {@code card}, which may not be saved yet (a business customer's first upload: no lane then
+     * "replaces" anything). Writes nothing.
+     */
+    Plan plan(TariffRateCard card, UUID companyId, Options options, List<SheetRow> rows) {
+        Plan plan = new Plan();
+        plan.card = card;
         plan.fromZone = zones.findByIdWithinCompany(plan.card.getFromZoneId(), companyId).orElse(null);
         String cardFromKey = plan.fromZone == null ? "" : key(plan.fromZone.getCode());
         String cardFromNameKey = plan.fromZone == null ? "" : key(plan.fromZone.getName());
 
-        List<SheetRow> rows = read(file);
         plan.rowsRead = rows.size();
 
         Map<String, TariffZone> toZones = new HashMap<>();
@@ -211,22 +233,24 @@ public class TariffRateImportService {
                         !blank(r.city()) ? "city" : "state", place, place)));
                 continue;
             }
-            MasterDataEntity service = match(services, r.mode());
+            ModeMatch mode = matchMode(services, packages, r.mode());
+            MasterDataEntity service = mode == null ? null : mode.service();
             if (service == null) {
                 plan.errors.add(new Issue(r.row(), "No service type matches mode \"%s\". Add it under Masters → Service Types.".formatted(r.mode())));
                 continue;
             }
-            MasterDataEntity pkg = match(packages, r.product());
+            MasterDataEntity pkg = mode.packageType() != null ? mode.packageType() : match(packages, r.product());
             if (pkg == null) {
                 plan.errors.add(new Issue(r.row(), "No package type matches product \"%s\". Add it under Masters → Package Types.".formatted(r.product())));
                 continue;
             }
             SlabRateType type = rateType(r.rateType());
             if (type == null) {
-                plan.errors.add(new Issue(r.row(), "Rate type \"%s\" is not Fixed, Per Kg or Addition.".formatted(r.rateType())));
+                plan.errors.add(new Issue(r.row(), "Rate type \"%s\" is not Fixed, Per Kg, Addition or Per Box.".formatted(r.rateType())));
                 continue;
             }
-            if (type == SlabRateType.PER_EXTRA_KG && key(r.rateType()).contains("500")) {
+            boolean addition = type == SlabRateType.PER_EXTRA_KG && isAddition(r.rateType());
+            if (addition) {
                 halfKgRows.add(r.row());
             }
             if (r.weightFrom() == null || r.weightTo() == null || r.rate() == null) {
@@ -239,7 +263,8 @@ public class TariffRateImportService {
             String band = r.weightFrom().stripTrailingZeros().toPlainString() + "-" + r.weightTo().stripTrailingZeros().toPlainString();
             TariffRateSlab slab = TariffRateSlab.builder().rateCardId(plan.card.getId()).toZoneId(toZone.getId())
                     .serviceTypeId(service.getId()).packageTypeId(pkg.getId()).weightFromKg(r.weightFrom()).weightToKg(r.weightTo())
-                    .rateType(type).rate(r.rate()).stepKg(type == SlabRateType.PER_EXTRA_KG ? BigDecimal.ONE : null).build();
+                    .rateType(type).rate(r.rate())
+                    .stepKg(type != SlabRateType.PER_EXTRA_KG ? null : addition ? options.additionStepKg() : BigDecimal.ONE).build();
             TariffRateSlab seen = lane.byBand.get(band);
             if (seen == null) {
                 lane.byBand.put(band, slab);
@@ -255,14 +280,22 @@ public class TariffRateImportService {
 
         for (PlannedLane lane : plan.lanes.values()) {
             String name = lane.toZone.getCode() + " · " + lane.serviceType.getCode() + " · " + lane.packageType.getCode();
+            if (options.strict()) {
+                List<Issue> swapped = swappedRateTypes(lane, name);
+                if (!swapped.isEmpty()) {
+                    plan.errors.addAll(swapped);
+                    lane.slabs = new ArrayList<>(lane.byBand.values());
+                    continue;
+                }
+            }
             try {
                 lane.slabs = TariffRateSlab.validateLane(new ArrayList<>(lane.byBand.values()));
             } catch (BusinessRuleException invalid) {
                 plan.errors.add(new Issue(null, name + ": " + invalid.getMessage()));
                 lane.slabs = new ArrayList<>(lane.byBand.values());
             }
-            lane.replaces = !slabs.findLane(companyId, plan.card.getId(), lane.toZone.getId(), lane.serviceType.getId(),
-                    lane.packageType.getId()).isEmpty();
+            lane.replaces = plan.card.getId() != null && !slabs.findLane(companyId, plan.card.getId(), lane.toZone.getId(),
+                    lane.serviceType.getId(), lane.packageType.getId()).isEmpty();
         }
 
         if (!otherFromZones.isEmpty()) {
@@ -272,13 +305,16 @@ public class TariffRateImportService {
         if (plan.duplicates > 0) {
             plan.warnings.add(new Issue(null, plan.duplicates + " repeated row(s) were counted once."));
         }
-        if (!halfKgRows.isEmpty()) {
+        if (!halfKgRows.isEmpty() && options.additionStepKg().compareTo(BigDecimal.ONE) == 0) {
             plan.warnings.add(new Issue(null, "%d \"Addition 500GM\" row(s) were read as a rate per extra kg. Change the step to 0.5 kg on those lanes if the rate is per 500 g."
                     .formatted(halfKgRows.size())));
+        } else if (!halfKgRows.isEmpty()) {
+            plan.warnings.add(new Issue(null, "%d \"Addition 500GM\" row(s) add their rate for each extra %s kg or part of it."
+                    .formatted(halfKgRows.size(), plain(options.additionStepKg()))));
         }
         for (String d : dates) {
             LocalDate parsed = date(d);
-            if (parsed != null && !parsed.equals(plan.card.getEffectiveFrom())) {
+            if (parsed != null && plan.card.getEffectiveFrom() != null && !parsed.equals(plan.card.getEffectiveFrom())) {
                 plan.warnings.add(new Issue(null, "The sheet says applicable from %s; the card starts %s.".formatted(parsed, plan.card.getEffectiveFrom())));
             }
         }
@@ -287,7 +323,7 @@ public class TariffRateImportService {
 
     // ------------------------------------------------------------------- reading
 
-    private List<SheetRow> read(MultipartFile file) {
+    List<SheetRow> read(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BusinessRuleException("Choose an Excel file to import.");
         }
@@ -418,10 +454,109 @@ public class TariffRateImportService {
         if (k.startsWith("FIX")) {
             return SlabRateType.FIXED;
         }
+        if (k.contains("BOX")) {
+            return SlabRateType.PER_BOX;
+        }
         if (k.contains("KG") || k.startsWith("ADD") || k.contains("GM") || k.contains("EXTRA")) {
             return SlabRateType.PER_EXTRA_KG;
         }
         return null;
+    }
+
+    /** "Addition 500GM" / "Addtion 500GM": adds per step of extra weight, as opposed to "Per Kg". */
+    static boolean isAddition(String text) {
+        String k = key(text);
+        return k.startsWith("ADD") || k.contains("500") || k.contains("GM");
+    }
+
+    /** A mode's service type and, when the mode names one too ("LAPTOP-SURFACE"), its package type. */
+    record ModeMatch(MasterDataEntity service, MasterDataEntity packageType) {
+    }
+
+    /**
+     * Matches a sheet's mode to a service type. Tried in order: a word naming a package type plus words naming a service
+     * ("LAPTOP-SURFACE" = SURFACE for LAPTOP); the same words in any order ("Cargo SURFACE" = SURFACE CARGO); the code or
+     * name as {@link #match} reads it ("BY AIR" = AIR); finally a service whose name holds every word ("Cargo" = SURFACE
+     * CARGO), preferring the surface one when several do.
+     */
+    static ModeMatch matchMode(Map<String, MasterDataEntity> services, Map<String, MasterDataEntity> packages, String mode) {
+        List<String> words = words(mode);
+        if (words.isEmpty()) {
+            return null;
+        }
+        if (words.size() > 1) {
+            for (String w : words) {
+                MasterDataEntity pkg = packages.get(w);
+                List<String> rest = words.stream().filter(x -> !x.equals(w)).toList();
+                MasterDataEntity service = rest.isEmpty() ? null : byWords(services, rest);
+                if (pkg != null && service != null) {
+                    return new ModeMatch(service, pkg);
+                }
+            }
+        }
+        MasterDataEntity service = byWords(services, words);
+        if (service == null) {
+            service = match(services, mode);
+        }
+        if (service == null) {
+            Set<String> wanted = Set.copyOf(words);
+            List<MasterDataEntity> holding = services.values().stream().distinct()
+                    .filter(e -> Set.copyOf(words(e.getName())).containsAll(wanted) || Set.copyOf(words(e.getCode())).containsAll(wanted))
+                    .toList();
+            service = holding.size() == 1 ? holding.get(0) : holding.stream()
+                    .filter(e -> words(e.getName()).contains("SURFACE") || words(e.getCode()).contains("SURFACE"))
+                    .findFirst().orElse(null);
+        }
+        return service == null ? null : new ModeMatch(service, null);
+    }
+
+    private static MasterDataEntity byWords(Map<String, MasterDataEntity> services, List<String> words) {
+        Set<String> wanted = Set.copyOf(words);
+        return services.values().stream().distinct()
+                .filter(e -> Set.copyOf(words(e.getCode())).equals(wanted) || Set.copyOf(words(e.getName())).equals(wanted))
+                .findFirst().orElse(null);
+    }
+
+    /** "By Air" → [AIR]; "LAPTOP-SURFACE" → [LAPTOP, SURFACE]; "Surface_Cargo" → [SURFACE, CARGO]. */
+    static List<String> words(String text) {
+        if (text == null) {
+            return List.of();
+        }
+        return java.util.Arrays.stream(text.toUpperCase(Locale.ROOT).split("[^A-Z0-9]+"))
+                .filter(w -> !w.isEmpty() && !w.equals("BY")).distinct().toList();
+    }
+
+    /**
+     * A business customer's lane whose rate types look swapped, one issue per row: the lightest band adding per kg (it
+     * must be Fixed or Per Box), or a last band reaching {@value #SWAP_CHECK_KG_TEXT} kg or more that is Fixed and costs no
+     * more than the band before it, which would charge the same for any weight up to its limit ("0–0.5 kg ₹45 Fixed", then
+     * "0.501–99 kg ₹45 Fixed"). Equal Fixed prices on light bands (≤0.25, ≤0.5, ≤1 kg all 200) are fine.
+     */
+    static final String SWAP_CHECK_KG_TEXT = "10";
+    static final BigDecimal SWAP_CHECK_KG = new BigDecimal(SWAP_CHECK_KG_TEXT);
+
+    static List<Issue> swappedRateTypes(PlannedLane lane, String name) {
+        List<Map.Entry<String, TariffRateSlab>> sorted = lane.byBand.entrySet().stream()
+                .sorted(Comparator.comparing(e -> e.getValue().getWeightFromKg())).toList();
+        List<Issue> issues = new ArrayList<>();
+        for (int i = 0; i < sorted.size(); i++) {
+            TariffRateSlab slab = sorted.get(i).getValue();
+            Integer row = lane.bandRow.get(sorted.get(i).getKey());
+            if (i == 0 && slab.getRateType() == SlabRateType.PER_EXTRA_KG) {
+                issues.add(new Issue(row, "%s: the first weight band (%s) is Per Kg / Addition at %s; the first band must be Fixed. Are Fixed and Per Kg swapped?"
+                        .formatted(name, slab.band(), plain(slab.getRate()))));
+            }
+            boolean lastHeavyBand = i == sorted.size() - 1 && slab.getWeightToKg().compareTo(SWAP_CHECK_KG) >= 0;
+            if (i > 0 && lastHeavyBand && slab.getRateType() == SlabRateType.FIXED) {
+                TariffRateSlab prev = sorted.get(i - 1).getValue();
+                if (prev.getRate() != null && slab.getRate() != null && slab.getRate().compareTo(prev.getRate()) <= 0) {
+                    issues.add(new Issue(row, "%s: Fixed %s for %s is not more than %s for %s, so every weight up to %s kg would cost %s. Did you mean Per Kg?"
+                            .formatted(name, plain(slab.getRate()), slab.band(), plain(prev.getRate()), prev.band(),
+                                    plain(slab.getWeightToKg()), plain(slab.getRate()))));
+                }
+            }
+        }
+        return issues;
     }
 
     private static BigDecimal number(String text) {
@@ -455,7 +590,11 @@ public class TariffRateImportService {
     }
 
     private static String summary(List<TariffRateSlab> lane) {
-        return lane.stream().map(s -> s.isFixed() ? "≤" + plain(s.getWeightToKg()) + " kg " + plain(s.getRate())
-                : "+" + plain(s.getRate()) + "/kg to " + plain(s.getWeightToKg()) + " kg").collect(Collectors.joining(" · "));
+        return lane.stream().map(s -> switch (s.getRateType()) {
+            case FIXED -> "≤" + plain(s.getWeightToKg()) + " kg " + plain(s.getRate());
+            case PER_BOX -> "≤" + plain(s.getWeightToKg()) + " kg " + plain(s.getRate()) + "/box";
+            case PER_EXTRA_KG -> "+" + plain(s.getRate()) + (s.getStepKg() == null || s.getStepKg().compareTo(BigDecimal.ONE) == 0
+                    ? "/kg" : "/" + plain(s.getStepKg().multiply(new BigDecimal("1000"))) + " g") + " to " + plain(s.getWeightToKg()) + " kg";
+        }).collect(Collectors.joining(" · "));
     }
 }

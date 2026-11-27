@@ -137,7 +137,7 @@ public class AllRateCalculatorService {
                 }
             }
             Optional<ZoneTariffPort.TariffPrice> tariff = zoneTariff.price(from, to, service.getId(), packageType.getId(),
-                    weight, 1, in.declaredValue(), LocalDate.now(INDIA));
+                    weight, 1, in.declaredValue(), LocalDate.now(INDIA), in.customerId());
             if (tariff.isPresent()) {
                 var t = tariff.get();
                 return priced(service, "Zone Tariff", t.label() + (t.basis() == null ? "" : " · " + t.basis()), weight,

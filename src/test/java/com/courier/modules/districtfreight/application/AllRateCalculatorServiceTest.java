@@ -80,7 +80,7 @@ class AllRateCalculatorServiceTest {
         when(companySettings.get()).thenReturn(settings);
         when(networkCoverage.coverage(eq("560052"), any(), any())).thenReturn(Optional.empty());
         when(zoneService.resolve(any(), any(), any())).thenReturn(Optional.empty());
-        when(zoneTariff.price(any(), any(), any(), any(), any(), anyInt(), any(), any())).thenReturn(Optional.empty());
+        when(zoneTariff.price(any(), any(), any(), any(), any(), anyInt(), any(), any(), any())).thenReturn(Optional.empty());
         when(rateStructure.quote(any(), any(), any(), any(), any())).thenReturn(Optional.empty());
     }
 
@@ -95,7 +95,7 @@ class AllRateCalculatorServiceTest {
         when(rateStructure.quote(eq(CUSTOMER), eq(cargo.getId()), eq("411001"), eq("560052"), any())).thenReturn(Optional.of(
                 new CustomerRateStructureService.Quote(new BigDecimal("25"), new BigDecimal("20"), new BigDecimal("500"),
                         "Rate structure: West → Rest of India")));
-        when(zoneTariff.price(eq("411001"), eq("560052"), eq(air.getId()), any(), any(), anyInt(), any(), any()))
+        when(zoneTariff.price(eq("411001"), eq("560052"), eq(air.getId()), any(), any(), anyInt(), any(), any(), any()))
                 .thenReturn(Optional.of(new ZoneTariffPort.TariffPrice("Zone tariff PUNE_CASH: PUNE → REST_OF_INDIA",
                         "200 up to 1 kg", new BigDecimal("200"), new BigDecimal("20"))));
         when(networkCoverage.coverage("560052", premium.getId(), parcel.getId())).thenReturn(Optional.of(

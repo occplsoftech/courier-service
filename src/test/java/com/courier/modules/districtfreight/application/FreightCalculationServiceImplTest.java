@@ -434,7 +434,7 @@ class FreightCalculationServiceImplTest {
         when(coverageLookup.findByPincode(DESTINATION_PINCODE)).thenReturn(Optional.of(SERVICEABLE_NON_ODA));
         when(branchLookup.findPostalCode(BRANCH, COMPANY)).thenReturn(Optional.of("416115"));
         when(zoneTariff.price("416115", DESTINATION_PINCODE, SERVICE, PACKAGE, new BigDecimal("2.3"), 2, null,
-                java.time.LocalDate.of(2025, 6, 1)))
+                java.time.LocalDate.of(2025, 6, 1), null))
                 .thenReturn(Optional.of(new ZoneTariffPort.TariffPrice("Zone tariff PUNE_CASH: PUNE → CENTRAL",
                         "200 up to 1 kg + 2 × 200 per extra kg", new BigDecimal("600"), new BigDecimal("80"))));
 
@@ -456,13 +456,13 @@ class FreightCalculationServiceImplTest {
         when(coverageLookup.findByPincode(DESTINATION_PINCODE)).thenReturn(Optional.of(SERVICEABLE_NON_ODA));
         when(repository.findByCompanyIdAndBranchIdAndDistrictId(COMPANY, BRANCH, DISTRICT)).thenReturn(Optional.of(row()));
         when(branchLookup.findPostalCode(BRANCH, COMPANY)).thenReturn(Optional.of("416115"));
-        when(zoneTariff.price(any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(Optional.empty());
+        when(zoneTariff.price(any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(Optional.empty());
 
         assertThat(service.calculate(BRANCH, DESTINATION_PINCODE, null, new BigDecimal("20"), null, null, TARIFF_INPUT)
                 .baseFreight()).isEqualByComparingTo("170.00");
         assertThat(service.calculate(BRANCH, DESTINATION_PINCODE, null, new BigDecimal("20"))
                 .baseFreight()).isEqualByComparingTo("170.00");
         org.mockito.Mockito.verify(zoneTariff, org.mockito.Mockito.times(1))
-                .price(any(), any(), any(), any(), any(), any(), any(), any());
+                .price(any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 }

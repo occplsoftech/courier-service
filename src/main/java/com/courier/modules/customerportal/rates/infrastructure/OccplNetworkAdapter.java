@@ -176,7 +176,7 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
         try {
             return tariff.quoteOptions(new TariffQuoteService.QuoteInput(r.pickupPincode(), r.deliveryPincode(), null, null,
                     r.actualWeightKg(), r.lengthCm(), r.breadthCm(), r.heightCm(), r.packageCount(), r.declaredValue(),
-                    r.cod(), null), false);
+                    r.cod(), null, r.customerId()), false);
         } catch (ApiException e) {
             log.debug("No zone tariff rate from {} to {}: {}", r.pickupPincode(), r.deliveryPincode(), e.getMessage());
             return List.of();

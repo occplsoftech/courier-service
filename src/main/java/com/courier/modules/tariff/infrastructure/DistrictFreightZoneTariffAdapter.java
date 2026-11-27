@@ -25,9 +25,10 @@ public class DistrictFreightZoneTariffAdapter implements ZoneTariffPort {
     @Override
     public Optional<TariffPrice> price(String originPincode, String destinationPincode, UUID serviceTypeId,
                                        UUID packageTypeId, BigDecimal chargeableWeight, Integer pieces,
-                                       BigDecimal declaredValue, LocalDate bookingDate) {
+                                       BigDecimal declaredValue, LocalDate bookingDate, UUID businessCustomerId) {
         return quotes.quoteIfApplies(new TariffQuoteService.QuoteInput(originPincode, destinationPincode, serviceTypeId,
-                        packageTypeId, chargeableWeight, null, null, null, pieces, declaredValue, false, bookingDate))
+                        packageTypeId, chargeableWeight, null, null, null, pieces, declaredValue, false, bookingDate,
+                        businessCustomerId))
                 .map(q -> new TariffPrice(
                         "Zone tariff %s: %s → %s".formatted(q.card().getCode(), q.from().zone().getCode(), q.to().zone().getCode()),
                         q.price().freight().basis(),

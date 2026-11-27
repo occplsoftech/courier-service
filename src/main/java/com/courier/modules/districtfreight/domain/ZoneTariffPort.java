@@ -12,8 +12,10 @@ import java.util.UUID;
  */
 public interface ZoneTariffPort {
 
+    /** {@code businessCustomerId}: the business customer booked for, or null; their own rate card (V182) prices first. */
     Optional<TariffPrice> price(String originPincode, String destinationPincode, UUID serviceTypeId, UUID packageTypeId,
-                                BigDecimal chargeableWeight, Integer pieces, BigDecimal declaredValue, LocalDate bookingDate);
+                                BigDecimal chargeableWeight, Integer pieces, BigDecimal declaredValue, LocalDate bookingDate,
+                                UUID businessCustomerId);
 
     /**
      * @param label   "Zone tariff PUNE_CASH: PUNE → CENTRAL", shown where the freight came from

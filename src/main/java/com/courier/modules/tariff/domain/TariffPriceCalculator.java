@@ -19,7 +19,8 @@ import java.util.UUID;
  *   <li>Chargeable weight: the larger of actual and volumetric (volumetric only when the card has a divisor and the
  *       package is not a document), rounded up to the gram.</li>
  *   <li>Freight: the first slab whose upper weight reaches the chargeable weight. FIXED is its rate; PER_EXTRA_KG is the
- *       rate of the fixed slab before it plus {@code rate} for each step (1 kg) or part of a step above that slab.</li>
+ *       rate of the fixed slab before it plus {@code rate} for each step (1 kg) or part of a step above that slab;
+ *       PER_BOX is its rate times the number of boxes (pieces).</li>
  *   <li>Charges: for each charge code, the most specific active rule that matches the lane and whose condition holds
  *       (COD, ODA); then min / max.</li>
  *   <li>GST on freight plus the taxable charges: CGST + SGST when both ends are in the same state, IGST otherwise.</li>
@@ -63,7 +64,7 @@ public final class TariffPriceCalculator {
         BigDecimal volumetric = volumetric(card, s, pieces);
         BigDecimal chargeable = volumetric != null && volumetric.compareTo(actual) > 0 ? volumetric : actual;
 
-        Freight freight = freight(laneSlabs, chargeable);
+        Freight freight = freight(laneSlabs, chargeable, pieces);
         List<ChargeLine> charges = charges(rules, s, pieces, chargeable, freight.amount());
 
         BigDecimal taxable = freight.amount();
@@ -95,8 +96,13 @@ public final class TariffPriceCalculator {
                 .divide(BigDecimal.valueOf(card.getVolumetricDivisor()), 3, RoundingMode.CEILING);
     }
 
-    /** Freight for {@code weight} on one lane. {@code laneSlabs} need not be sorted. */
+    /** Freight for {@code weight} on one lane, one box. {@code laneSlabs} need not be sorted. */
     public static Freight freight(List<TariffRateSlab> laneSlabs, BigDecimal weight) {
+        return freight(laneSlabs, weight, 1);
+    }
+
+    /** Freight for {@code weight} in {@code pieces} boxes on one lane. {@code laneSlabs} need not be sorted. */
+    public static Freight freight(List<TariffRateSlab> laneSlabs, BigDecimal weight, int pieces) {
         if (laneSlabs == null || laneSlabs.isEmpty()) {
             throw new BusinessRuleException("This rate card has no rate for that zone, service and package type.");
         }
@@ -106,6 +112,11 @@ public final class TariffPriceCalculator {
                         .formatted(plain(weight), plain(sorted.get(sorted.size() - 1).getWeightToKg()))));
         if (slab.isFixed()) {
             return new Freight(money(slab.getRate()), slab, null, 0, "Fixed rate for " + slab.band());
+        }
+        if (slab.isPerBox()) {
+            int boxes = Math.max(1, pieces);
+            return new Freight(money(slab.getRate().multiply(BigDecimal.valueOf(boxes))), slab, null, 0,
+                    "%s per box × %d box(es), %s".formatted(plain(slab.getRate()), boxes, slab.band()));
         }
         TariffRateSlab base = sorted.stream()
                 .filter(x -> x.isFixed() && x.getWeightToKg().compareTo(slab.getWeightFromKg()) < 0)

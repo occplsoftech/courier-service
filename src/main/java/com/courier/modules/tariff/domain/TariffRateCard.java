@@ -53,6 +53,11 @@ public class TariffRateCard extends CompanyOwnedEntity {
     @Column(name = "from_zone_id", columnDefinition = "BINARY(16)", nullable = false)
     private UUID fromZoneId;
 
+    /** Null: the company's card. Set: that business customer's own card, used for their bookings before the company's. */
+    @JdbcTypeCode(SqlTypes.BINARY)
+    @Column(name = "customer_id", columnDefinition = "BINARY(16)", updatable = false)
+    private UUID customerId;
+
     @Column(name = "effective_from", nullable = false)
     private LocalDate effectiveFrom;
 
@@ -80,6 +85,10 @@ public class TariffRateCard extends CompanyOwnedEntity {
     @Column(name = "status", nullable = false, length = 10)
     @Builder.Default
     private TariffStatus status = TariffStatus.INACTIVE;
+
+    public boolean isCustomerCard() {
+        return customerId != null;
+    }
 
     public boolean isActive() {
         return status == TariffStatus.ACTIVE;

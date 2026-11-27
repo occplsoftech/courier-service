@@ -79,9 +79,18 @@ public class TariffRateSlab extends CompanyOwnedEntity {
         return rateType == SlabRateType.FIXED;
     }
 
+    public boolean isPerBox() {
+        return rateType == SlabRateType.PER_BOX;
+    }
+
+    /** FIXED and PER_BOX price the slab on their own; PER_EXTRA_KG adds to a FIXED slab before it. */
+    public boolean standsAlone() {
+        return rateType != SlabRateType.PER_EXTRA_KG;
+    }
+
     public void applyInvariants() {
         if (rateType == null) {
-            throw new BusinessRuleException("Each slab is FIXED or PER_EXTRA_KG.");
+            throw new BusinessRuleException("Each slab is FIXED, PER_EXTRA_KG or PER_BOX.");
         }
         if (weightFromKg == null || weightToKg == null || weightFromKg.signum() < 0) {
             throw new BusinessRuleException("Each slab needs a from and to weight (kg), from 0 upwards.");
@@ -93,7 +102,7 @@ public class TariffRateSlab extends CompanyOwnedEntity {
         if (rate == null || rate.signum() < 0) {
             throw new BusinessRuleException("A slab's rate cannot be empty or negative.");
         }
-        if (isFixed()) {
+        if (standsAlone()) {
             this.stepKg = null;
         } else if (stepKg == null) {
             this.stepKg = BigDecimal.ONE;
@@ -104,7 +113,7 @@ public class TariffRateSlab extends CompanyOwnedEntity {
 
     /**
      * Checks one lane's slabs together: each slab valid, sorted by weight, no overlap, no gap above 1 g, and every
-     * PER_EXTRA_KG slab has a FIXED slab before it to start from. Returns them sorted.
+     * PER_EXTRA_KG slab has a FIXED slab before it to start from (the lightest slab is FIXED or PER_BOX). Returns them sorted.
      */
     public static List<TariffRateSlab> validateLane(List<TariffRateSlab> slabs) {
         if (slabs == null || slabs.isEmpty()) {
@@ -112,8 +121,8 @@ public class TariffRateSlab extends CompanyOwnedEntity {
         }
         slabs.forEach(TariffRateSlab::applyInvariants);
         List<TariffRateSlab> sorted = slabs.stream().sorted(Comparator.comparing(TariffRateSlab::getWeightFromKg)).toList();
-        if (!sorted.get(0).isFixed()) {
-            throw new BusinessRuleException("The lightest slab must be FIXED: a per-extra-kg slab adds to the fixed slab before it.");
+        if (!sorted.get(0).standsAlone()) {
+            throw new BusinessRuleException("The lightest slab must be FIXED (or PER_BOX): a per-extra-kg slab adds to the fixed slab before it.");
         }
         for (int i = 1; i < sorted.size(); i++) {
             TariffRateSlab prev = sorted.get(i - 1);
