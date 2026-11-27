@@ -249,6 +249,34 @@ class ManifestServiceImplTest {
     }
 
     @Test
+    @DisplayName("completeIfAllReceived: a dispatched manifest closes once none of its shipments is still DISPATCHED")
+    void completeOnceAllReceived() {
+        Manifest manifest = existingManifest(ManifestStatus.DISPATCHED);
+        when(manifestRepository.findByIdWithinCompany(manifest.getId(), COMPANY)).thenReturn(Optional.of(manifest));
+        Shipment inScan = Shipment.builder().status(ShipmentStatus.IN_SCAN).build();
+        Shipment onRoad = Shipment.builder().status(ShipmentStatus.DISPATCHED).build();
+
+        when(shipmentService.findByManifestIds(List.of(manifest.getId()))).thenReturn(List.of(inScan, onRoad));
+        assertThat(service.completeIfAllReceived(manifest.getId())).isFalse();
+        assertThat(manifest.getStatus()).isEqualTo(ManifestStatus.DISPATCHED);
+
+        when(shipmentService.findByManifestIds(List.of(manifest.getId()))).thenReturn(List.of(inScan));
+        assertThat(service.completeIfAllReceived(manifest.getId())).isTrue();
+        assertThat(manifest.getStatus()).isEqualTo(ManifestStatus.COMPLETED);
+        verify(manifestRepository).save(manifest);
+    }
+
+    @Test
+    @DisplayName("completeIfAllReceived leaves a not-yet-dispatched manifest alone")
+    void completeIgnoresCreated() {
+        Manifest manifest = existingManifest(ManifestStatus.CREATED);
+        when(manifestRepository.findByIdWithinCompany(manifest.getId(), COMPANY)).thenReturn(Optional.of(manifest));
+        assertThat(service.completeIfAllReceived(manifest.getId())).isFalse();
+        assertThat(manifest.getStatus()).isEqualTo(ManifestStatus.CREATED);
+        verify(shipmentService, never()).findByManifestIds(any());
+    }
+
+    @Test
     @DisplayName("With Forwarder No.: each AWB's number is saved on its shipment; a blank one or a shipment not on the manifest is refused")
     void dispatchWithForwarderNumbers() {
         Manifest manifest = existingManifest(ManifestStatus.CREATED);

@@ -475,6 +475,25 @@ public class ManifestServiceImpl implements ManifestService {
                 Map.of("shipmentId", shipmentId.toString()));
     }
 
+    @Override
+    @Transactional
+    public boolean completeIfAllReceived(UUID manifestId) {
+        UUID companyId = requireCompany();
+        Manifest manifest = manifestRepository.findByIdWithinCompany(manifestId, companyId).orElse(null);
+        if (manifest == null || manifest.getStatus() != ManifestStatus.DISPATCHED) {
+            return false;
+        }
+        boolean stillOnTheRoad = shipmentService.findByManifestIds(List.of(manifestId)).stream()
+                .anyMatch(s -> s.getStatus() == com.courier.modules.shipment.domain.ShipmentStatus.DISPATCHED);
+        if (stillOnTheRoad) {
+            return false;
+        }
+        manifest.complete();
+        manifestRepository.save(manifest);
+        log.info("Manifest {} ({}) received in full in company {}", manifest.getManifestNumber(), manifestId, companyId);
+        return true;
+    }
+
     private Manifest loadOrThrow(UUID id, UUID companyId) {
         return manifestRepository.findByIdWithinCompany(id, companyId)
                 .orElseThrow(() -> new ResourceNotFoundException(ENTITY, id));

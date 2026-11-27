@@ -10,9 +10,11 @@ public record ManifestSearchRequest(
         UUID bookingBranchId,
         UUID deliveryBranchId,
         String search,
-        FlowType flowType
+        FlowType flowType,
+        @io.swagger.v3.oas.annotations.media.Schema(description = "true: dispatched or received manifests (not CREATED)") Boolean sent
 ) {
+
     public static ManifestSearchRequest empty() {
-        return new ManifestSearchRequest(null, null, null, null, null);
+        return new ManifestSearchRequest(null, null, null, null, null, null);
     }
 }

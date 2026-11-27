@@ -1852,6 +1852,11 @@ public class ShipmentServiceImpl implements ShipmentService {
 
         boolean finalDestination = Objects.equals(shipment.getDeliveryBranchId(), receivingBranchId);
         ShipmentStatus previous = shipment.getStatus();
+        if (shipment.getManifestId() != null) {
+            // Fires after commit (see ManifestReceiptListener): a failed in-scan below rolls back and never publishes it.
+            eventPublisher.publishEvent(new ShipmentEvent.ArrivedOffManifest(shipment.getId(), companyId,
+                    shipment.getManifestId(), Instant.now()));
+        }
         shipment.setCurrentLocationId(receivingBranchId);
 
         if (finalDestination && shipment.isRto()) {

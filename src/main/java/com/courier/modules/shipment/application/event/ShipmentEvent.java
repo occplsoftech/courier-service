@@ -226,6 +226,11 @@ public sealed interface ShipmentEvent {
     record ReceivedAtBranch(UUID shipmentId, UUID companyId, Instant occurredAt) implements ShipmentEvent {
     }
 
+    /** A shipment on a manifest was in-scanned anywhere (final branch, crossing hub, or back at origin): the manifest
+     *  module closes the manifest once nothing on it is still on the road. */
+    record ArrivedOffManifest(UUID shipmentId, UUID companyId, UUID manifestId, Instant occurredAt) implements ShipmentEvent {
+    }
+
     record OutForDelivery(UUID shipmentId, UUID companyId, Instant occurredAt) implements ShipmentEvent {
     }
 

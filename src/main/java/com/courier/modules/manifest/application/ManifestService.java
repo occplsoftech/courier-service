@@ -93,4 +93,7 @@ public interface ManifestService {
      * optional: {@link #dispatch} does not require it to have succeeded first.
      */
     void verifyDispatchOtp(UUID manifestId, UUID driverUserId, String otp);
+
+    /** Closes a dispatched manifest (COMPLETED) once none of its shipments is still DISPATCHED. Returns whether it closed it now. */
+    boolean completeIfAllReceived(UUID manifestId);
 }
