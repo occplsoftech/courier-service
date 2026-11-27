@@ -143,9 +143,13 @@ public class Company extends BaseEntity {
     @Column(name = "cin_number", length = 21)
     private String cinNumber;
 
-    /** URLs, not blobs. Binary assets belong in object storage, not in MySQL. */
+    /** A link to the logo, typed by a super admin on the company form. */
     @Column(name = "logo", length = 500)
     private String logo;
+
+    /** The logo a company admin uploaded (Settings), as a small data: URL like customers' logos; wins over {@link #logo}. */
+    @Column(name = "logo_data_url", columnDefinition = "MEDIUMTEXT")
+    private String logoDataUrl;
 
     @Column(name = "favicon", length = 500)
     private String favicon;

@@ -8,6 +8,16 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-27 — Company admins upload the company logo
+
+- **V182** `companies.logo_data_url` (MEDIUMTEXT): the logo a company admin uploads, as a data: URL (PNG, JPEG or WebP,
+  at most 150 KB; same rules as customer logos, `LogoImages`).
+- `PUT /api/v1/company-profile/logo` (multipart `file`) and `DELETE /api/v1/company-profile/logo`, COMPANY_ADMIN only
+  (`CompanyLogoService`, audited as COMPANY_UPDATED).
+- `GET /company-profile` returns the uploaded logo, else the `companies.logo` link a super admin typed; every print that
+  reads the profile (DRS, manifest, consignment note, invoices) shows it.
+- Web: Settings → Company Logo card.
+
 ## 2026-11-27 — Delivery Updation: fix the 500 for branch users
 
 - `GET /shipment-movement/delivery-updation` failed with 500 for every non-admin: row names (booking branch, package

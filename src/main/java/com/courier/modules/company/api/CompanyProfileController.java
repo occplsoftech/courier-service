@@ -35,6 +35,7 @@ public class CompanyProfileController {
 
     private final CompanyRepository companyRepository;
     private final CompanySettingsRepository settingsRepository;
+    private final com.courier.modules.company.application.CompanyLogoService logoService;
 
     @GetMapping
     @PreAuthorize("isAuthenticated()")
@@ -59,7 +60,8 @@ public class CompanyProfileController {
 
         return ApiResponse.success(new CompanyProfileResponse(
                 company.getCompanyName(),
-                company.getLogo(),
+                // The logo the company admin uploaded wins over the link a super admin typed.
+                company.getLogoDataUrl() != null ? company.getLogoDataUrl() : company.getLogo(),
                 company.getAddressLine1(),
                 company.getAddressLine2(),
                 company.getCity(),
@@ -70,5 +72,22 @@ public class CompanyProfileController {
                 website,
                 settings != null && settings.getSupportEmail() != null && !settings.getSupportEmail().isBlank()
                         ? settings.getSupportEmail() : company.getEmail()));
+    }
+
+    @org.springframework.web.bind.annotation.PutMapping(value = "/logo", consumes = "multipart/form-data")
+    @Operation(summary = "Upload the company logo (company admin)",
+            description = "PNG, JPEG or WebP, at most 150 KB; the type is read from the file. Printed on every letterhead.")
+    public ApiResponse<Void> uploadLogo(@org.springframework.web.bind.annotation.RequestParam("file")
+                                        org.springframework.web.multipart.MultipartFile file) throws java.io.IOException {
+        logoService.upload(file.getBytes());
+        return ApiResponse.success("Logo saved");
+    }
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/logo")
+    @Operation(summary = "Remove the uploaded company logo (company admin)",
+            description = "Prints fall back to the logo link on the company record, else the company name.")
+    public ApiResponse<Void> removeLogo() {
+        logoService.remove();
+        return ApiResponse.success("Logo removed");
     }
 }
