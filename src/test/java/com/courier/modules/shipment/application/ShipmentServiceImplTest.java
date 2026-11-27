@@ -191,6 +191,39 @@ class ShipmentServiceImplTest {
     // ------------------------------------------------------------------- create
 
     @Test
+    @DisplayName("Edit DRS: an undelivered parcel comes off the run (back to IN_SCAN); a delivered one cannot; a parcel joins the same run")
+    void editDrs() {
+        UUID boy = UUID.randomUUID();
+        Shipment out = Shipment.builder().shipmentNumber("PUN-1").status(ShipmentStatus.OUT_FOR_DELIVERY)
+                .bookingBranchId(BOOKING_BRANCH).deliveryBranchId(DELIVERY_BRANCH).build();
+        out.setId(UUID.randomUUID()); out.setCompanyId(COMPANY);
+        var a = com.courier.modules.shipment.domain.DeliveryAssignment.builder().shipmentId(out.getId()).drsNumber("DRS000009")
+                .deliveryBranchId(DELIVERY_BRANCH).deliveryUserId(boy).assignedAt(java.time.Instant.parse("2026-11-27T05:00:00Z")).build();
+        when(deliveryAssignmentRepository.findByShipmentIdWithinCompany(out.getId(), COMPANY)).thenReturn(Optional.of(a));
+        when(shipmentRepository.findByIdWithinCompany(out.getId(), COMPANY)).thenReturn(Optional.of(out));
+        when(shipmentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        assertThatThrownBy(() -> service.removeFromDrs("DRS000001", out.getId())).isInstanceOf(BusinessRuleException.class);
+        service.removeFromDrs("DRS000009", out.getId());
+        assertThat(out.getStatus()).isEqualTo(ShipmentStatus.IN_SCAN);
+        assertThat(a.isDeleted()).isTrue();
+
+        // Back onto the same run: same number, same delivery boy, same day.
+        a.restore();
+        when(deliveryAssignmentRepository.findByDrsNumberWithinCompany(COMPANY, "DRS000009")).thenReturn(List.of(a));
+        a.setStatus(com.courier.modules.shipment.domain.DeliveryAssignmentStatus.ASSIGNED);
+        var r = service.addToDrs("DRS000009", List.of(out.getId()));
+        assertThat(r.results().get(0).success()).isTrue();
+        assertThat(out.getStatus()).isEqualTo(ShipmentStatus.OUT_FOR_DELIVERY);
+        assertThat(a.getDeliveryUserId()).isEqualTo(boy);
+        assertThat(a.getAssignedAt()).isEqualTo(java.time.Instant.parse("2026-11-27T05:00:00Z"));
+
+        a.setStatus(com.courier.modules.shipment.domain.DeliveryAssignmentStatus.DELIVERED);
+        assertThatThrownBy(() -> service.removeFromDrs("DRS000009", out.getId())).isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("already delivered");
+    }
+
+    @Test
     @DisplayName("DRS list: two runs the same day with the same delivery boy are two rows; detail by number shows only that run")
     void drsSplitByNumber() {
         UUID boy = UUID.randomUUID();

@@ -19,6 +19,8 @@ public record DrsShipmentRowResponse(
         String toCity,
         /** COD to collect from the receiver; null when none. */
         BigDecimal codAmount,
-        String deliveryPincode
+        String deliveryPincode,
+        Integer numberOfPackages,
+        BigDecimal actualWeight
 ) {
 }

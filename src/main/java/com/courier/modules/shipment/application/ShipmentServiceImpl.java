@@ -1971,6 +1971,8 @@ public class ShipmentServiceImpl implements ShipmentService {
                     "Being returned to the sender: hand it back at the booking branch instead.");
         }
 
+        deliveryAssignmentRepository.restoreRemoved(com.courier.shared.domain.TimeOrderedUuid.toBytes(companyId),
+                com.courier.shared.domain.TimeOrderedUuid.toBytes(shipmentId));
         DeliveryAssignment assignment = deliveryAssignmentRepository
                 .findByShipmentIdWithinCompany(shipmentId, companyId)
                 .orElseGet(() -> {
@@ -2009,6 +2011,75 @@ public class ShipmentServiceImpl implements ShipmentService {
                         : Map.of("shipmentNumber", saved.getShipmentNumber(), "coLoaderId", coLoaderId.toString()));
         eventPublisher.publishEvent(new ShipmentEvent.OutForDelivery(saved.getId(), companyId, Instant.now()));
         return new MovementOutcome(saved.getShipmentNumber(), true, null);
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(WRITERS)
+    public BulkMovementResult addToDrs(String drsNumber, Collection<UUID> shipmentIds) {
+        UUID companyId = requireCompany();
+        List<DeliveryAssignment> run = deliveryAssignmentRepository.findByDrsNumberWithinCompany(companyId, drsNumber);
+        if (run.isEmpty()) {
+            throw new ResourceNotFoundException("DRS", drsNumber);
+        }
+        DeliveryAssignment first = run.get(0);
+        // Read before assigning: re-assigning a row of this run would move its own time to now.
+        Instant runAssignedAt = first.getAssignedAt();
+        UUID runUser = first.getDeliveryUserId(), runCoLoader = first.getCoLoaderId(), runVehicle = first.getVehicleId();
+        UUID runBranch = first.getDeliveryBranchId();
+        if (run.stream().noneMatch(d -> d.getStatus() == DeliveryAssignmentStatus.ASSIGNED)) {
+            throw new BusinessRuleException("DRS %s is complete; start a new DRS instead.".formatted(drsNumber));
+        }
+        List<MovementOutcome> outcomes = new ArrayList<>();
+        for (UUID shipmentId : shipmentIds) {
+            Shipment shipment = shipmentRepository.findByIdWithinCompany(shipmentId, companyId).orElse(null);
+            if (shipment == null) {
+                outcomes.add(new MovementOutcome(shipmentId.toString(), false, "No such shipment."));
+                continue;
+            }
+            // Only a parcel waiting to go out from this run's branch.
+            UUID branch = shipment.getDeliveryBranchId() != null ? shipment.getDeliveryBranchId()
+                    : localAtBookingBranch(shipment) ? shipment.getBookingBranchId() : shipment.getCurrentLocationId();
+            if (!Objects.equals(branch, runBranch)) {
+                outcomes.add(new MovementOutcome(shipment.getShipmentNumber(), false, "Not delivered from this DRS's branch."));
+                continue;
+            }
+            MovementOutcome outcome = assignOneOutForDelivery(companyId, shipmentId, runUser, drsNumber,
+                    runVehicle, null, null, runCoLoader);
+            if (outcome.success()) {
+                // Same run: keep it on the run's day, so it lists and prints with the rest.
+                deliveryAssignmentRepository.findByShipmentIdWithinCompany(shipmentId, companyId)
+                        .ifPresent(a -> { a.setAssignedAt(runAssignedAt); deliveryAssignmentRepository.save(a); });
+            }
+            outcomes.add(outcome);
+        }
+        return new BulkMovementResult(outcomes, drsNumber);
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(WRITERS)
+    public void removeFromDrs(String drsNumber, UUID shipmentId) {
+        UUID companyId = requireCompany();
+        DeliveryAssignment assignment = deliveryAssignmentRepository.findByShipmentIdWithinCompany(shipmentId, companyId)
+                .filter(a -> drsNumber.equals(a.getDrsNumber()))
+                .orElseThrow(() -> new BusinessRuleException("This shipment is not on DRS %s.".formatted(drsNumber)));
+        if (assignment.getStatus() == DeliveryAssignmentStatus.DELIVERED) {
+            throw new BusinessRuleException("This shipment is already delivered and cannot come off the DRS.");
+        }
+        Shipment shipment = loadOrThrow(shipmentId, companyId);
+        if (shipment.getStatus() != ShipmentStatus.OUT_FOR_DELIVERY) {
+            throw new BusinessRuleException("Shipment %s is %s, not out for delivery.".formatted(shipment.getShipmentNumber(), shipment.getStatus()));
+        }
+        ShipmentStatus previous = shipment.getStatus();
+        shipment.transitionTo(ShipmentStatus.IN_SCAN);
+        Shipment saved = shipmentRepository.save(shipment);
+        appendHistory(saved, companyId, previous, ShipmentStatus.IN_SCAN, "Taken off DRS " + drsNumber,
+                assignment.getDeliveryBranchId(), saved.getManifestId(), null);
+        assignment.softDelete(SecurityUtils.requireCurrentUser().userId());
+        deliveryAssignmentRepository.save(assignment);
+        auditService.record(AuditAction.SHIPMENT_OUT_FOR_DELIVERY_ASSIGNED, ENTITY, saved.getId(),
+                Map.of("shipmentNumber", saved.getShipmentNumber(), "removedFromDrs", drsNumber));
     }
 
     @Override
@@ -2877,7 +2948,8 @@ public class ShipmentServiceImpl implements ShipmentService {
                     return new DrsShipmentRow(s.getId(), s.getShipmentNumber(), s.getTrackingNumber(),
                             s.getReceiverName(), s.getReceiverAddress(), s.getReceiverContact(), s.getPaymentModeId(),
                             netAmounts.get(s.getId()), s.getStatus(), a.getDeliveredAt(),
-                            ewayBillNumbers.get(s.getId()), s.getFromCity(), s.getToCity(), s.getCodAmount(), s.getDeliveryPincode());
+                            ewayBillNumbers.get(s.getId()), s.getFromCity(), s.getToCity(), s.getCodAmount(), s.getDeliveryPincode(),
+                            s.getNumberOfPackages(), s.getActualWeight());
                 })
                 .filter(Objects::nonNull)
                 .toList();
