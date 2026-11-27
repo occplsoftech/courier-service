@@ -8,6 +8,11 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-27 — Delivery Updation: Delivered tab photo opens
+
+- The Delivered tab returned the POD photo's stored bucket address, which the private bucket refuses (403), so "View photo"
+  showed a broken image. It now goes through `SignedLinks` (1-hour signed link), like every other screen showing an upload.
+
 ## 2026-11-27 — Delivery Updation: fix the 500 for branch users
 
 - `GET /shipment-movement/delivery-updation` failed with 500 for every non-admin: row names (booking branch, package
