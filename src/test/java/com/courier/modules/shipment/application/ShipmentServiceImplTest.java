@@ -191,6 +191,27 @@ class ShipmentServiceImplTest {
     // ------------------------------------------------------------------- create
 
     @Test
+    @DisplayName("DRS list: two runs the same day with the same delivery boy are two rows; detail by number shows only that run")
+    void drsSplitByNumber() {
+        UUID boy = UUID.randomUUID();
+        java.time.Instant now = java.time.Instant.now();
+        java.util.function.BiFunction<String, UUID, com.courier.modules.shipment.domain.DeliveryAssignment> da = (no, sid) ->
+                com.courier.modules.shipment.domain.DeliveryAssignment.builder().shipmentId(sid).deliveryBranchId(DELIVERY_BRANCH)
+                        .deliveryUserId(boy).assignedAt(now).drsNumber(no).build();
+        UUID s1 = UUID.randomUUID(), s2 = UUID.randomUUID(), s3 = UUID.randomUUID();
+        when(deliveryAssignmentRepository.findByCompanyAndAssignedAtBetween(org.mockito.ArgumentMatchers.eq(COMPANY), any(), any()))
+                .thenReturn(List.of(da.apply("DRS000007", s3), da.apply("DRS000007", s2), da.apply("DRS000006", s1)));
+
+        var runs = service.listDrs(null, null, DELIVERY_BRANCH);
+        assertThat(runs).extracting(ShipmentService.DrsSummary::drsNumber).containsExactly("DRS000007", "DRS000006");
+        assertThat(runs).extracting(ShipmentService.DrsSummary::shipmentCount).containsExactly(2, 1);
+
+        when(shipmentRepository.findAllByCompanyIdAndIdIn(org.mockito.ArgumentMatchers.eq(COMPANY), any())).thenReturn(List.of());
+        service.getDrsDetail(boy, null, DELIVERY_BRANCH, java.time.LocalDate.now(java.time.ZoneOffset.UTC), "DRS000006");
+        verify(shipmentRepository).findAllByCompanyIdAndIdIn(COMPANY, List.of(s1));
+    }
+
+    @Test
     @DisplayName("a TO_PAY booking computes weight from the item grid, prices through the "
             + "engine, persists items/charges/history, and never touches the wallet")
     void bookingSucceeds() {
