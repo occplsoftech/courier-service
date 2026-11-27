@@ -7,7 +7,44 @@
 
 ## Current Version
 
-## HANDOFF — state on 2026-11-20 (read this before anything else)
+## HANDOFF — update on 2026-11-27 (read this, then the 2026-11-20 block below)
+
+Two Claude accounts work on these repos at the same time: fetch `main` before branching, and check open PRs first.
+Next free Flyway migration: **V183** (V181 forwarder number and V182 company logo are taken). Details of everything
+below are in `MEMORY/CHANGELOG.md` → 2026-11-27.
+
+**Scan screen (OCCPL Operation → Scan), all merged and checked live on dev:**
+- Tabs: Pending Outscan, Pending Inscan, Pending Delivery, DRS, Manifest. A manifest's status runs
+  **Created → Dispatched → Received**. Received is set automatically when its last parcel is inscanned
+  (`ManifestReceiptListener`).
+- **ASSIGN popup.** Create = **Manifest** (default) or **DRS**.
+  - Manifest: Branch, Co-Loader, Bags and own vehicle/driver, then **With / Without Forwarder No.** (per AWB,
+    typed or scanned; `shipments.forwarder_number`, V181). Scanned AWBs are listed in a table with Qty and
+    Actual wt.
+  - **SAVE MANIFEST** creates a **draft (Created)**. Nothing leaves until **Dispatch** is pressed.
+  - Return to Origin is a separate button on Pending Outscan.
+- **Manifest tab.** Shows **Sent** and **Incoming**: the destination branch sees a manifest only once it is
+  dispatched. One detail card per manifest.
+  - A draft has Edit, Dispatch, Print and Delete.
+  - Edit: add/remove AWBs, forwarder numbers, trip details, and Qty/Wt via Edit Shipment with `?manifest=`.
+    Saving puts the AWB back on the draft.
+  - API: `PATCH/DELETE /manifests/{id}`, `POST /manifests/{id}/shipments`, `PUT /manifests/{id}/forwarder-numbers`.
+- **DRS tab.** One card per **DRS number**; two runs on the same day are no longer merged.
+  - **Edit DRS** adds Pending Delivery parcels to the same run, or takes undelivered ones off:
+    `POST|DELETE /shipment-movement/drs/{no}/shipments`.
+  - A removed parcel's assignment row is soft-deleted and restored natively (`restoreRemoved`) if it goes out
+    again: rows are unique per shipment and never hard-deleted.
+- **Prints use the house "boxed form" header** (`courier-web shared/utils/letterhead-print.util.ts`): company logo,
+  title, address, mobile and email, a QR of the sheet number, a details grid, and 15 px text. Used by the Scan
+  manifest/DRS prints, Loading Sheet, THC and the Out for Delivery DRS. The DRS print has 38 mm rows for stamps.
+  Use it for any new print (see Rules → Print format).
+- **Company logo:** company admins upload it in Settings → Company Logo (V182, the other account's work). The
+  OCCPL logo is uploaded on dev and prints on the THC.
+
+**Test data on dev:** TEST_BR-000005…000015 are To-Pay test shipments, nearly all delivered. DRS000009 has no
+parcels left. MFT-261124-4828 (TEST_BR → SAMPLE_PDP) is an old draft.
+
+
 
 The project is being continued from another Claude account. Read this block first. After it, read `MEMORY/CHANGELOG.md` (newest first) and `MEMORY/modules/customer-portal-roadmap.md`.
 
