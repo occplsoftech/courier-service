@@ -24,7 +24,6 @@ All notable changes to this project. Format based on
   Places rebuilt the V173 way; REST_OF_INDIA lanes and charges copied to METRO/WEST/CENTRAL/SOUTH/NORTH, NORTH_EAST's to
   EAST, then REST_OF_INDIA removed. Mumbai and Kolkata now take the Rest of India rate on existing cards. Backup in
   `backup_20261127_*`.
-- **V184 fix**: `charge_settings` has no `service_type_id`; removed from the check (found by running it on MySQL).
 - Web: service type Network offers Air Cargo / Surface Cargo / Premium; Pincode Master Sheet shows the new columns.
 - Checked on MySQL 8 with real pincodes and an OCCPL company seeded as on dev: all migrations apply, app starts with
   schema validation, sample pincodes resolve to the expected zones, no pincode or city in two zones.
