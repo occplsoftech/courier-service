@@ -2881,7 +2881,8 @@ public class ShipmentServiceImpl implements ShipmentService {
                 })
                 .filter(Objects::nonNull)
                 .toList();
-        return new DrsDetail(deliveryUserId, deliveryBranchId, runDate, representativeDrsNumber(assignments), rows);
+        UUID vehicleId = assignments.stream().map(DeliveryAssignment::getVehicleId).filter(Objects::nonNull).findFirst().orElse(null);
+        return new DrsDetail(deliveryUserId, deliveryBranchId, runDate, representativeDrsNumber(assignments), rows, vehicleId);
     }
 
     /** {@code assignments} is already ordered newest-first (the repository query's own

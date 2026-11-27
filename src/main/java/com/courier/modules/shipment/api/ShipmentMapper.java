@@ -301,7 +301,7 @@ public class ShipmentMapper {
     public com.courier.modules.shipment.api.dto.DrsDetailResponse toResponse(ShipmentService.DrsDetail d) {
         return new com.courier.modules.shipment.api.dto.DrsDetailResponse(
                 d.deliveryUserId(), d.deliveryBranchId(), d.runDate(), d.drsNumber(),
-                d.shipments().stream().map(this::toResponse).toList());
+                d.shipments().stream().map(this::toResponse).toList(), d.vehicleId());
     }
 
     private com.courier.modules.shipment.api.dto.DrsShipmentRowResponse toResponse(

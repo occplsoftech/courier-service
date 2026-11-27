@@ -636,7 +636,11 @@ public interface ShipmentService {
     }
 
     record DrsDetail(UUID deliveryUserId, UUID deliveryBranchId, java.time.LocalDate runDate,
-                     String drsNumber, List<DrsShipmentRow> shipments) {
+                     String drsNumber, List<DrsShipmentRow> shipments, UUID vehicleId) {
+        public DrsDetail(UUID deliveryUserId, UUID deliveryBranchId, java.time.LocalDate runDate,
+                         String drsNumber, List<DrsShipmentRow> shipments) {
+            this(deliveryUserId, deliveryBranchId, runDate, drsNumber, shipments, null);
+        }
     }
 
     /**
