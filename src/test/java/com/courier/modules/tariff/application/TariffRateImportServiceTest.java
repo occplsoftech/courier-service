@@ -253,4 +253,14 @@ class TariffRateImportServiceTest {
             assertThatThrownBy(() -> service.preview(card.getId(), file)).hasMessageContaining("missing column(s): FROMZONE");
         }
     }
+
+    @Test
+    @DisplayName("EX and X in front of a zone name are the same: EXPUNE finds X_PUNE \"X - Pune\" and back")
+    void exAndXZones() {
+        java.util.Map<String, String> byKey = java.util.Map.of("XPUNE", "X_PUNE", "EXMAHARASHTRA", "EXMAHARASHTRA");
+        assertThat(TariffRateImportService.zone(byKey, "EXPUNE")).isEqualTo("X_PUNE");
+        assertThat(TariffRateImportService.zone(byKey, "Ex Pune")).isEqualTo("X_PUNE");
+        assertThat(TariffRateImportService.zone(byKey, "X - Maharashtra")).isEqualTo("EXMAHARASHTRA");
+        assertThat(TariffRateImportService.zone(byKey, "PUNE")).isNull();
+    }
 }

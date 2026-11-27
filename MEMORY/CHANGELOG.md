@@ -8,6 +8,15 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-27 — One cargo service (V184); EX / X zone names match
+
+- **V184**: a company whose cargo service has another code than CARGO (OCCPL dev: CRG "CARGO") kept it through V183 and got
+  an empty SURFACE_CARGO besides. Now its cargo service is renamed SURFACE_CARGO "Surface Cargo" (rates, charges, bookings
+  follow) and the empty duplicate removed; skipped where the duplicate is already used or the name is taken.
+- Sheet imports (company and customer): "EXPUNE" finds zone X_PUNE "X - Pune" and the other way round.
+- Found on dev 2026-11-27: the customers' old sheets use zones METRO, WEST, CENTRAL, SOUTH, NORTH, EAST, which dev does not
+  have (it has REST_OF_INDIA); the owner is updating the zone list before the sheets are uploaded.
+
 ## 2026-11-27 — Business customer rates from Excel (own tariff card), Per Box, cargo service types
 
 - **V183** (renumbered from V182, which the company logo took) `tariff_rate_cards.customer_id`: a business customer's own zone-tariff card. `tariff_rate_slabs.rate_type` gains

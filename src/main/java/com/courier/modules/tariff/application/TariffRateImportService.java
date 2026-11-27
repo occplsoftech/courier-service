@@ -225,7 +225,7 @@ public class TariffRateImportService {
                 dates.add(r.applicableFrom().trim());
             }
             String place = !blank(r.city()) ? r.city() : r.state();
-            TariffZone toZone = !blank(place) ? toZones.get(key(place)) : toZones.get(key(r.toZone()));
+            TariffZone toZone = !blank(place) ? zone(toZones, place) : zone(toZones, r.toZone());
             if (toZone == null) {
                 plan.errors.add(new Issue(r.row(), blank(place)
                         ? "No active to zone matches \"%s\". Create it (code or name %s) or correct the sheet.".formatted(r.toZone(), r.toZone())
@@ -416,6 +416,25 @@ public class TariffRateImportService {
     }
 
     // ------------------------------------------------------------------ matching
+
+    /**
+     * A zone by code or name, read loosely ({@link #key}); "EX" and "X" in front are the same ("EXPUNE" finds zone X_PUNE
+     * "X - Pune", and "X MAHARASHTRA" finds EXMAHARASHTRA).
+     */
+    static <Z> Z zone(Map<String, Z> zonesByKey, String text) {
+        String k = key(text);
+        if (k.isEmpty()) {
+            return null;
+        }
+        Z hit = zonesByKey.get(k);
+        if (hit == null && k.startsWith("EX") && k.length() > 2) {
+            hit = zonesByKey.get(k.substring(1));
+        }
+        if (hit == null && k.startsWith("X") && k.length() > 1) {
+            hit = zonesByKey.get("E" + k);
+        }
+        return hit;
+    }
 
     /** Uppercase letters and digits only: "Ex Pune" and "EX-PUNE" are both EXPUNE. */
     static String key(String s) {
