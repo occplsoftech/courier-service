@@ -2812,8 +2812,10 @@ public class ShipmentServiceImpl implements ShipmentService {
         }
 
         return rows.stream()
+                // One row per DRS number: two runs the same day with the same delivery boy stay apart. Rows from before
+                // DRS numbers existed (null) still group by delivery boy + branch + day.
                 .collect(Collectors.groupingBy(d -> new DrsGroupKey(d.getDeliveryUserId(), d.getCoLoaderId(),
-                        d.getDeliveryBranchId(), d.getAssignedAt().atZone(ZoneOffset.UTC).toLocalDate())))
+                        d.getDeliveryBranchId(), d.getAssignedAt().atZone(ZoneOffset.UTC).toLocalDate(), d.getDrsNumber())))
                 .entrySet().stream()
                 .map(e -> {
                     long delivered = e.getValue().stream()
@@ -2822,7 +2824,8 @@ public class ShipmentServiceImpl implements ShipmentService {
                             e.getKey().runDate(), representativeDrsNumber(e.getValue()), e.getValue().size(),
                             (int) delivered, e.getValue().size() - (int) delivered, e.getKey().coLoaderId());
                 })
-                .sorted(Comparator.comparing(DrsSummary::runDate).reversed())
+                .sorted(Comparator.comparing(DrsSummary::runDate)
+                        .thenComparing(DrsSummary::drsNumber, Comparator.nullsFirst(Comparator.naturalOrder())).reversed())
                 .toList();
     }
 
@@ -2837,14 +2840,24 @@ public class ShipmentServiceImpl implements ShipmentService {
     @Transactional(readOnly = true)
     @PreAuthorize(READERS)
     public DrsDetail getDrsDetail(UUID deliveryUserId, UUID coLoaderId, UUID deliveryBranchId, LocalDate runDate) {
+        return getDrsDetail(deliveryUserId, coLoaderId, deliveryBranchId, runDate, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize(READERS)
+    public DrsDetail getDrsDetail(UUID deliveryUserId, UUID coLoaderId, UUID deliveryBranchId, LocalDate runDate,
+                                  String drsNumber) {
         UUID companyId = requireCompany();
+        boolean byNumber = drsNumber != null && !drsNumber.isBlank();
         List<DeliveryAssignment> assignments = deliveryAssignmentRepository.findByCompanyAndAssignedAtBetween(
                 companyId, runDate.atStartOfDay(ZoneOffset.UTC).toInstant(),
                 runDate.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant())
                 .stream()
                 .filter(d -> Objects.equals(d.getDeliveryUserId(), deliveryUserId)
                         && Objects.equals(d.getCoLoaderId(), coLoaderId)
-                        && d.getDeliveryBranchId().equals(deliveryBranchId))
+                        && d.getDeliveryBranchId().equals(deliveryBranchId)
+                        && (!byNumber || drsNumber.trim().equals(d.getDrsNumber())))
                 .toList();
         if (assignments.isEmpty()) {
             throw new ResourceNotFoundException("DRS", deliveryUserId);
@@ -2864,11 +2877,12 @@ public class ShipmentServiceImpl implements ShipmentService {
                     return new DrsShipmentRow(s.getId(), s.getShipmentNumber(), s.getTrackingNumber(),
                             s.getReceiverName(), s.getReceiverAddress(), s.getReceiverContact(), s.getPaymentModeId(),
                             netAmounts.get(s.getId()), s.getStatus(), a.getDeliveredAt(),
-                            ewayBillNumbers.get(s.getId()), s.getFromCity(), s.getToCity());
+                            ewayBillNumbers.get(s.getId()), s.getFromCity(), s.getToCity(), s.getCodAmount(), s.getDeliveryPincode());
                 })
                 .filter(Objects::nonNull)
                 .toList();
-        return new DrsDetail(deliveryUserId, deliveryBranchId, runDate, representativeDrsNumber(assignments), rows);
+        UUID vehicleId = assignments.stream().map(DeliveryAssignment::getVehicleId).filter(Objects::nonNull).findFirst().orElse(null);
+        return new DrsDetail(deliveryUserId, deliveryBranchId, runDate, representativeDrsNumber(assignments), rows, vehicleId);
     }
 
     /** {@code assignments} is already ordered newest-first (the repository query's own
@@ -2879,7 +2893,7 @@ public class ShipmentServiceImpl implements ShipmentService {
                 .filter(Objects::nonNull).findFirst().orElse(null);
     }
 
-    private record DrsGroupKey(UUID deliveryUserId, UUID coLoaderId, UUID deliveryBranchId, LocalDate runDate) {
+    private record DrsGroupKey(UUID deliveryUserId, UUID coLoaderId, UUID deliveryBranchId, LocalDate runDate, String drsNumber) {
     }
 
     // ------------------------------------------------------------- cross-module

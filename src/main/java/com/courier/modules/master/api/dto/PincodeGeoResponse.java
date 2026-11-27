@@ -9,9 +9,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * company — not an error, same meaning as {@link PincodeAreaLookupResponse#matched()}.
  */
 @Schema(name = "PincodeGeoResponse", description = "Area/City/District already on file for a pincode")
-public record PincodeGeoResponse(boolean matched, String areaName, String cityName, String districtName) {
+public record PincodeGeoResponse(boolean matched, String areaName, String cityName, String districtName, String stateName) {
 
     public static PincodeGeoResponse notFound() {
-        return new PincodeGeoResponse(false, null, null, null);
+        return new PincodeGeoResponse(false, null, null, null, null);
     }
 }

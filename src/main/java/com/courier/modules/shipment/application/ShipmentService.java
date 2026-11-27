@@ -615,9 +615,11 @@ public interface ShipmentService {
     /** One co-loader's DRS run (deliveryUserId null), or a staff user's when coLoaderId is null. */
     DrsDetail getDrsDetail(UUID deliveryUserId, UUID coLoaderId, UUID deliveryBranchId, java.time.LocalDate runDate);
 
-    /** {@code drsNumber} is the most recently generated number among the run's assignments
-     *  (null for runs made entirely of pre-V31 rows) — the grouping key itself is still
-     *  delivery user + delivery branch + calendar day, unchanged. */
+    /** One DRS by its number (listDrs gives one row per number); null number = the whole day's run, as before. */
+    DrsDetail getDrsDetail(UUID deliveryUserId, UUID coLoaderId, UUID deliveryBranchId, java.time.LocalDate runDate, String drsNumber);
+
+    /** One row per DRS number (delivery user + branch + day + number); rows from before DRS numbers existed
+     *  (pre-V31, number null) still group by delivery user + delivery branch + calendar day. */
     record DrsSummary(UUID deliveryUserId, UUID deliveryBranchId, java.time.LocalDate runDate,
                       String drsNumber, int shipmentCount, int deliveredCount, int pendingCount, UUID coLoaderId) {
         public DrsSummary(UUID deliveryUserId, UUID deliveryBranchId, java.time.LocalDate runDate,
@@ -630,11 +632,15 @@ public interface ShipmentService {
                           String receiverName, String receiverAddress, String receiverContact, UUID paymentModeId,
                           BigDecimal netAmount, com.courier.modules.shipment.domain.ShipmentStatus status,
                           java.time.Instant deliveredAt, String ewayBillNumber,
-                          String fromCity, String toCity) {
+                          String fromCity, String toCity, BigDecimal codAmount, String deliveryPincode) {
     }
 
     record DrsDetail(UUID deliveryUserId, UUID deliveryBranchId, java.time.LocalDate runDate,
-                     String drsNumber, List<DrsShipmentRow> shipments) {
+                     String drsNumber, List<DrsShipmentRow> shipments, UUID vehicleId) {
+        public DrsDetail(UUID deliveryUserId, UUID deliveryBranchId, java.time.LocalDate runDate,
+                         String drsNumber, List<DrsShipmentRow> shipments) {
+            this(deliveryUserId, deliveryBranchId, runDate, drsNumber, shipments, null);
+        }
     }
 
     /**

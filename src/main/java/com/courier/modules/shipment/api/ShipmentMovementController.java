@@ -344,7 +344,7 @@ public class ShipmentMovementController {
 
     @GetMapping("/drs")
     @Operation(summary = "List DRS runs",
-            description = "One row per delivery user + delivery branch + calendar day, grouped from "
+            description = "One row per DRS number (delivery user + delivery branch + calendar day for old rows without one), grouped from "
                     + "DeliveryAssignment (there is no separate DRS/batch table). Defaults to the "
                     + "trailing 30 days when from/to are omitted. deliveryBranchId restricts to one "
                     + "branch server-side, e.g. a BRANCH_MANAGER's own branch.")
@@ -362,9 +362,10 @@ public class ShipmentMovementController {
                     + "on this day.")
     public ApiResponse<com.courier.modules.shipment.api.dto.DrsDetailResponse> drsDetail(
             @RequestParam(required = false) UUID deliveryUserId, @RequestParam(required = false) UUID coLoaderId,
-            @RequestParam UUID deliveryBranchId, @RequestParam java.time.LocalDate runDate) {
-        return ApiResponse.success(
-                shipmentMapper.toResponse(shipmentService.getDrsDetail(deliveryUserId, coLoaderId, deliveryBranchId, runDate)));
+            @RequestParam UUID deliveryBranchId, @RequestParam java.time.LocalDate runDate,
+            @RequestParam(required = false) String drsNumber) {
+        return ApiResponse.success(shipmentMapper.toResponse(
+                shipmentService.getDrsDetail(deliveryUserId, coLoaderId, deliveryBranchId, runDate, drsNumber)));
     }
 
     @PostMapping(value = "/{shipmentId}/pod-upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

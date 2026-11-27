@@ -94,7 +94,7 @@ public class PincodeController {
     public ApiResponse<PincodeGeoResponse> geo(@PathVariable String code,
                                                 @RequestParam(required = false) UUID areaId) {
         return ApiResponse.success(service.geography(code, areaId)
-                .map(g -> new PincodeGeoResponse(true, g.areaName(), g.cityName(), g.districtName()))
+                .map(g -> new PincodeGeoResponse(true, g.areaName(), g.cityName(), g.districtName(), g.stateName()))
                 .orElseGet(PincodeGeoResponse::notFound));
     }
 

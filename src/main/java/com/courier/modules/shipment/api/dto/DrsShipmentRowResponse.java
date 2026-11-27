@@ -16,6 +16,9 @@ public record DrsShipmentRowResponse(
         /** The booking branch's own city. */
         String fromCity,
         /** The destination pincode/area's resolved city. */
-        String toCity
+        String toCity,
+        /** COD to collect from the receiver; null when none. */
+        BigDecimal codAmount,
+        String deliveryPincode
 ) {
 }

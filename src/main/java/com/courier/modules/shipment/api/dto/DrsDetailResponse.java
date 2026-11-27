@@ -6,6 +6,8 @@ import java.util.UUID;
 
 public record DrsDetailResponse(
         UUID deliveryUserId, UUID deliveryBranchId, LocalDate runDate,
-        String drsNumber, List<DrsShipmentRowResponse> shipments
+        String drsNumber, List<DrsShipmentRowResponse> shipments,
+        /** The run's vehicle, when one was given at DRS time. */
+        UUID vehicleId
 ) {
 }

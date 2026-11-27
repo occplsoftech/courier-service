@@ -20,6 +20,8 @@ public record CompanyProfileResponse(
         String postalCode,
         String gstNumber,
         String mobile,
-        String website
+        String website,
+        /** Support email (Settings), else the company's own email — the DRS / manifest letterhead. */
+        String email
 ) {
 }
