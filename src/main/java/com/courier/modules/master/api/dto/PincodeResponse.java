@@ -21,6 +21,7 @@ public record PincodeResponse(
         UUID districtId, String districtName, UUID stateId, String stateName,
         UUID regionalZoneId, String regionalZoneName,
         NetworkCoverageDto doc, NetworkCoverageDto surface, NetworkCoverageDto air,
+        NetworkCoverageDto airCargo, NetworkCoverageDto surfaceCargo, NetworkCoverageDto premium,
         UUID createdBy, Instant createdDate, UUID updatedBy, Instant updatedDate, Long version
 ) {
 }

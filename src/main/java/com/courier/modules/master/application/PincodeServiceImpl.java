@@ -317,6 +317,14 @@ public class PincodeServiceImpl extends AbstractMasterDataService<Pincode> imple
         pincode.setCoverage(ServiceNetwork.DOCUMENT, command.doc());
         pincode.setCoverage(ServiceNetwork.SURFACE, command.surface());
         pincode.setCoverage(ServiceNetwork.AIR, command.air());
+        applyCargoAndPremium(pincode, command);
+    }
+
+    /** V185 networks (air cargo, surface cargo, premium): only when sent, so an older client or the bulk import never clears them. */
+    static void applyCargoAndPremium(Pincode pincode, PincodeCommand command) {
+        if (command.airCargo() != null) pincode.setCoverage(ServiceNetwork.AIR_CARGO, command.airCargo());
+        if (command.surfaceCargo() != null) pincode.setCoverage(ServiceNetwork.SURFACE_CARGO, command.surfaceCargo());
+        if (command.premium() != null) pincode.setCoverage(ServiceNetwork.PREMIUM, command.premium());
     }
 
     /** A regional zone is global, like the pincode: it must be a live one of the platform's. */

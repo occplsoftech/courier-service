@@ -25,6 +25,10 @@ public record PincodeCommand(
         NetworkCoverage doc,
         NetworkCoverage surface,
         NetworkCoverage air,
+        /** V185 networks; null leaves the pincode's current coverage as it is. */
+        NetworkCoverage airCargo,
+        NetworkCoverage surfaceCargo,
+        NetworkCoverage premium,
         Long expectedVersion
 ) {
     /** Without the V171 fields: no regional zone and no per-network coverage. */
@@ -32,6 +36,6 @@ public record PincodeCommand(
                           Boolean serviceable, Boolean codAvailable, Boolean prepaidAvailable, Boolean pickupAvailable,
                           String zone, Boolean odaApplicable, Long expectedVersion) {
         this(code, name, description, displayOrder, areaId, serviceable, codAvailable, prepaidAvailable,
-                pickupAvailable, zone, odaApplicable, null, null, null, null, expectedVersion);
+                pickupAvailable, zone, odaApplicable, null, null, null, null, null, null, null, expectedVersion);
     }
 }
