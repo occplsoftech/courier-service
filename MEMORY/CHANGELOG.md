@@ -8,6 +8,16 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-28 — Send a business customer's booking summary now
+
+- `POST /api/v1/booking-summary-email/{customerId}/send-now` `{to?, day?}` (company admin, `BookingSummaryEmailService.sendNow`):
+  the nightly e-mail (same subject, logo, table, closing) sent at once for the day's window (23:30 the day before → 23:30,
+  or now), to `to` (default: the customer's address). Not written to `booking_summary_email_log`, so the 23:30 run still
+  sends. Refused with a reason when there is no / a bad address or the customer booked nothing in the window.
+- Web: Business Customers → ⋮ → Send booking summary now (address and day; errors shown in the dialog).
+- Dev mail: SMTP is on (Gmail, info@occpllogistics.com; `/opt/occpl/.env` COURIER_SMTP_* / COURIER_EMAIL_*), From Email
+  set in Communication → Email.
+
 ## 2026-11-28 — User Performance Report and cash handover (V191)
 
 - **V191**: `cash_handovers` (cash a user hands over: amount, mode CASH/BANK_DEPOSIT/UPI, reference, date, **proof image**,
