@@ -19,10 +19,61 @@ untouched. Until the owner sets up new zones and rates, bookings are priced by D
 Anything below that describes zones, regions or customer cards (incl. the V186 rate zones) describes the state before
 V187. **Next free Flyway migration: V188.**
 
+## HANDOFF — business customer rates, pincode master and rate zones (2026-11-27)
+
+> **V187 (block above) cleared the zones, regions and every rate card after this was written.** What follows is
+> still true for the code and the rules (Upload Rates, Per Box, cargo networks, pincode coverage); the zones, cards,
+> uploads and prices it lists describe dev *before* V187 and are gone until the owner sets them up again.
+
+All merged and live on dev: CS#149, #151, #152 and CW#89, #93. **Next free Flyway migration: V188** (V187 is taken). Details are in
+`MEMORY/CHANGELOG.md` (2026-11-27 entries) and `modules/zone-tariff.md` ("A business customer's own card", "Rate zones").
+
+**Business customer rates from Excel (the old software's export: Sr, Courier, From zone, To zone, State, City, Mode,
+Product, Applicable From, Weight From, Weight To, Rate, Rate Type).**
+- Business Customer → Customer → row ⋮ → **Upload Rates (Excel)** (company admin, active business customers).
+  Check (saves nothing) → Upload. Each customer gets **their own zone-tariff card** `CUST-<code>-<from zone>`
+  (`tariff_rate_cards.customer_id`, V183); the first upload copies the company card's charges (fuel, docket…).
+- "Addition 500GM" = per extra 0.5 kg (default) or 1 kg, chosen on upload. "Per Box" = rate × boxes
+  (`SlabRateType.PER_BOX`). "LAPTOP-SURFACE" = SURFACE for package type LAPTOP. "Cargo" / "Cargo SURFACE" = SURFACE_CARGO.
+- Lanes whose Fixed / Per Kg look swapped are refused row by row (first band Per Kg, or a heavy last band Fixed at no
+  more than the band before it).
+- **Pricing**: a customer on business rates is priced from their card first, lane by lane; anything their sheet lacks
+  uses the company card. Same in **Business Customer Booking**, **Credit Shipment**, **Zone Tariff → Tariff
+  Calculator** (pick "Business customer") and the portal. View breakup shows the calculation; the screens do not say
+  which card a price came from.
+
+**Service types (V183, V184):** SURFACE (SRF), AIR, PREMIUM (PRM), SURFACE CARGO (old CARGO / CRG renamed, same row),
+AIR CARGO. Package type LAPTOP added.
+
+**Pincode master (V185, from `Pincode_Master_NEW - SHUBHAM.xls`):** zone (Region), regional zone (zone column) and
+coverage per pincode for Document, Surface, Air and now **Air Cargo, Surface Cargo, Premium** (networks of the same
+names on the service type). Premium is serviceable at only 259 pincodes.
+
+**Rate zones (V186, OCCPL):** PUNE, X_PUNE, MAHARASHTRA, X_MAHARASHTRA, VIDHARBHA, **METRO, WEST, CENTRAL, SOUTH,
+NORTH, EAST**, NORTH_EAST (REST_OF_INDIA removed, its rates copied). METRO = Mumbai 400001-400104, Delhi 110xxx,
+Kolkata 700001-700160, Chennai 600001-600130, Bengaluru 560xxx, Hyderabad 500001-500100. Mumbai and Kolkata now take
+the Rest of India rate on PUNE_CASH_2025 (edit its METRO lanes if metros should differ).
+
+**Dev data (dummy, made for testing; the four customers remain, their cards were removed by V187):** business customers A&A Global (CUST59BNFXPM), Adinath Agro (CUSTK7DDTZ6D),
+Aexonic (CUSTQ5KD86QK), Chandukaka Saraf (CUSTTQN9EH77) with dummy GST 27AAAAA000nA1Z5, contact "Test Contact",
+mobiles 9000000002-4 and 9000000011. Uploaded: Adinath 41 lanes, Aexonic 24, Chandukaka 70. Checked on dev
+(TEST_BR, Pune → New Delhi 1.2 kg parcel, Chandukaka): AIR 300, PREMIUM 500, SURFACE CARGO 650 from their card,
+SURFACE 180 from the company card; same in Credit Shipment and Business Customer Booking. No test AWB was generated.
+
+**Waiting on the owner:**
+- A&A Global's sheet has 20 swapped Fixed / Per Kg rows (13 Non Document lanes); upload after it is fixed.
+- Whether customers' cards should keep the copied company charges (fuel, docket) or be freight only.
+- METRO prices (PUNE_CASH_2025 itself was removed by V187).
+- Rotate the dev password of the support login: it was pasted into chat on 2026-11-27.
+
+**How this was tested:** generated migrations (V185, V186) were run on MySQL 8 in Docker with the real global pincodes
+and an OCCPL company seeded as on dev (migrate to V183 with `-Dspring.flyway.target=183`, seed, then start the app).
+Do that for any data migration: CI does not run migrations, and a V184 column mistake was only caught this way.
+
 ## HANDOFF — update on 2026-11-27 (read this, then the 2026-11-20 block below)
 
 Two Claude accounts work on these repos at the same time: fetch `main` before branching, and check open PRs first.
-Next free Flyway migration: **V183** (V181 forwarder number and V182 company logo are taken). Details of everything
+Next free Flyway migration: **V188** (see the blocks above). Details of everything
 below are in `MEMORY/CHANGELOG.md` → 2026-11-27.
 
 **Scan screen (OCCPL Operation → Scan), all merged and checked live on dev:**
