@@ -196,6 +196,7 @@ public class ShipmentServiceImpl implements ShipmentService {
     private final EwayBillService ewayBillService;
     private final FreightCalculationService freightCalculationService;
     private final com.courier.modules.pricing.application.calculator.ApplicableChargesCalculator applicableChargesCalculator;
+    private final com.courier.modules.charge.application.BookingChargeService bookingChargeService;
 
     private final AuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
@@ -303,7 +304,14 @@ public class ShipmentServiceImpl implements ShipmentService {
         PaymentMode paymentMode = paymentModeService.getById(command.paymentModeId());
         ServiceType serviceType = serviceTypeService.getById(command.serviceTypeId());
 
-        BigDecimal otherCharges = command.otherCharges() == null ? BigDecimal.ZERO : command.otherCharges();
+        // Charges Master (V192): the charges the clerk ticked (COD from the master), the rest riding as Other Charges.
+        BigDecimal codAmount = codAmountFor(paymentMode, command.codAmount());
+        com.courier.modules.charge.application.BookingChargeService.Resolved masterCharges = bookingChargeService.resolve(
+                command.businessCustomerId(), command.additionalCharges(),
+                effectiveFreight(freightCalc, command.ratePerKgOverride()), weight.chargeableWeight(),
+                totalQuantity(items), codAmount);
+        BigDecimal otherCharges = (command.otherCharges() == null ? BigDecimal.ZERO : command.otherCharges())
+                .add(masterCharges.othersTotal());
         BigDecimal appointmentDeliveryCharge = command.appointmentDeliveryCharge() == null
                 ? BigDecimal.ZERO : command.appointmentDeliveryCharge();
         boolean insuranceApplicable = Boolean.TRUE.equals(command.insuranceApplicable());
@@ -311,8 +319,7 @@ public class ShipmentServiceImpl implements ShipmentService {
         BigDecimal doorDeliveryCharge = deliveryType == DeliveryType.DOOR && command.doorDeliveryCharge() != null
                 ? command.doorDeliveryCharge() : BigDecimal.ZERO;
         BigDecimal toPayCharge = toPayChargeFor(paymentMode);
-        BigDecimal codAmount = codAmountFor(paymentMode, command.codAmount());
-        BigDecimal codCharge = codCharge(codAmount);
+        BigDecimal codCharge = masterCharges.codCharge();
         BigDecimal netAmount = netAmountWithOtherCharges(priced, otherCharges, command.odaCharge(), bookingBranch,
                 freightCalc, command.ratePerKgOverride(), appointmentDeliveryCharge, insuranceApplicable,
                 doorDeliveryCharge, toPayCharge, codCharge, fovValue(command.invoiceValue(), command.declaredValue()));
@@ -406,6 +413,7 @@ public class ShipmentServiceImpl implements ShipmentService {
         persistCharges(saved, companyId, priced, otherCharges, command.odaCharge(), bookingBranch, freightCalc,
                 command.ratePerKgOverride(), appointmentDeliveryCharge, insuranceApplicable, doorDeliveryCharge, toPayCharge, codCharge,
                 fovValue(command.invoiceValue(), command.declaredValue()));
+        bookingChargeService.record(saved.getId(), masterCharges.lines());
         appendHistory(saved, companyId, null, ShipmentStatus.BOOKED, "Shipment booked");
 
         if (crossing) {
@@ -765,7 +773,8 @@ public class ShipmentServiceImpl implements ShipmentService {
         PaymentMode updatedMode = paymentModeService.getById(command.paymentModeId());
         BigDecimal toPayCharge = toPayChargeFor(updatedMode);
         // The COD amount is set at booking; an edit keeps it while the shipment stays on COD.
-        BigDecimal codCharge = codCharge(codAmountFor(updatedMode, shipment.getCodAmount()));
+        BigDecimal codCharge = codChargeOnEdit(saved.getId(), shipment.getBusinessCustomerId(),
+                codAmountFor(updatedMode, shipment.getCodAmount()));
         com.courier.modules.company.domain.Branch bookingBranch =
                 branchService.getById(shipment.getBookingBranchId());
 
@@ -3291,6 +3300,23 @@ public class ShipmentServiceImpl implements ShipmentService {
     /** The COD collection amount on a Cash on Delivery booking; none on any other payment mode. */
     private static BigDecimal codAmountFor(PaymentMode paymentMode, BigDecimal amount) {
         return paymentMode.isCashOnDelivery() && amount != null && amount.signum() > 0 ? amount : null;
+    }
+
+    /**
+     * COD on an edit: a booking made with the Charges Master keeps what the clerk chose (its COD line, or none when
+     * unticked); an older booking gets the master's COD. Zero when it is not COD.
+     */
+    private BigDecimal codChargeOnEdit(UUID shipmentId, UUID customerId, BigDecimal codAmount) {
+        if (codAmount == null) {
+            return BigDecimal.ZERO;
+        }
+        List<com.courier.modules.charge.application.BookingChargeService.Line> picked = bookingChargeService.linesFor(shipmentId);
+        if (!picked.isEmpty()) {
+            return picked.stream().filter(l -> l.code() == com.courier.modules.charge.domain.BookingChargeCode.COD)
+                    .map(com.courier.modules.charge.application.BookingChargeService.Line::amount)
+                    .findFirst().orElse(BigDecimal.ZERO);
+        }
+        return bookingChargeService.resolve(customerId, null, BigDecimal.ZERO, BigDecimal.ZERO, 1, codAmount).codCharge();
     }
 
     /** 2% of the COD collection amount or {@link #COD_MINIMUM}, whichever is higher; zero when it is not COD. */

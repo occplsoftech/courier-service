@@ -133,7 +133,12 @@ class ShipmentMovementServiceImplTest {
                 rateService, routeService, pricingEngine, new PricingProperties(), walletService,
                 userService, branchService, org.mockito.Mockito.mock(com.courier.modules.shipment.domain.BranchLookupPort.class), org.mockito.Mockito.mock(com.courier.modules.master.domain.PaymentModeRepository.class), org.mockito.Mockito.mock(com.courier.modules.master.domain.ServiceTypeRepository.class), org.mockito.Mockito.mock(com.courier.modules.master.domain.PackageTypeRepository.class), customerService, crossingService, ticketService, ticketCategoryService,
                 ewayBillService, freightCalculationService,
-                applicableChargesCalculator, auditService, eventPublisher, fileStoragePort,
+                applicableChargesCalculator,
+                new com.courier.modules.charge.application.BookingChargeServiceImpl(
+                        org.mockito.Mockito.mock(com.courier.modules.charge.domain.BookingChargeRateRepository.class),
+                        org.mockito.Mockito.mock(com.courier.modules.charge.domain.ShipmentBookingChargeRepository.class),
+                        org.mockito.Mockito.mock(com.courier.modules.customer.application.CustomerPortalLookup.class), auditService),
+                auditService, eventPublisher, fileStoragePort,
                 shipmentAssetRepository, deliveryDispatchOtpRepository, passwordEncoder, companySettingsService,
                 communicationSettingService, smsProvider, objectMapper, shipmentPaymentService, coLoaderLookup);
         CompanyContext.setCompanyId(COMPANY);

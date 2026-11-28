@@ -7,7 +7,18 @@
 
 ## Current Version
 
-## HANDOFF — V191: User Performance Report and cash handover (2026-11-28, newest)
+## HANDOFF — V192: Charges Master (2026-11-28, newest)
+
+V192 adds `booking_charge_rates` (company rows `customer_id` NULL; a business customer's override sets it) and
+`shipment_booking_charges` (what the clerk ticked on a booking). Codes HANDLING, PICKUP, DELIVERY, AWB, GREEN_TAX,
+REVERSE_PICKUP, COD, OTHER; calc FIXED / PER_KG (rounded-up kg) / PER_PIECE / PERCENT_OF_FREIGHT / PERCENT_OF_COD (COD
+only), optional minimum. Seeded inactive at 0 except COD 2 % min 100 (what COD cost before). API `/api/v1/booking-charges`
+(GET, PUT /{code}, customers/{id}[/{code}], POST /quote, GET /shipments/{id}). Booking: `additionalCharges` [{code, amount}]
+on POST /shipments — COD from the master (only if ticked); the rest add to otherCharges (GST, commission as before) and
+are kept per line. No `additionalCharges` (older screens): COD from the master, nothing else. Freight, ODA, fuel and FOV
+stay automatic. **Next free Flyway migration: V193.**
+
+## HANDOFF — V191: User Performance Report and cash handover (2026-11-28)
 
 Reports → User Performance: per user of a branch, bookings, counter cash, deliveries and cash collected on delivery,
 branch-wallet debits under their name, cash handed over and still outstanding. Users hand over cash with a proof image;
