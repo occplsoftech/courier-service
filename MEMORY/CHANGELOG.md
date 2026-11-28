@@ -8,6 +8,21 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-28 — Domestic (CASH) Shipment: editable final amount (V192)
+
+- `CreateShipmentRequest.finalAmount` + `finalAmountReason` (optional): the operator's final amount, GST included, in
+  place of the system's. Allowed within Settings → Finance's existing Net Amount limits (`netAmountMaxDecreasePercent`
+  below, default 10%; `netAmountMaxIncreasePercent` above, default 50%) and only with a reason; equal to the system
+  amount = not changed. `ShipmentServiceImpl.requireFinalAmountAllowed` / `applyFinalAmount`.
+- The difference is split at the company GST %: freight += difference × 100 / (100 + GST%), GST += the rest, so the
+  breakup still adds up to the new `netAmount`; commission lines follow the new freight. The wallet check, the counter
+  payment, the PrepaidBookingConfirmed event and the audit use the final amount.
+- **V192** `shipment_charges.system_net_amount`, `final_amount_reason`, `final_amount_changed_by`; returned on the
+  charge response (`systemNetAmount`, `finalAmountReason`); the BOOKED history line says from / to / why.
+- Web: Domestic (CASH) Shipment → Payment step "Final Amount (₹)" box with the allowed range, a reason box once
+  changed, "Use system amount"; summary and preview show the system and final amounts. Credit Shipment unchanged.
+  (Shipment Booking's own editable Net Amount stays display-only, as before.)
+
 ## 2026-11-28 — Cash handover notifications
 
 - In-app notifications (the bell) for cash handovers: **submitted** → the branch's managers and accounts desk (company

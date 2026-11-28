@@ -316,6 +316,13 @@ public class ShipmentServiceImpl implements ShipmentService {
         BigDecimal netAmount = netAmountWithOtherCharges(priced, otherCharges, command.odaCharge(), bookingBranch,
                 freightCalc, command.ratePerKgOverride(), appointmentDeliveryCharge, insuranceApplicable,
                 doorDeliveryCharge, toPayCharge, codCharge, fovValue(command.invoiceValue(), command.declaredValue()));
+        // The operator may type the final amount instead (within the company's limits, with a reason): everything
+        // from here on (wallet check, payment, audit) uses it; the charge is adjusted to it after it is saved.
+        BigDecimal systemNetAmount = netAmount;
+        BigDecimal finalAmount = requireFinalAmountAllowed(command.finalAmount(), command.finalAmountReason(), netAmount);
+        if (finalAmount != null) {
+            netAmount = finalAmount;
+        }
 
         if (paymentMode.isCashOnDelivery() && codAmount == null) {
             throw new BusinessRuleException("Enter the COD collection amount: what the rider collects from the consignee.");
@@ -403,10 +410,16 @@ public class ShipmentServiceImpl implements ShipmentService {
         customerService.findOrCreateForBooking(command.receiverName(), command.receiverContact());
 
         persistItems(saved, companyId, items);
-        persistCharges(saved, companyId, priced, otherCharges, command.odaCharge(), bookingBranch, freightCalc,
+        ShipmentCharge savedCharge = persistCharges(saved, companyId, priced, otherCharges, command.odaCharge(), bookingBranch, freightCalc,
                 command.ratePerKgOverride(), appointmentDeliveryCharge, insuranceApplicable, doorDeliveryCharge, toPayCharge, codCharge,
                 fovValue(command.invoiceValue(), command.declaredValue()));
-        appendHistory(saved, companyId, null, ShipmentStatus.BOOKED, "Shipment booked");
+        if (finalAmount != null) {
+            applyFinalAmount(savedCharge, finalAmount, command.finalAmountReason(), bookingBranch);
+            chargeRepository.save(savedCharge);
+        }
+        appendHistory(saved, companyId, null, ShipmentStatus.BOOKED, finalAmount == null ? "Shipment booked"
+                : "Shipment booked; final amount changed from %s to %s: %s".formatted(systemNetAmount.stripTrailingZeros().toPlainString(),
+                finalAmount.stripTrailingZeros().toPlainString(), command.finalAmountReason().trim()));
 
         if (crossing) {
             crossingService.createLegs(saved.getId(), command.crossingBranchIds(), command.crossingCharge());
@@ -414,10 +427,13 @@ public class ShipmentServiceImpl implements ShipmentService {
 
         log.info("Shipment {} ({}) booked in company {} by {}", saved.getShipmentNumber(),
                 saved.getId(), companyId, currentActor());
-        auditService.record(AuditAction.SHIPMENT_BOOKED, ENTITY, saved.getId(),
-                Map.of("shipmentNumber", saved.getShipmentNumber(),
-                        "trackingNumber", saved.getTrackingNumber(),
-                        "netAmount", netAmount.toPlainString()));
+        Map<String, Object> auditValues = new java.util.LinkedHashMap<>(Map.of("shipmentNumber", saved.getShipmentNumber(),
+                "trackingNumber", saved.getTrackingNumber(), "netAmount", netAmount.toPlainString()));
+        if (finalAmount != null) {
+            auditValues.put("systemNetAmount", systemNetAmount.toPlainString());
+            auditValues.put("finalAmountReason", command.finalAmountReason().trim());
+        }
+        auditService.record(AuditAction.SHIPMENT_BOOKED, ENTITY, saved.getId(), auditValues);
 
         if (paidAtBooking) {
             shipmentPaymentService.recordAtBooking(saved, counterMethod,
@@ -3197,6 +3213,77 @@ public class ShipmentServiceImpl implements ShipmentService {
     /** District Level Freight's own matched-slab rate/KG is a floor, never a ceiling — an
      *  operator may raise it at booking time (e.g. a negotiated premium), never lower it
      *  below what the system calculated. */
+    /**
+     * The operator's final amount, when given and different from the system's: needs a reason and must stay within the
+     * company's Net Amount limits (Settings → Finance: {@code netAmountMaxDecreasePercent} below,
+     * {@code netAmountMaxIncreasePercent} above the system amount). Null: charge the system amount.
+     */
+    BigDecimal requireFinalAmountAllowed(BigDecimal finalAmount, String reason, BigDecimal systemAmount) {
+        if (finalAmount == null) {
+            return null;
+        }
+        BigDecimal typed = finalAmount.setScale(MONEY_SCALE, java.math.RoundingMode.HALF_UP);
+        if (typed.compareTo(systemAmount.setScale(MONEY_SCALE, java.math.RoundingMode.HALF_UP)) == 0) {
+            return null;
+        }
+        if (typed.signum() <= 0) {
+            throw new BusinessRuleException("The final amount must be above 0.");
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new BusinessRuleException("Enter the reason for changing the final amount.");
+        }
+        var settings = companySettingsService.get();
+        BigDecimal down = nz(settings.getNetAmountMaxDecreasePercent());
+        BigDecimal up = nz(settings.getNetAmountMaxIncreasePercent());
+        BigDecimal min = systemAmount.multiply(BigDecimal.valueOf(100).subtract(down))
+                .divide(BigDecimal.valueOf(100), MONEY_SCALE, java.math.RoundingMode.CEILING);
+        BigDecimal max = systemAmount.multiply(BigDecimal.valueOf(100).add(up))
+                .divide(BigDecimal.valueOf(100), MONEY_SCALE, java.math.RoundingMode.FLOOR);
+        if (typed.compareTo(min) < 0) {
+            throw new BusinessRuleException("The final amount can be at most %s%% below %s: at least %s."
+                    .formatted(down.stripTrailingZeros().toPlainString(), plainMoney(systemAmount), plainMoney(min)));
+        }
+        if (typed.compareTo(max) > 0) {
+            throw new BusinessRuleException("The final amount can be at most %s%% above %s: at most %s."
+                    .formatted(up.stripTrailingZeros().toPlainString(), plainMoney(systemAmount), plainMoney(max)));
+        }
+        return typed;
+    }
+
+    /**
+     * Brings a saved charge to the operator's final amount. The difference is split at the company GST % into freight
+     * (worked back: difference × 100 / (100 + GST %)) and GST (the rest), so freight + charges + GST + round-off still
+     * add up to the new net amount; the commission lines follow the new freight. The system amount, the reason and the
+     * user are kept on the charge.
+     */
+    void applyFinalAmount(ShipmentCharge charge, BigDecimal finalAmount, String reason,
+                          com.courier.modules.company.domain.Branch bookingBranch) {
+        BigDecimal system = charge.getNetAmount();
+        BigDecimal difference = finalAmount.subtract(system);
+        BigDecimal gst = bookingGstPercentage();
+        BigDecimal freightDifference = difference.multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(100).add(gst), MONEY_SCALE, java.math.RoundingMode.HALF_UP);
+        BigDecimal freight = nz(charge.getFreight()).add(freightDifference);
+        if (freight.signum() < 0) {
+            throw new BusinessRuleException("The final amount is too low: freight would go below 0.");
+        }
+        charge.setFreight(freight);
+        charge.setGstAmount(nz(charge.getGstAmount()).add(difference.subtract(freightDifference)));
+        charge.setNetAmount(finalAmount);
+        BigDecimal company = percentOf(freight, nz(bookingBranch.getCompanyServiceChargePercentage()));
+        BigDecimal basic = percentOf(freight.subtract(company), nz(bookingBranch.getCommissionOnBasicFreight()));
+        charge.setCompanyCommissionOnBasicFreight(company);
+        charge.setCommissionOnBasicFreight(basic);
+        charge.setTotalCommission(basic.add(company).add(nz(charge.getBranchCommissionOnOtherAmount())));
+        charge.setSystemNetAmount(system);
+        charge.setFinalAmountReason(reason.trim());
+        charge.setFinalAmountChangedBy(com.courier.shared.security.SecurityUtils.getCurrentUserId().orElse(null));
+    }
+
+    private static String plainMoney(BigDecimal v) {
+        return v.setScale(MONEY_SCALE, java.math.RoundingMode.HALF_UP).stripTrailingZeros().toPlainString();
+    }
+
     private void requireRateNotDecreased(BigDecimal ratePerKgOverride, FreightCalculationResult freightCalc) {
         if (ratePerKgOverride != null && ratePerKgOverride.compareTo(freightCalc.ratePerKg()) < 0) {
             throw new BusinessRuleException(

@@ -147,6 +147,12 @@ public record CreateShipmentRequest(
                 + "debit the branch wallet.")
         com.courier.modules.shipment.domain.ShipmentPayment.Method paymentMethod,
         @Schema(description = "UPI_QR: the UPI reference (UTR) the customer's app shows. Optional.")
-        @Size(max = 100) String paymentReference
+        @Size(max = 100) String paymentReference,
+        @Schema(description = "The final amount (GST included) the operator typed in place of the system's. Optional. "
+                + "Allowed between the company's Net Amount limits (Settings → Finance: max % lower / higher) and "
+                + "needs finalAmountReason. Freight is worked back from it at the company GST %; GST is the rest.")
+        @DecimalMin(value = "0.0", inclusive = false, message = "must be greater than zero") BigDecimal finalAmount,
+        @Schema(description = "Why the final amount was changed. Required with finalAmount.")
+        @Size(max = 255) String finalAmountReason
 ) {
 }
