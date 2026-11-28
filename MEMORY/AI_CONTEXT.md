@@ -7,7 +7,15 @@
 
 ## Current Version
 
-## HANDOFF — V188: zones and regions from the pincode master (2026-11-27, newest)
+## HANDOFF — V191: User Performance Report and cash handover (2026-11-28, newest)
+
+Reports → User Performance: per user of a branch, bookings, counter cash, deliveries and cash collected on delivery,
+branch-wallet debits under their name, cash handed over and still outstanding; managers record cash received ("Receive
+cash") and void mistakes. V191 adds `cash_handovers` and `cash_handover_settings` (outstanding counts from the migration
+day). Rules and API: `modules/user-performance.md`. **Next free Flyway migration: V192** (V190 = Pune cash rate card,
+V191 = cash handovers).
+
+## HANDOFF — V188: zones and regions from the pincode master (2026-11-27)
 
 After V187 cleared everything, V188 loads, from `Pincode_Master_NEW - SHUBHAM.xls` with the **owner's rule "zone = the
 sheet's zone column, region = the sheet's Region column"**:
@@ -23,7 +31,7 @@ sheet's zone column, region = the sheet's Region column"**:
   Region REST OF INDIA has no row, so those pincodes take their Zone's (NORTH/SOUTH/WEST/CENTRAL) rate; METRO and EAST
   rows are never reached (no pincode has METRO; every EAST pincode is Region NORTH EAST, which matches first).
   **No rate cards** yet — upload customers' sheets (Business Customer → Upload Rates) on these zones.
-**Next free Flyway migration: V190** (V189 = the business customers' nightly booking summary e-mail log, CS#158).
+Next free Flyway migration: see the V191 block above.
 
 ## HANDOFF — V187: zones, regions and customer rates cleared (2026-11-27, read before anything about pricing)
 
