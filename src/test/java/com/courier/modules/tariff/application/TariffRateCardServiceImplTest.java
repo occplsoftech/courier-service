@@ -355,6 +355,27 @@ class TariffRateCardServiceImplTest {
     }
 
     @Test
+    @DisplayName("quote: a card that prices the Region does not borrow the zone's rate for a service it leaves out (no Air inside Maharashtra)")
+    void quoteNoZoneFallbackWhenCardPricesRegion() {
+        activeCard(); // has an Air lane to CENTRAL only
+        pincodes();
+        TariffZone maharashtra = zone("MAHARASHTRA", ZoneUsage.BOTH);
+        when(zoneService.resolve(eq("413001"), eq(ZoneUsage.TO))).thenReturn(Optional.of(resolution(maharashtra, MAHARASHTRA)));
+        when(pincodeService.location("413001")).thenReturn(Optional.of(new PincodeLocation(UUID.randomUUID(), null, null, null,
+                true, true, false, null, null, null, null, "CENTRAL")));
+        when(zones.findActiveByCode(COMPANY, "CENTRAL")).thenReturn(List.of(central));
+        // The card has rates to MAHARASHTRA (e.g. Surface), just none for Air.
+        when(slabs.existsByCardAndToZone(eq(COMPANY), any(), eq(maharashtra.getId()))).thenReturn(true);
+
+        assertThatThrownBy(() -> quotes.quote(quoteInput("413001", "2", false)))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("MAHARASHTRA");
+
+        // The same pincode on a card with no MAHARASHTRA rate at all is priced by its zone, as before.
+        when(slabs.existsByCardAndToZone(eq(COMPANY), any(), eq(maharashtra.getId()))).thenReturn(false);
+        assertThat(quotes.quote(quoteInput("413001", "2", false)).to().zone().getCode()).isEqualTo("CENTRAL");
+    }
+
+    @Test
     @DisplayName("quote: pickup pincode picks the card, delivery pincode the lane; freight + fuel + IGST across states")
     void quote() {
         RateCardDetail card = activeCard();
