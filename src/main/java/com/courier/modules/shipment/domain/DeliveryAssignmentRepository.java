@@ -66,4 +66,11 @@ public interface DeliveryAssignmentRepository extends JpaRepository<DeliveryAssi
             @Param("companyId") UUID companyId, @Param("status") DeliveryAssignmentStatus status,
             @Param("branchId") UUID branchId, @Param("shipmentStatus") ShipmentStatus shipmentStatus,
             @Param("q") String q, org.springframework.data.domain.Pageable pageable);
+
+    /** User Performance Report: a branch's DRS rows assigned or delivered in {@code [from, to)}. */
+    @Query("select d from DeliveryAssignment d where d.companyId = :companyId and d.deliveryBranchId = :branchId "
+            + "and ((d.assignedAt >= :from and d.assignedAt < :to) or (d.deliveredAt >= :from and d.deliveredAt < :to))")
+    List<DeliveryAssignment> findForBranchAssignedOrDeliveredBetween(@Param("companyId") UUID companyId,
+                                                                    @Param("branchId") UUID branchId,
+                                                                    @Param("from") Instant from, @Param("to") Instant to);
 }

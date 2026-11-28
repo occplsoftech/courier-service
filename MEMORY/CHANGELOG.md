@@ -8,6 +8,24 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-28 — User Performance Report and cash handover (V191)
+
+- **V191**: `cash_handovers` (cash a user hands over: amount, mode CASH/BANK_DEPOSIT/UPI, reference, date, **proof image**,
+  status PENDING → APPROVED / REJECTED, APPROVED → VOIDED, who decided and why) and `cash_handover_settings.tracking_from`
+  (seeded today for every company: outstanding cash counts from then). Moves no wallet money.
+- `GET /branch-wallet/user-performance` (+ `/details`): per user of a branch — booked / cancelled / value / payment mix,
+  counter cash vs online, delivered / pending / failed attempts / success %, cash collected on delivery, branch-wallet
+  debits / refunds / commission under their name (work-based or entered-by), cash collected, opening outstanding, handed
+  over, closing outstanding; branch total and wallet reconciliation. Operators and drivers get only their own row.
+- `/branch-wallet/cash-handovers`: `upload-proof`, submit (the user hands over their own cash with proof), `pending`,
+  `{id}/approve`, `{id}/reject` (branch manager / accounts / company admin after viewing the proof, never their own),
+  `{id}/void`, list. Only approved handovers reduce outstanding; pending ones show as "awaiting approval". Audited
+  `CASH_HANDOVER_SUBMITTED / APPROVED / REJECTED / VOIDED`.
+- New port `BranchUserActivityPort` (finance) answered by `ShipmentUserActivityDirectory` (shipment). Details:
+  `modules/user-performance.md`.
+- Web: Reports → User Performance (tiles, per-user table, drill-down drawer, CSV, Hand over cash dialog with proof photo,
+  Cash handovers tab with the approvers' review cards).
+
 ## 2026-11-28 — Booking summary e-mail: owner's format, logo on top
 
 - Subject "Your booking details dated: 28 Nov 2026 - 4 shipments". Columns now #, AWB No., Consignee, Destination (city),

@@ -251,6 +251,12 @@ public enum AuditAction {
     WALLET_TOPUP_REQUESTED,
     WALLET_TOPUP_APPROVED,
     WALLET_TOPUP_REJECTED,
+    // Cash a branch user hands over with proof; the manager / accounts desk approves or rejects it (V191).
+    // Moves no wallet money.
+    CASH_HANDOVER_SUBMITTED,
+    CASH_HANDOVER_APPROVED,
+    CASH_HANDOVER_REJECTED,
+    CASH_HANDOVER_VOIDED,
     // A company's own Razorpay credentials, used instead of the platform-wide gateway.
     // The audit detail never carries the key secret itself, only enabled/keyId/whether a
     // secret was rotated — same "never returned" rule the secret's own API response follows.

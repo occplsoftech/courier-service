@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -26,4 +27,7 @@ public interface ShipmentPaymentRepository extends JpaRepository<ShipmentPayment
     Page<ShipmentPayment> search(@Param("companyId") UUID companyId,
                                  @Param("status") ShipmentPayment.Status status,
                                  @Param("branchId") UUID branchId, Pageable pageable);
+
+    /** User Performance Report: the counter payments of a batch of shipments. */
+    List<ShipmentPayment> findAllByShipmentIdIn(java.util.Collection<UUID> shipmentIds);
 }

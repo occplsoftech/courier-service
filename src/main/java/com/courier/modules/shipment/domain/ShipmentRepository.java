@@ -464,4 +464,8 @@ public interface ShipmentRepository extends JpaRepository<Shipment, UUID>,
                                                       @Param("from") java.time.Instant from,
                                                       @Param("to") java.time.Instant to,
                                                       @Param("cancelled") ShipmentStatus cancelled);
+
+    /** User Performance Report: every shipment a branch booked on the days given (booking date, inclusive). */
+    List<Shipment> findAllByCompanyIdAndBookingBranchIdAndBookingDateBetween(UUID companyId, UUID bookingBranchId,
+                                                                            LocalDate from, LocalDate to);
 }
