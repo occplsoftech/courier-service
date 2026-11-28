@@ -8,7 +8,7 @@ All notable changes to this project. Format based on
 
 ---
 
-## 2026-11-28 — Domestic (CASH) Shipment: editable final amount (V192)
+## 2026-11-28 — Domestic (CASH) Shipment: editable final amount (V193)
 
 - `CreateShipmentRequest.finalAmount` + `finalAmountReason` (optional): the operator's final amount, GST included, in
   place of the system's. Allowed within Settings → Finance's existing Net Amount limits (`netAmountMaxDecreasePercent`
@@ -17,11 +17,18 @@ All notable changes to this project. Format based on
 - The difference is split at the company GST %: freight += difference × 100 / (100 + GST%), GST += the rest, so the
   breakup still adds up to the new `netAmount`; commission lines follow the new freight. The wallet check, the counter
   payment, the PrepaidBookingConfirmed event and the audit use the final amount.
-- **V192** `shipment_charges.system_net_amount`, `final_amount_reason`, `final_amount_changed_by`; returned on the
+- **V193** `shipment_charges.system_net_amount`, `final_amount_reason`, `final_amount_changed_by`; returned on the
   charge response (`systemNetAmount`, `finalAmountReason`); the BOOKED history line says from / to / why.
 - Web: Domestic (CASH) Shipment → Payment step "Final Amount (₹)" box with the allowed range, a reason box once
   changed, "Use system amount"; summary and preview show the system and final amounts. Credit Shipment unchanged.
   (Shipment Booking's own editable Net Amount stays display-only, as before.)
+
+## 2026-11-28 — Charges Master (V192)
+
+- Booking charges the clerk ticks: Handling, Pick up, Delivery, AWB, Green Tax, Reverse Pick Up, COD, Other. Per company,
+  with business-customer overrides. Fixed / per kg / per piece / % of freight (COD: % of the COD amount), optional minimum.
+- `booking_charge_rates`, `shipment_booking_charges`; `/api/v1/booking-charges`; POST /shipments `additionalCharges`.
+- COD now comes from the master (seeded 2 %, min 100 — unchanged unless edited); a clerk can untick it.
 
 ## 2026-11-28 — Cash handover notifications
 

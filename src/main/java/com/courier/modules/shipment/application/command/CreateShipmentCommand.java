@@ -113,9 +113,11 @@ public record CreateShipmentCommand(
         UUID businessCustomerId,
         BigDecimal codAmount,
         BigDecimal finalAmount,
-        String finalAmountReason
+        String finalAmountReason,
+        /** Charges Master charges the clerk ticked; null = a screen without them (COD then comes from the master). */
+        List<com.courier.modules.charge.application.BookingChargeService.Picked> additionalCharges
 ) {
-    /** Without an edited final amount: the system's amount is charged. */
+    /** Without an edited final amount or Charges Master picks. */
     public CreateShipmentCommand(
             UUID bookingBranchId, String manualShipmentNumber, String pickupPincode, String deliveryPincode,
             String senderName, String senderAddress, String senderContact,
@@ -137,7 +139,7 @@ public record CreateShipmentCommand(
                 crossingBranchIds, crossingCharge, invoiceValue, ewayBill, destinationAreaId, ratePerKgOverride,
                 appointmentDelivery, appointmentDate, appointmentTimeSlot, appointmentDeliveryCharge,
                 insuranceApplicable, deliveryType, doorDeliveryCharge, flowType, deliveryBranchId, businessCustomerId,
-                codAmount, null, null);
+                codAmount, null, null, null);
     }
 
     /** Without a COD collection amount (every payment mode but COD). */

@@ -388,6 +388,10 @@ public enum AuditAction {
     CHARGE_SETTING_CREATED,
     CHARGE_SETTING_UPDATED,
     CHARGE_SETTING_DELETED,
+    // Charges Master (V192): the company's booking charges and a business customer's overrides.
+    BOOKING_CHARGE_SAVED,
+    BOOKING_CHARGE_OVERRIDE_SAVED,
+    BOOKING_CHARGE_OVERRIDE_RESET,
     CHARGE_SETTING_ACTIVATED,
     CHARGE_SETTING_DEACTIVATED,
 

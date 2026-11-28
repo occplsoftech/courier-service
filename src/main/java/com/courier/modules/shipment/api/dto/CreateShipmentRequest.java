@@ -153,6 +153,15 @@ public record CreateShipmentRequest(
                 + "needs finalAmountReason. Freight is worked back from it at the company GST %; GST is the rest.")
         @DecimalMin(value = "0.0", inclusive = false, message = "must be greater than zero") BigDecimal finalAmount,
         @Schema(description = "Why the final amount was changed. Required with finalAmount.")
-        @Size(max = 255) String finalAmountReason
+        @Size(max = 255) String finalAmountReason,
+        @Schema(description = "Charges Master charges the clerk ticked: [{code, amount}], code HANDLING, PICKUP, DELIVERY, AWB, "
+                + "GREEN_TAX, REVERSE_PICKUP, COD or OTHER; amount optional (as calculated; COD is always calculated). "
+                + "Omit on a screen without them: COD then comes from the Charges Master.")
+        @jakarta.validation.Valid java.util.List<AdditionalCharge> additionalCharges
 ) {
+    /** One ticked Charges Master charge. */
+    public record AdditionalCharge(
+            @jakarta.validation.constraints.NotNull com.courier.modules.charge.domain.BookingChargeCode code,
+            @DecimalMin(value = "0") BigDecimal amount) {
+    }
 }
