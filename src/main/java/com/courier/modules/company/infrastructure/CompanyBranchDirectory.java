@@ -92,4 +92,15 @@ public class CompanyBranchDirectory implements BranchDirectoryPort {
         return new BranchRef(branch.getId(), branch.getCompanyId(), branch.getBranchCode(),
                 branch.getBranchName(), branch.isActive());
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UUID> usersWithAnyRole(UUID companyId, UUID branchId, java.util.Set<String> roleCodes) {
+        if (companyId == null || roleCodes == null || roleCodes.isEmpty()) {
+            return List.of();
+        }
+        return userRepository.findActiveIdsWithAnyRole(com.courier.shared.domain.TimeOrderedUuid.toBytes(companyId),
+                        branchId == null ? null : com.courier.shared.domain.TimeOrderedUuid.toBytes(branchId), roleCodes)
+                .stream().map(com.courier.shared.domain.TimeOrderedUuid::fromBytes).toList();
+    }
 }

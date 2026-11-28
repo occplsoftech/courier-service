@@ -130,4 +130,22 @@ public interface CompanyUserRepository extends JpaRepository<User, UUID>, JpaSpe
             """, nativeQuery = true)
     long countByUsernameIncludingDeleted(@Param("username") String username,
                                          @Param("excludeId") byte[] excludeId);
+
+    /**
+     * Active users of a company holding any of the role codes, through either the company-role grants
+     * ({@code user_company_roles.role_code}) or the legacy JWT role ({@code user_roles.role}). With a branch, only
+     * users placed at it ({@code users.branch_id}) or managing it ({@code branches.manager_id}). Ids as BINARY(16).
+     */
+    @Query(value = """
+            SELECT DISTINCT u.id FROM users u
+            WHERE u.company_id = :companyId AND u.deleted = FALSE AND u.status = 'ACTIVE'
+              AND (:branchId IS NULL OR u.branch_id = :branchId
+                   OR u.id IN (SELECT b.manager_id FROM branches b WHERE b.id = :branchId AND b.deleted = FALSE))
+              AND (EXISTS (SELECT 1 FROM user_company_roles r
+                           WHERE r.user_id = u.id AND r.deleted = FALSE AND r.role_code IN (:roleCodes))
+                   OR EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id AND ur.role IN (:roleCodes)))
+            """, nativeQuery = true)
+    java.util.List<byte[]> findActiveIdsWithAnyRole(@Param("companyId") byte[] companyId,
+                                                    @Param("branchId") byte[] branchId,
+                                                    @Param("roleCodes") java.util.Collection<String> roleCodes);
 }

@@ -46,4 +46,12 @@ public interface BranchDirectoryPort {
     /** Every active branch of this company — the Finance Report's company-wide statement
      *  iterates this to build one row per branch. */
     List<BranchRef> listBranches(UUID companyId);
+
+    /**
+     * Active users holding any of the role codes: at the branch (placed there or managing it), or company-wide when
+     * {@code branchId} is null. Who is told about a cash handover waiting for approval.
+     */
+    default List<UUID> usersWithAnyRole(UUID companyId, UUID branchId, java.util.Set<String> roleCodes) {
+        return List.of();
+    }
 }

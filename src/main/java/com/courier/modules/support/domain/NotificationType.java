@@ -23,5 +23,12 @@ public enum NotificationType {
     FOLLOWUP_ASSIGNED,
     FOLLOWUP_DUE_TODAY,
     FOLLOWUP_OVERDUE,
-    FOLLOWUP_URGENT
+    FOLLOWUP_URGENT,
+
+    // --- cash handover (finance, V191): same in-app feed. SUBMITTED goes to the branch's approvers; the rest to the
+    // user who handed the cash over. The web opens Reports → User Performance → Cash handovers for all four.
+    CASH_HANDOVER_SUBMITTED,
+    CASH_HANDOVER_APPROVED,
+    CASH_HANDOVER_REJECTED,
+    CASH_HANDOVER_VOIDED
 }

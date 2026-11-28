@@ -22,6 +22,15 @@ hand it over to the branch manager / accounts desk.
 4. Only **APPROVED** handovers reduce outstanding. An approved one found wrong later is **VOIDED** (whoever approved it or a
    company admin, reason required) and counts as outstanding again. Nothing submitted is ever edited.
 
+## Notifications (in-app bell, `support.notifications`)
+`CashHandoverServiceImpl` publishes `CashHandoverEvent`; `CashHandoverNotificationListener` acts on it **after commit**
+(REQUIRES_NEW, failures logged and swallowed, so a missed notification never undoes a handover):
+- **Submitted** (`CASH_HANDOVER_SUBMITTED`) → active users placed at or managing the branch with BRANCH_MANAGER or ACCOUNTS
+  (company-role grant or legacy role: `BranchDirectoryPort.usersWithAnyRole`, native query in `CompanyUserRepository`);
+  if the branch has none, the company admins. Never the sender.
+- **Approved / rejected / voided** (`CASH_HANDOVER_APPROVED / _REJECTED / _VOIDED`) → the user who handed over, with the
+  reason. The web opens Reports → User Performance on the Cash handovers tab (`?tab=handovers`) for all four.
+
 ## API (`/api/v1/branch-wallet/…`, company users only, never a platform operator)
 | Call | What |
 |---|---|
@@ -61,6 +70,5 @@ Days are IST, a window is at most 93 days, both ends default to today.
 - Reads load the branch's shipments since `tracking_from` in memory (like the other reports); move to aggregate queries if
   a branch gets large.
 - Delivery collections are assumed cash (no record of UPI on delivery yet).
-- No notification yet when a handover is submitted or decided; approvers see the count on the Cash handovers tab.
 - The mobile app (`courier-mobile-app`) has no hand-over screen yet; drivers use the web page.
 - No UI to change `tracking_from`; set it in `cash_handover_settings` if a company wants another start day.
