@@ -7,9 +7,25 @@
 
 ## Current Version
 
-## HANDOFF — business customer rates, pincode master and rate zones (2026-11-27, read first)
+## HANDOFF — V187: zones, regions and customer rates cleared (2026-11-27, read before anything about pricing)
 
-All merged and live on dev: CS#149, #151, #152 and CW#89, #93. **Next free Flyway migration: V187.** Details are in
+On the owner's instruction ("delete all customer rates, and all zone, and all region", nothing loaded back) V187
+soft-deletes, for companies OCCPL and OCCPL_COURIER: **every Zone Tariff zone, place, rate card (PUNE_CASH_2025 and
+the customers' CUST-… cards), lane and charge**, and **all customer pricing** (pricing zones, zone rates, structure
+rates). Globally it soft-deletes the **Regional Zones master** (codes renamed `…~V187-<id>` so NORTH, SOUTH… can be
+created again) and blanks **every pincode's Zone and Regional zone**. Everything is copied first into
+`backup_20261127c_*` (pincode zones in `backup_20261127c_pincode_zones`). The raw sheet table `pincode_master_sheet` is
+untouched. Until the owner sets up new zones and rates, bookings are priced by District Level Freight or refused.
+Anything below that describes zones, regions or customer cards (incl. the V186 rate zones) describes the state before
+V187. **Next free Flyway migration: V188.**
+
+## HANDOFF — business customer rates, pincode master and rate zones (2026-11-27)
+
+> **V187 (block above) cleared the zones, regions and every rate card after this was written.** What follows is
+> still true for the code and the rules (Upload Rates, Per Box, cargo networks, pincode coverage); the zones, cards,
+> uploads and prices it lists describe dev *before* V187 and are gone until the owner sets them up again.
+
+All merged and live on dev: CS#149, #151, #152 and CW#89, #93. **Next free Flyway migration: V188** (V187 is taken). Details are in
 `MEMORY/CHANGELOG.md` (2026-11-27 entries) and `modules/zone-tariff.md` ("A business customer's own card", "Rate zones").
 
 **Business customer rates from Excel (the old software's export: Sr, Courier, From zone, To zone, State, City, Mode,
@@ -38,7 +54,7 @@ NORTH, EAST**, NORTH_EAST (REST_OF_INDIA removed, its rates copied). METRO = Mum
 Kolkata 700001-700160, Chennai 600001-600130, Bengaluru 560xxx, Hyderabad 500001-500100. Mumbai and Kolkata now take
 the Rest of India rate on PUNE_CASH_2025 (edit its METRO lanes if metros should differ).
 
-**Dev data (dummy, made for testing):** business customers A&A Global (CUST59BNFXPM), Adinath Agro (CUSTK7DDTZ6D),
+**Dev data (dummy, made for testing; the four customers remain, their cards were removed by V187):** business customers A&A Global (CUST59BNFXPM), Adinath Agro (CUSTK7DDTZ6D),
 Aexonic (CUSTQ5KD86QK), Chandukaka Saraf (CUSTTQN9EH77) with dummy GST 27AAAAA000nA1Z5, contact "Test Contact",
 mobiles 9000000002-4 and 9000000011. Uploaded: Adinath 41 lanes, Aexonic 24, Chandukaka 70. Checked on dev
 (TEST_BR, Pune → New Delhi 1.2 kg parcel, Chandukaka): AIR 300, PREMIUM 500, SURFACE CARGO 650 from their card,
@@ -47,7 +63,7 @@ SURFACE 180 from the company card; same in Credit Shipment and Business Customer
 **Waiting on the owner:**
 - A&A Global's sheet has 20 swapped Fixed / Per Kg rows (13 Non Document lanes); upload after it is fixed.
 - Whether customers' cards should keep the copied company charges (fuel, docket) or be freight only.
-- METRO prices on PUNE_CASH_2025.
+- METRO prices (PUNE_CASH_2025 itself was removed by V187).
 - Rotate the dev password of the support login: it was pasted into chat on 2026-11-27.
 
 **How this was tested:** generated migrations (V185, V186) were run on MySQL 8 in Docker with the real global pincodes
@@ -57,7 +73,7 @@ Do that for any data migration: CI does not run migrations, and a V184 column mi
 ## HANDOFF — update on 2026-11-27 (read this, then the 2026-11-20 block below)
 
 Two Claude accounts work on these repos at the same time: fetch `main` before branching, and check open PRs first.
-Next free Flyway migration: **V187** (see the block above). Details of everything
+Next free Flyway migration: **V188** (see the blocks above). Details of everything
 below are in `MEMORY/CHANGELOG.md` → 2026-11-27.
 
 **Scan screen (OCCPL Operation → Scan), all merged and checked live on dev:**
@@ -87,8 +103,14 @@ below are in `MEMORY/CHANGELOG.md` → 2026-11-27.
   Use it for any new print (see Rules → Print format).
 - **Company logo:** company admins upload it in Settings → Company Logo (V182, the other account's work). The
   OCCPL logo is uploaded on dev and prints on the THC.
+- **Pending Delivery → Generate DRS** has **Delivery Boy**, **Co-Loader** and **Vehicle No**, as on the earlier portal
+  (CW#92). Either a staff delivery boy **or** a co-loader delivers the run; picking one clears the other. Checked live
+  on dev: DRS000012 with co-loader BAJRANG - OTC. The DRS card shows "Delivery by: <name> (co-loader)".
+- **Who sees a manifest** (owner asked, 2026-11-27): a branch user sees manifests their branch made, plus those
+  addressed to their branch **only once dispatched** (`ManifestServiceImpl.ownBranchScope`). So the receiving branch
+  sees it under Manifest → Incoming, and its AWBs in Pending Inscan, only after Dispatch. A company admin sees all.
 
-**Test data on dev:** TEST_BR-000005…000015 are To-Pay test shipments, nearly all delivered. DRS000009 has no
+**Test data on dev:** TEST_BR-000005…000016 are To-Pay test shipments, nearly all delivered. DRS000009 has no
 parcels left. MFT-261124-4828 (TEST_BR → SAMPLE_PDP) is an old draft.
 
 

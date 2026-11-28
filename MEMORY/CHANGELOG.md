@@ -71,6 +71,13 @@ All notable changes to this project. Format based on
   Names now come from `BranchRepository` / `CompanyUserRepository` / `PackageTypeRepository`, scoped to the company.
   Found in the live booking-to-delivery run on dev (as Shaniwar Peth's manager).
 
+## 2026-11-27 — V187: zones, regions and customer rates cleared
+
+- **V187** (owner's request): soft-deletes every Zone Tariff zone, place, rate card, lane and charge and all customer
+  pricing (OCCPL, OCCPL_COURIER); soft-deletes the Regional Zones master (codes freed) and blanks every pincode's Zone and
+  Regional zone. Backup in `backup_20261127c_*`. Checked on MySQL 8 (local copy at V186): 12 zones, 5,896 places, 176
+  lanes, 5 regions and 19,126 pincode zones cleared; the app starts.
+
 ## 2026-11-27 — Outscan ASSIGN redesign, manifest Received, DRS per number, letterhead prints
 
 - **V181** `shipments.forwarder_number`: Scan → ASSIGN "With Forwarder No." sends `forwarderNumbers` (shipment id → number) on
@@ -88,6 +95,11 @@ All notable changes to this project. Format based on
   `DELETE /manifests/{id}` (AWBs back to BOOKED). Qty / weight go through Edit Shipment (`?manifest=` puts the AWB back on
   save). Statuses shown: Created → Dispatched → Received. The destination branch sees a manifest (Manifest tab → Incoming)
   only once it is dispatched.
+- Pending Delivery → Generate DRS: Delivery Boy, Co-Loader and Vehicle No (one of delivery boy / co-loader) — CW#92.
+- Loading Sheet, THC (landscape, expenses + terms) and Out for Delivery DRS prints moved onto the house header (CW#88);
+  `printLetterhead` gained totals, sections, signatures, landscape and table font size.
+- Edit DRS: removing the last parcel ends the run with a clear message (CW#86); the Pending Delivery list refreshes after
+  a removal so a parcel can be scanned straight back on (CW#85).
 - Prints: DRS and manifest use the house "Boxed form" header (see AI_CONTEXT → Rules → Print format), QR of the sheet number,
   15 px text, 38 mm DRS rows for stamps.
 ## 2026-11-27 — Public tracking shows the Delivery Updation photo
