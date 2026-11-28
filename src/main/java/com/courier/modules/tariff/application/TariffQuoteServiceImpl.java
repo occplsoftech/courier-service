@@ -60,6 +60,7 @@ public class TariffQuoteServiceImpl implements TariffQuoteService {
     private final PackageTypeService packageTypeService;
     private final PincodeService pincodeService;
     private final PricingProperties pricingProperties;
+    private final com.courier.modules.tariff.domain.TariffZoneRepository zoneRepository;
     private CustomerPortalLookup customerLookup;
 
     @Autowired(required = false)
@@ -74,8 +75,21 @@ public class TariffQuoteServiceImpl implements TariffQuoteService {
     private record Origin(UUID companyId, TariffZoneService.Resolution from, TariffRateCard card, TariffRateCard customerCard) {
     }
 
-    /** Where the shipment goes, once a card applies. */
-    private record Destination(TariffZoneService.Resolution to, PincodeLocation location) {
+    /**
+     * Where the shipment goes, once a card applies. {@code to}: the zone the delivery pincode's places put it in (its
+     * Region, e.g. PUNE, MAHARASHTRA, REST_OF_INDIA). {@code fallback}: the zone named by the pincode master's Zone
+     * (NORTH, SOUTH, EAST, WEST, CENTRAL), tried on a card that has no rate to {@code to} — the owner's rule "first the
+     * Region's rate, then the zone's". Null when the pincode has no Zone or it is {@code to} itself.
+     */
+    private record Destination(TariffZoneService.Resolution to, PincodeLocation location, TariffZoneService.Resolution fallback) {
+        /** The zones a card's lanes are looked up for, in order. */
+        List<TariffZoneService.Resolution> zones() {
+            return fallback == null ? List.of(to) : List.of(to, fallback);
+        }
+
+        Destination at(TariffZoneService.Resolution zone) {
+            return zone == to ? this : new Destination(zone, location, fallback);
+        }
     }
 
     @Override
@@ -118,16 +132,22 @@ public class TariffQuoteServiceImpl implements TariffQuoteService {
     private Options priceAllLanes(Origin origin, Destination destination, QuoteInput in, Boolean documents) {
         Map<String, List<TariffRateSlab>> lanes = new LinkedHashMap<>();
         Map<String, TariffRateCard> laneCard = new LinkedHashMap<>();
+        Map<String, TariffZoneService.Resolution> laneZone = new HashMap<>();
         for (TariffRateCard card : cardsInOrder(origin)) {
-            Map<String, List<TariffRateSlab>> ofCard = new LinkedHashMap<>();
-            slabs.findByCard(origin.companyId(), card.getId()).stream()
-                    .filter(s -> s.getToZoneId().equals(destination.to().zone().getId()))
-                    .forEach(s -> ofCard.computeIfAbsent(s.getServiceTypeId() + ":" + s.getPackageTypeId(), k -> new ArrayList<>()).add(s));
-            ofCard.forEach((k, lane) -> {
-                if (lanes.putIfAbsent(k, lane) == null) {
-                    laneCard.put(k, card);
-                }
-            });
+            List<TariffRateSlab> cardSlabs = slabs.findByCard(origin.companyId(), card.getId());
+            // The Region's zone first; the pincode's Zone only for a service the card has no Region rate for.
+            for (TariffZoneService.Resolution zone : destination.zones()) {
+                Map<String, List<TariffRateSlab>> ofZone = new LinkedHashMap<>();
+                cardSlabs.stream()
+                        .filter(s -> s.getToZoneId().equals(zone.zone().getId()))
+                        .forEach(s -> ofZone.computeIfAbsent(s.getServiceTypeId() + ":" + s.getPackageTypeId(), k -> new ArrayList<>()).add(s));
+                ofZone.forEach((k, lane) -> {
+                    if (lanes.putIfAbsent(k, lane) == null) {
+                        laneCard.put(k, card);
+                        laneZone.put(k, zone);
+                    }
+                });
+            }
         }
         Map<UUID, List<TariffChargeRule>> rulesByCard = new HashMap<>();
         List<Quote> quotes = new ArrayList<>();
@@ -143,7 +163,7 @@ public class TariffQuoteServiceImpl implements TariffQuoteService {
                 continue;
             }
             try {
-                quotes.add(price(origin, card, destination, in, serviceType, packageType, lane, rules));
+                quotes.add(price(origin, card, destination.at(laneZone.get(entry.getKey())), in, serviceType, packageType, lane, rules));
             } catch (BusinessRuleException tooHeavy) {
                 // This lane has no slab for the weight; the others may.
                 unavailable.add(new Unavailable(serviceType.getCode(), serviceType.getName(), packageType.getCode(), tooHeavy.getMessage()));
@@ -200,18 +220,32 @@ public class TariffQuoteServiceImpl implements TariffQuoteService {
         if (in.cod() && !location.codAvailable()) {
             throw new BusinessRuleException("Cash on delivery is not available at pincode " + in.destinationPincode().trim() + ".");
         }
-        return new Destination(to, location);
+        return new Destination(to, location, zoneFallback(to, location));
+    }
+
+    /** The zone the pincode master's Zone names (NORTH, SOUTH…), when it is an active to zone other than {@code to}. */
+    private TariffZoneService.Resolution zoneFallback(TariffZoneService.Resolution to, PincodeLocation location) {
+        if (location.zone() == null || location.zone().isBlank()) {
+            return null;
+        }
+        return zoneRepository.findActiveByCode(to.zone().getCompanyId(), location.zone().trim().toUpperCase(java.util.Locale.ROOT)).stream()
+                .filter(z -> z.getZoneUsage().coversTo() && !z.getId().equals(to.zone().getId()))
+                .findFirst()
+                .map(z -> new TariffZoneService.Resolution(z, to.matchedBy(), to.place()))
+                .orElse(null);
     }
 
     private Quote priceLane(Origin origin, Destination destination, QuoteInput in) {
         ServiceType serviceType = lookup(in.serviceTypeId(), serviceTypeService::getById, "service type");
         PackageType packageType = lookup(in.packageTypeId(), packageTypeService::getById, "package type");
         for (TariffRateCard card : cardsInOrder(origin)) {
-            List<TariffRateSlab> lane = slabs.findLane(origin.companyId(), card.getId(), destination.to().zone().getId(),
-                    serviceType.getId(), packageType.getId());
-            if (!lane.isEmpty()) {
-                return price(origin, card, destination, in, serviceType, packageType, lane,
-                        charges.findByCard(origin.companyId(), card.getId()));
+            for (TariffZoneService.Resolution zone : destination.zones()) {
+                List<TariffRateSlab> lane = slabs.findLane(origin.companyId(), card.getId(), zone.zone().getId(),
+                        serviceType.getId(), packageType.getId());
+                if (!lane.isEmpty()) {
+                    return price(origin, card, destination.at(zone), in, serviceType, packageType, lane,
+                            charges.findByCard(origin.companyId(), card.getId()));
+                }
             }
         }
         TariffRateCard shown = origin.card() != null ? origin.card() : origin.customerCard();

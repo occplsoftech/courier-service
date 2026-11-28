@@ -97,7 +97,7 @@ class TariffRateCardServiceImplTest {
     void setUp() {
         service = new TariffRateCardServiceImpl(cards, slabs, charges, zones, serviceTypeService, packageTypeService, auditService);
         quotes = new TariffQuoteServiceImpl(zoneService, cards, slabs, charges, serviceTypeService, packageTypeService, pincodeService,
-                new com.courier.modules.pricing.application.PricingProperties());
+                new com.courier.modules.pricing.application.PricingProperties(), zones);
         CompanyContext.setCompanyId(COMPANY);
 
         pune = zone("PUNE", ZoneUsage.BOTH);
@@ -315,6 +315,29 @@ class TariffRateCardServiceImplTest {
     private TariffQuoteService.QuoteInput quoteInput(String to, String kg, boolean cod) {
         return new TariffQuoteService.QuoteInput("411030", to, air.getId(), doc.getId(), new BigDecimal(kg),
                 null, null, null, null, null, cod, LocalDate.of(2025, 6, 1));
+    }
+
+    @Test
+    @DisplayName("quote: the Region's zone first; no rate there → the pincode's Zone (owner's rule)")
+    void quoteFallsBackToPincodeZone() {
+        activeCard(); // has a lane to CENTRAL only
+        pincodes();
+        TariffZone restOfIndia = zone("REST_OF_INDIA", ZoneUsage.TO);
+        when(zoneService.resolve(eq("462002"), eq(ZoneUsage.TO))).thenReturn(Optional.of(resolution(restOfIndia, MP)));
+        when(pincodeService.location("462002")).thenReturn(Optional.of(new PincodeLocation(UUID.randomUUID(), null, null, null,
+                true, true, false, null, null, null, null, "CENTRAL")));
+        when(zones.findActiveByCode(COMPANY, "CENTRAL")).thenReturn(List.of(central));
+
+        TariffQuoteService.Quote q = quotes.quote(quoteInput("462002", "2.3", false));
+
+        assertThat(q.to().zone().getCode()).isEqualTo("CENTRAL");
+        assertThat(q.price().freight().amount()).isEqualByComparingTo("600");
+
+        // A pincode whose Zone has no rate either is still refused, naming the Region's zone.
+        when(pincodeService.location("462002")).thenReturn(Optional.of(new PincodeLocation(UUID.randomUUID(), null, null, null,
+                true, true, false, null, null, null, null, "SOUTH")));
+        assertThatThrownBy(() -> quotes.quote(quoteInput("462002", "2.3", false)))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("REST_OF_INDIA");
     }
 
     @Test

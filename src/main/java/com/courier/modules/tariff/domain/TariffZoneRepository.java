@@ -30,4 +30,9 @@ public interface TariffZoneRepository extends JpaRepository<TariffZone, UUID> {
             + " and z.code = :code and (:excludeId is null or z.id <> :excludeId)")
     boolean existsByCode(@Param("companyId") UUID companyId, @Param("code") String code,
                          @Param("excludeId") UUID excludeId);
+
+    /** An active zone by its code (the pincode master's Zone names one: rate fallback after the Region's zone). */
+    @Query("select z from TariffZone z where z.companyId = :companyId and z.code = :code"
+            + " and z.status = com.courier.modules.tariff.domain.TariffZoneStatus.ACTIVE")
+    List<TariffZone> findActiveByCode(@Param("companyId") UUID companyId, @Param("code") String code);
 }

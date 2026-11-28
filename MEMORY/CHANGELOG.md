@@ -71,6 +71,14 @@ All notable changes to this project. Format based on
   Names now come from `BranchRepository` / `CompanyUserRepository` / `PackageTypeRepository`, scoped to the company.
   Found in the live booking-to-delivery run on dev (as Shaniwar Peth's manager).
 
+## 2026-11-27 — V188: zones and regions from the pincode master
+
+- **V188**: Regional Zones master = the sheet's 7 Regions; every listed pincode's Zone = the zone column (NORTH, SOUTH,
+  EAST, WEST, CENTRAL) and Regional zone = its Region. Zone Tariff (OCCPL, OCCPL_COURIER): 7 Region zones with one
+  REGIONAL_ZONE place each, and To zones NORTH, SOUTH, EAST, WEST, CENTRAL, METRO without places.
+- Pricing: "first the Region's rate, then the zone's" — a card with no lane to the pincode's Region zone uses its lane
+  to the zone the pincode master's Zone names (TariffQuoteServiceImpl, single quote and all-services options).
+
 ## 2026-11-27 — V187: zones, regions and customer rates cleared
 
 - **V187** (owner's request): soft-deletes every Zone Tariff zone, place, rate card, lane and charge and all customer

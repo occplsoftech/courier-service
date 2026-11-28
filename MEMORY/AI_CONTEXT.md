@@ -7,6 +7,24 @@
 
 ## Current Version
 
+## HANDOFF — V188: zones and regions from the pincode master (2026-11-27, newest)
+
+After V187 cleared everything, V188 loads, from `Pincode_Master_NEW - SHUBHAM.xls` with the **owner's rule "zone = the
+sheet's zone column, region = the sheet's Region column"**:
+- **Regional Zones master** (global): PUNE, X_PUNE, MAHARASHTRA, X_MAHARASHTRA, VIDHARBHA, REST_OF_INDIA, NORTH_EAST
+  (sheet EXPUNE / EXMAHARASHTRA = X_PUNE / X_MAHARASHTRA). Each pincode's Regional zone is its Region.
+- **Pincode Zone**: NORTH, SOUTH, EAST, WEST, CENTRAL (Pune, Maharashtra and Vidharbha are WEST).
+- **Pricing rule (owner, 2026-11-28): "customer rates are from Pune; first the Region's rate, then the zone's."**
+  Zone Tariff (OCCPL, OCCPL_COURIER): 7 **Region zones** (PUNE … NORTH_EAST, From and To), each with one place = its
+  whole regional zone, so every pincode resolves to its Region zone; plus To zones **NORTH, SOUTH, EAST, WEST, CENTRAL,
+  METRO with no places**. `TariffQuoteServiceImpl`: per card (customer's first, then company's) the lane to the Region
+  zone is used, else the lane to the zone the pincode master's Zone names (`Destination.fallback`). E.g. AEXONIC's sheet
+  (PUNE → PUNE, EXPUNE, MAHARASHTRA, EXMAHARASHTRA, VIDHARBHA, NORTH EAST, WEST, CENTRAL, SOUTH, NORTH, EAST, METRO):
+  Region REST OF INDIA has no row, so those pincodes take their Zone's (NORTH/SOUTH/WEST/CENTRAL) rate; METRO and EAST
+  rows are never reached (no pincode has METRO; every EAST pincode is Region NORTH EAST, which matches first).
+  **No rate cards** yet — upload customers' sheets (Business Customer → Upload Rates) on these zones.
+**Next free Flyway migration: V189.**
+
 ## HANDOFF — V187: zones, regions and customer rates cleared (2026-11-27, read before anything about pricing)
 
 On the owner's instruction ("delete all customer rates, and all zone, and all region", nothing loaded back) V187
@@ -17,7 +35,7 @@ created again) and blanks **every pincode's Zone and Regional zone**. Everything
 `backup_20261127c_*` (pincode zones in `backup_20261127c_pincode_zones`). The raw sheet table `pincode_master_sheet` is
 untouched. Until the owner sets up new zones and rates, bookings are priced by District Level Freight or refused.
 Anything below that describes zones, regions or customer cards (incl. the V186 rate zones) describes the state before
-V187. **Next free Flyway migration: V188.**
+V187. (Next free migration: see the V188 block above.)
 
 ## HANDOFF — business customer rates, pincode master and rate zones (2026-11-27)
 
