@@ -54,14 +54,16 @@ public class PincodeMasterMapper {
         return new PincodeCommand(r.code(), r.name(), r.description(), r.displayOrder(),
                 r.areaId(), r.serviceable(), r.codAvailable(), r.prepaidAvailable(),
                 r.pickupAvailable(), r.zone(), r.odaApplicable(), r.regionalZoneId(),
-                coverage(r.doc()), coverage(r.surface()), coverage(r.air()), null);
+                coverage(r.doc()), coverage(r.surface()), coverage(r.air()),
+                coverage(r.airCargo()), coverage(r.surfaceCargo()), coverage(r.premium()), null);
     }
 
     public PincodeCommand toCommand(UpdatePincodeRequest r) {
         return new PincodeCommand(null, r.name(), r.description(), r.displayOrder(),
                 r.areaId(), r.serviceable(), r.codAvailable(), r.prepaidAvailable(),
                 r.pickupAvailable(), r.zone(), r.odaApplicable(), r.regionalZoneId(),
-                coverage(r.doc()), coverage(r.surface()), coverage(r.air()), r.version());
+                coverage(r.doc()), coverage(r.surface()), coverage(r.air()),
+                coverage(r.airCargo()), coverage(r.surfaceCargo()), coverage(r.premium()), r.version());
     }
 
     private static NetworkCoverage coverage(NetworkCoverageDto d) {
@@ -95,7 +97,8 @@ public class PincodeMasterMapper {
                 stateId, get(geo.stateNames, stateId),
                 p.getRegionalZoneId(), get(geo.regionalZoneNames, p.getRegionalZoneId()),
                 dto(p.coverage(ServiceNetwork.DOCUMENT)), dto(p.coverage(ServiceNetwork.SURFACE)),
-                dto(p.coverage(ServiceNetwork.AIR)),
+                dto(p.coverage(ServiceNetwork.AIR)), dto(p.coverage(ServiceNetwork.AIR_CARGO)),
+                dto(p.coverage(ServiceNetwork.SURFACE_CARGO)), dto(p.coverage(ServiceNetwork.PREMIUM)),
                 p.getCreatedBy(), p.getCreatedAt(), p.getUpdatedBy(), p.getUpdatedAt(), p.getVersion());
     }
 

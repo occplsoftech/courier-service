@@ -39,6 +39,9 @@ public record CreatePincodeRequest(
         @Schema(description = "Regional zone (pricing region) id") UUID regionalZoneId,
         @Valid @Schema(description = "Document network coverage") NetworkCoverageDto doc,
         @Valid @Schema(description = "Surface network coverage") NetworkCoverageDto surface,
-        @Valid @Schema(description = "Air network coverage") NetworkCoverageDto air
+        @Valid @Schema(description = "Air network coverage") NetworkCoverageDto air,
+        @Valid @Schema(description = "Air cargo network coverage; left out = unchanged") NetworkCoverageDto airCargo,
+        @Valid @Schema(description = "Surface cargo network coverage; left out = unchanged") NetworkCoverageDto surfaceCargo,
+        @Valid @Schema(description = "Premium network coverage; left out = unchanged") NetworkCoverageDto premium
 ) {
 }
