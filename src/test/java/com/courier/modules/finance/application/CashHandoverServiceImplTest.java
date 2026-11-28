@@ -24,7 +24,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
+import com.courier.modules.finance.application.event.CashHandoverEvent;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -66,13 +68,14 @@ class CashHandoverServiceImplTest {
     @Mock private BranchDirectoryPort branchDirectory;
     @Mock private AuditService auditService;
     @Mock private FileStoragePort fileStorage;
+    @Mock private ApplicationEventPublisher events;
 
     private CashHandoverServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new CashHandoverServiceImpl(repository, new FinanceBranchScope(branchDirectory), auditService,
-                fileStorage, CLOCK);
+                fileStorage, events, CLOCK);
         CompanyContext.setCompanyId(COMPANY);
         for (UUID u : List.of(MANAGER, ACCOUNTS, RAVI)) {
             when(branchDirectory.branchOfUser(u, COMPANY)).thenReturn(Optional.of(BRANCH));
@@ -124,6 +127,13 @@ class CashHandoverServiceImplTest {
         assertThat(h.getProofImageUrl()).isEqualTo(PROOF);
         assertThat(h.getDecidedBy()).isNull();
         verify(auditService).record(eq(AuditAction.CASH_HANDOVER_SUBMITTED), any(), any(), any());
+        ArgumentCaptor<CashHandoverEvent> sent = ArgumentCaptor.forClass(CashHandoverEvent.class);
+        verify(events).publishEvent(sent.capture());
+        assertThat(sent.getValue().status()).isEqualTo(CashHandoverStatus.PENDING);
+        assertThat(sent.getValue().userId()).isEqualTo(RAVI);
+        assertThat(sent.getValue().actor()).isEqualTo(RAVI);
+        assertThat(sent.getValue().branchId()).isEqualTo(BRANCH);
+        assertThat(sent.getValue().companyId()).isEqualTo(COMPANY);
     }
 
     @Test
@@ -141,6 +151,7 @@ class CashHandoverServiceImplTest {
         assertThatThrownBy(() -> service.submit(submit(OTHER_BRANCH, "100", null, PROOF)))
                 .isInstanceOf(ResourceNotFoundException.class);
         verify(repository, never()).save(any());
+        verifyNoInteractions(events);
     }
 
     @Test
@@ -174,6 +185,12 @@ class CashHandoverServiceImplTest {
         assertThat(approved.getDecidedAt()).isEqualTo(Instant.now(CLOCK));
         assertThat(approved.getDecisionRemarks()).isEqualTo("counted");
         verify(auditService).record(eq(AuditAction.CASH_HANDOVER_APPROVED), any(), any(), any());
+        ArgumentCaptor<CashHandoverEvent> sent = ArgumentCaptor.forClass(CashHandoverEvent.class);
+        verify(events).publishEvent(sent.capture());
+        assertThat(sent.getValue().status()).isEqualTo(CashHandoverStatus.APPROVED);
+        assertThat(sent.getValue().userId()).as("the approval goes back to whoever handed over").isEqualTo(RAVI);
+        assertThat(sent.getValue().actor()).isEqualTo(MANAGER);
+        assertThat(sent.getValue().note()).isEqualTo("counted");
         assertThatThrownBy(() -> service.reject(h.getId(), "late")).isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("already been approved");
     }
@@ -188,6 +205,10 @@ class CashHandoverServiceImplTest {
         assertThat(rejected.getStatus()).isEqualTo(CashHandoverStatus.REJECTED);
         assertThat(rejected.getDecisionRemarks()).isEqualTo("Slip unreadable");
         verify(auditService).record(eq(AuditAction.CASH_HANDOVER_REJECTED), any(), any(), any());
+        ArgumentCaptor<CashHandoverEvent> sent = ArgumentCaptor.forClass(CashHandoverEvent.class);
+        verify(events).publishEvent(sent.capture());
+        assertThat(sent.getValue().status()).isEqualTo(CashHandoverStatus.REJECTED);
+        assertThat(sent.getValue().note()).isEqualTo("Slip unreadable");
     }
 
     @Test
@@ -250,7 +271,7 @@ class CashHandoverServiceImplTest {
         signedInAs(MANAGER, Roles.BRANCH_MANAGER);
         assertThat(service.list(null, null, null, null)).containsExactly(mine, theirs);
         assertThat(service.pending(null)).containsExactly(mine, theirs);
-        verifyNoInteractions(auditService);
+        verifyNoInteractions(auditService, events);
     }
 
     @Test

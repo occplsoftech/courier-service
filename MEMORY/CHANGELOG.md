@@ -8,6 +8,15 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-28 — Cash handover notifications
+
+- In-app notifications (the bell) for cash handovers: **submitted** → the branch's managers and accounts desk (company
+  admins when the branch has neither), never the sender; **approved / rejected / voided** → the user who handed over,
+  with the reason. Sent after the handover commits; a failure is logged and never undoes it.
+- `NotificationType` gains `CASH_HANDOVER_SUBMITTED / APPROVED / REJECTED / VOIDED` (the `type` column is free text: no
+  migration). `BranchDirectoryPort.usersWithAnyRole` (branch or company-wide, either role source).
+- Web: the bell shows them with their own icons and opens Reports → User Performance → Cash handovers.
+
 ## 2026-11-28 — Send a business customer's booking summary now
 
 - `POST /api/v1/booking-summary-email/{customerId}/send-now` `{to?, day?}` (company admin, `BookingSummaryEmailService.sendNow`):

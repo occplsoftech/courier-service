@@ -1,5 +1,6 @@
 package com.courier.modules.finance.application;
 
+import com.courier.modules.finance.application.event.CashHandoverEvent;
 import com.courier.modules.finance.domain.CashHandover;
 import com.courier.modules.finance.domain.CashHandoverRepository;
 import com.courier.modules.finance.domain.Wallet;
@@ -13,6 +14,7 @@ import com.courier.shared.security.AuthenticatedUser;
 import com.courier.shared.security.Roles;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -46,20 +48,22 @@ public class CashHandoverServiceImpl implements CashHandoverService {
     private final FinanceBranchScope scope;
     private final AuditService auditService;
     private final FileStoragePort fileStorage;
+    private final ApplicationEventPublisher events;
     private final Clock clock;
 
     @Autowired
     public CashHandoverServiceImpl(CashHandoverRepository repository, FinanceBranchScope scope, AuditService auditService,
-                                   FileStoragePort fileStorage) {
-        this(repository, scope, auditService, fileStorage, Clock.systemUTC());
+                                   FileStoragePort fileStorage, ApplicationEventPublisher events) {
+        this(repository, scope, auditService, fileStorage, events, Clock.systemUTC());
     }
 
     CashHandoverServiceImpl(CashHandoverRepository repository, FinanceBranchScope scope, AuditService auditService,
-                            FileStoragePort fileStorage, Clock clock) {
+                            FileStoragePort fileStorage, ApplicationEventPublisher events, Clock clock) {
         this.repository = repository;
         this.scope = scope;
         this.auditService = auditService;
         this.fileStorage = fileStorage;
+        this.events = events;
         this.clock = clock;
     }
 
@@ -133,6 +137,7 @@ public class CashHandoverServiceImpl implements CashHandoverService {
         details.put("mode", command.mode().name());
         details.put("handoverDate", day.toString());
         auditService.record(AuditAction.CASH_HANDOVER_SUBMITTED, ENTITY, saved.getId(), details);
+        publish(saved, caller.userId(), null);
         return saved;
     }
 
@@ -147,6 +152,7 @@ public class CashHandoverServiceImpl implements CashHandoverService {
         handover.approve(caller.userId(), now(), trimToNull(note, 500));
         CashHandover saved = repository.save(handover);
         audit(AuditAction.CASH_HANDOVER_APPROVED, saved, saved.getDecisionRemarks());
+        publish(saved, caller.userId(), saved.getDecisionRemarks());
         return saved;
     }
 
@@ -159,6 +165,7 @@ public class CashHandoverServiceImpl implements CashHandoverService {
         handover.reject(caller.userId(), now(), trimToNull(reason, 500));
         CashHandover saved = repository.save(handover);
         audit(AuditAction.CASH_HANDOVER_REJECTED, saved, saved.getDecisionRemarks());
+        publish(saved, caller.userId(), saved.getDecisionRemarks());
         return saved;
     }
 
@@ -179,6 +186,7 @@ public class CashHandoverServiceImpl implements CashHandoverService {
         handover.voidWith(caller.userId(), now(), trimToNull(reason, 500));
         CashHandover saved = repository.save(handover);
         audit(AuditAction.CASH_HANDOVER_VOIDED, saved, saved.getVoidReason());
+        publish(saved, caller.userId(), saved.getVoidReason());
         return saved;
     }
 
@@ -232,6 +240,12 @@ public class CashHandoverServiceImpl implements CashHandoverService {
                 .orElseThrow(() -> new ResourceNotFoundException(ENTITY, handoverId));
         scope.resolveBranch(handover.getBranchId(), companyId, caller);
         return handover;
+    }
+
+    /** Notifications go out after commit — see {@link CashHandoverEvent}. */
+    private void publish(CashHandover h, UUID actor, String note) {
+        events.publishEvent(new CashHandoverEvent(scope.requireCompany(), h.getId(), h.getBranchId(), h.getUserId(), actor,
+                h.getStatus(), h.getAmount(), h.getMode(), h.getHandoverDate(), note));
     }
 
     private void audit(AuditAction action, CashHandover h, String note) {
