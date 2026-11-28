@@ -107,10 +107,12 @@ class UserPerformanceServiceImplTest {
                 new Delivery(UUID.randomUUID(), "D2", SURESH, "DRS2", ist(D28, 9), null, 0, "To Pay",
                         PaymentKind.TO_PAY, new BigDecimal("400"))));
 
-        CashHandover voided = handover(SURESH, D28, "100");
+        CashHandover voided = approved(SURESH, D28, "100");
         voided.voidWith(MANAGER, Instant.now(CLOCK), "typo");
+        CashHandover rejected = handover(SURESH, D28, "300");
+        rejected.reject(MANAGER, Instant.now(CLOCK), "blurry");
         when(handovers.findForBranchBetween(COMPANY, BRANCH, LocalDate.of(2026, 11, 20), D28)).thenReturn(List.of(
-                handover(RAVI, D26, "600"), handover(RAVI, D28, "500"), voided));
+                approved(RAVI, D26, "600"), approved(RAVI, D28, "500"), voided, rejected, handover(SURESH, D28, "700")));
 
         List<WalletTransaction> entries = new ArrayList<>(List.of(
                 entry(TransactionType.DR, SubTransactionType.SBK, "B1", "500", RAVI),
@@ -139,7 +141,7 @@ class UserPerformanceServiceImplTest {
         Report r = service.report(null, D27, D28, null);
 
         assertThat(r.teamView()).isTrue();
-        assertThat(r.canRecordHandover()).isTrue();
+        assertThat(r.canApproveHandover()).isTrue();
         assertThat(r.attribution()).isEqualTo(Attribution.WORK);
         assertThat(r.trackingFrom()).isEqualTo(LocalDate.of(2026, 11, 20));
 
@@ -168,7 +170,9 @@ class UserPerformanceServiceImplTest {
         assertThat(suresh.successRate()).isEqualByComparingTo("50.0");
         assertThat(suresh.walletDebit()).as("the COD debit goes to the delivery boy, not to who entered it")
                 .isEqualByComparingTo("900");
-        assertThat(suresh.handedOver()).as("a voided handover does not count").isEqualByComparingTo("0");
+        assertThat(suresh.handedOver()).as("voided, rejected and pending handovers do not count").isEqualByComparingTo("0");
+        assertThat(suresh.awaitingApproval()).isEqualByComparingTo("700");
+        assertThat(ravi.awaitingApproval()).isEqualByComparingTo("0");
         assertThat(suresh.openingOutstanding()).isEqualByComparingTo("250");
         assertThat(suresh.closingOutstanding()).isEqualByComparingTo("1150");
 
@@ -205,7 +209,7 @@ class UserPerformanceServiceImplTest {
         signedInAs(RAVI, DefaultRoleCatalog.BOOKING_OPERATOR);
         Report r = service.report(null, D27, D28, null);
         assertThat(r.teamView()).isFalse();
-        assertThat(r.canRecordHandover()).isFalse();
+        assertThat(r.canApproveHandover()).isFalse();
         assertThat(r.rows()).extracting(Row::userId).containsExactly(RAVI);
         assertThat(r.total().cashCollected()).isEqualByComparingTo("500");
         assertThat(r.reconciliation()).isNull();
@@ -224,7 +228,7 @@ class UserPerformanceServiceImplTest {
         assertThat(service.details(null, D27, D28, null, Metric.WALLET, null))
                 .extracting(DetailRow::detail).singleElement().asString().startsWith("Manual Debit");
         assertThat(service.details(null, D27, D28, SURESH, Metric.HANDOVERS, null))
-                .extracting(DetailRow::status).containsExactly("VOIDED");
+                .extracting(DetailRow::status).containsExactlyInAnyOrder("VOIDED", "REJECTED", "PENDING");
         assertThat(service.details(null, D27, D28, null, Metric.BOOKINGS, null))
                 .extracting(DetailRow::reference).containsExactly("P1");
 
@@ -258,7 +262,14 @@ class UserPerformanceServiceImplTest {
 
     private static CashHandover handover(UUID user, LocalDate day, String amount) {
         return CashHandover.builder().branchId(BRANCH).userId(user).amount(new BigDecimal(amount))
-                .mode(CashHandoverMode.CASH).handoverDate(day).receivedBy(MANAGER).receivedAt(ist(day, 19)).build();
+                .mode(CashHandoverMode.CASH).handoverDate(day).proofImageUrl("https://files/p.jpg")
+                .submittedAt(ist(day, 19)).build();
+    }
+
+    private static CashHandover approved(UUID user, LocalDate day, String amount) {
+        CashHandover h = handover(user, day, amount);
+        h.approve(MANAGER, ist(day, 20), null);
+        return h;
     }
 
     private static WalletTransaction entry(TransactionType type, SubTransactionType sub, String shipment, String amount,

@@ -14,11 +14,16 @@ public interface CashHandoverRepository extends JpaRepository<CashHandover, UUID
     @Query("select h from CashHandover h where h.id = :id and h.companyId = :companyId")
     Optional<CashHandover> findByIdWithinCompany(@Param("id") UUID id, @Param("companyId") UUID companyId);
 
-    /** Every handover (voided ones included) of a branch on the days given, newest first. */
+    /** Every handover (any status) of a branch on the days given, newest first. */
     @Query("select h from CashHandover h where h.companyId = :companyId and h.branchId = :branchId "
-            + "and h.handoverDate between :from and :to order by h.handoverDate desc, h.receivedAt desc")
+            + "and h.handoverDate between :from and :to order by h.handoverDate desc, h.submittedAt desc")
     List<CashHandover> findForBranchBetween(@Param("companyId") UUID companyId, @Param("branchId") UUID branchId,
                                             @Param("from") LocalDate from, @Param("to") LocalDate to);
+
+    /** Every handover of a branch still waiting for approval, whatever its date, oldest first. */
+    @Query("select h from CashHandover h where h.companyId = :companyId and h.branchId = :branchId "
+            + "and h.status = com.courier.modules.finance.domain.CashHandoverStatus.PENDING order by h.submittedAt")
+    List<CashHandover> findPendingForBranch(@Param("companyId") UUID companyId, @Param("branchId") UUID branchId);
 
     /** The day outstanding cash starts counting for this company (V191): its settings row, else the day the company was
      *  created. A DATE comes back as {@code java.sql.Date} or {@code LocalDate} depending on the driver, so the caller

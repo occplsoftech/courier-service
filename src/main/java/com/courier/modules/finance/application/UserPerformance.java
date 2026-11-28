@@ -37,7 +37,9 @@ public final class UserPerformance {
      * @param deliveryCash       To-Pay freight and COD collected on delivery
      * @param cashCollected      counterCash + deliveryCash: what the user had in hand in the window
      * @param openingOutstanding cash not yet handed over at the start of the window
-     * @param closingOutstanding cash not yet handed over at the end of it
+     * @param handedOver         approved handovers dated in the window
+     * @param closingOutstanding cash not yet handed over (approved) at the end of it
+     * @param awaitingApproval   handovers submitted with proof and not yet approved or rejected — still outstanding
      * @param successRate        delivered ÷ (delivered + still pending), percent; null with nothing assigned
      */
     public record Row(UUID userId, String userName, boolean system,
@@ -48,7 +50,7 @@ public final class UserPerformance {
                       BigDecimal successRate,
                       BigDecimal walletDebit, BigDecimal walletRefund, BigDecimal walletNet, BigDecimal commission,
                       BigDecimal cashCollected, BigDecimal openingOutstanding, BigDecimal handedOver,
-                      BigDecimal closingOutstanding) {
+                      BigDecimal closingOutstanding, BigDecimal awaitingApproval) {
     }
 
     /**
@@ -67,9 +69,11 @@ public final class UserPerformance {
      * @param trackingFrom the day outstanding cash starts counting (see V191); collections before it are never
      *                     outstanding
      * @param teamView     false when the caller sees only their own row
+     * @param canApproveHandover whether the caller approves / rejects others' handovers (any company user may submit
+     *                     their own)
      */
     public record Report(UUID branchId, LocalDate from, LocalDate to, Attribution attribution,
-                         LocalDate trackingFrom, boolean teamView, boolean canRecordHandover,
+                         LocalDate trackingFrom, boolean teamView, boolean canApproveHandover,
                          List<Row> rows, Row total, Reconciliation reconciliation) {
     }
 

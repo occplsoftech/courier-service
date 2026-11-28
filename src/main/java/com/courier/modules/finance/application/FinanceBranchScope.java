@@ -21,7 +21,9 @@ import java.util.UUID;
  *   <li><b>Company-wide</b> (any branch): COMPANY_ADMIN, FINANCE_USER.</li>
  *   <li><b>Team</b> (every user of their own branch): those, plus BRANCH_MANAGER, HUB_MANAGER, ACCOUNTS, VIEWER.</li>
  *   <li>Everyone else (booking / delivery operators, drivers): <b>only their own row</b> ("My Performance").</li>
- *   <li><b>Record a handover</b>: COMPANY_ADMIN, BRANCH_MANAGER, ACCOUNTS — the people cash is handed to.</li>
+ *   <li><b>Hand over cash</b> (submit with proof): any company user, for their own cash.</li>
+ *   <li><b>Approve / reject a handover</b>: COMPANY_ADMIN, BRANCH_MANAGER, ACCOUNTS — the people cash is handed to —
+ *       never their own.</li>
  * </ul>
  */
 @Component
@@ -52,7 +54,7 @@ public class FinanceBranchScope {
                 || caller.hasRole(DefaultRoleCatalog.ACCOUNTS) || caller.hasRole(Roles.VIEWER);
     }
 
-    public boolean canRecordHandover(AuthenticatedUser caller) {
+    public boolean canApproveHandover(AuthenticatedUser caller) {
         return caller.hasRole(Roles.COMPANY_ADMIN) || caller.hasRole(Roles.BRANCH_MANAGER)
                 || caller.hasRole(DefaultRoleCatalog.ACCOUNTS);
     }

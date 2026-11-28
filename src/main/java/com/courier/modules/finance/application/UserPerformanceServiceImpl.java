@@ -50,7 +50,8 @@ import static com.courier.modules.finance.application.CashHandoverServiceImpl.IS
  * handovers from {@link CashHandoverRepository}.
  *
  * <p><b>Outstanding cash</b> counts from {@code trackingFrom} (V191): cash taken at the counter (Paid bookings paid in
- * cash, not cancelled) plus To-Pay / COD collected on delivery, minus live (not voided) handovers. Opening = up to the
+ * cash, not cancelled) plus To-Pay / COD collected on delivery, minus approved handovers (pending ones are shown as
+ * awaiting approval and still count as outstanding). Opening = up to the
  * day before the window, closing = up to its last day. UPI and Razorpay counter payments go to the bank and are never
  * outstanding.
  */
@@ -155,10 +156,16 @@ public class UserPerformanceServiceImpl implements UserPerformanceService {
                 default -> { }
             }
         }
-        for (CashHandover h : facts.liveHandovers) {
+        for (CashHandover h : facts.approvedHandovers) {
             if (w.inPeriod(h.getHandoverDate())) {
                 Acc a = acc.computeIfAbsent(h.getUserId(), k -> new Acc());
                 a.handedOver = a.handedOver.add(h.getAmount());
+            }
+        }
+        for (CashHandover h : facts.allHandovers) {
+            if (h.isPending()) {
+                Acc a = acc.computeIfAbsent(h.getUserId(), k -> new Acc());
+                a.awaitingApproval = a.awaitingApproval.add(h.getAmount());
             }
         }
         applyOutstanding(w, facts, acc);
@@ -189,7 +196,7 @@ public class UserPerformanceServiceImpl implements UserPerformanceService {
                 ? new Reconciliation(money(walletDebits), money(walletCredits), money(attributedDebits), money(unattributed))
                 : null;
         return new Report(w.branchId, w.from, w.to, w.attribution, w.trackingFrom, team,
-                scope.canRecordHandover(caller), rows, total, reconciliation);
+                scope.canApproveHandover(caller), rows, total, reconciliation);
     }
 
     // ------------------------------------------------------------------------------------------------ details
@@ -245,8 +252,8 @@ public class UserPerformanceServiceImpl implements UserPerformanceService {
             });
             case HANDOVERS -> facts.allHandovers.stream()
                     .filter(h -> w.inPeriod(h.getHandoverDate()) && h.getUserId().equals(key))
-                    .forEach(h -> out.add(new DetailRow(h.getHandoverDate(), h.getReceivedAt(), h.getId().toString(),
-                            h.getMode().name(), detailOf(h, w.companyId), h.isVoided() ? "VOIDED" : "RECEIVED",
+                    .forEach(h -> out.add(new DetailRow(h.getHandoverDate(), h.getSubmittedAt(), h.getId().toString(),
+                            h.getMode().name(), detailOf(h, w.companyId), h.getStatus().name(),
                             money(h.getAmount()))));
         }
         out.sort(Comparator.comparing(DetailRow::at, Comparator.nullsLast(Comparator.reverseOrder())));
@@ -272,7 +279,7 @@ public class UserPerformanceServiceImpl implements UserPerformanceService {
         List<Booking> bookings = activity.bookings(w.companyId, w.branchId, start, w.to);
         List<Delivery> deliveries = activity.deliveries(w.companyId, w.branchId, startOf(start), startOf(w.to.plusDays(1)));
         List<CashHandover> all = handovers.findForBranchBetween(w.companyId, w.branchId, start, w.to);
-        List<CashHandover> live = all.stream().filter(h -> !h.isVoided()).toList();
+        List<CashHandover> approved = all.stream().filter(CashHandover::isApproved).toList();
 
         WalletTransactionCriteria criteria = new WalletTransactionCriteria(null, null, null, null, null, null, null,
                 null, startOf(w.from), startOf(w.to.plusDays(1)), null, null, null);
@@ -285,7 +292,7 @@ public class UserPerformanceServiceImpl implements UserPerformanceService {
         List<Attributed> attributed = entries.stream()
                 .map(t -> new Attributed(t, WalletAttribution.of(t, w.branchId, owners, w.attribution)))
                 .toList();
-        return new Facts(bookings, deliveries, all, live, attributed);
+        return new Facts(bookings, deliveries, all, approved, attributed);
     }
 
     /** Opening and closing outstanding per user; see the class comment. */
@@ -312,7 +319,7 @@ public class UserPerformanceServiceImpl implements UserPerformanceService {
                 add.accept(d.deliveryUserId(), Map.entry(day(d.deliveredAt()), d.amountToCollect()));
             }
         }
-        for (CashHandover h : facts.liveHandovers) {
+        for (CashHandover h : facts.approvedHandovers) {
             add.accept(h.getUserId(), Map.entry(h.getHandoverDate(), h.getAmount().negate()));
         }
         Set<UUID> users = new java.util.HashSet<>(closing.keySet());
@@ -338,14 +345,21 @@ public class UserPerformanceServiceImpl implements UserPerformanceService {
                 a.delivered, a.deliveryPending, a.failedAttempts, money(a.deliveryCash), success,
                 money(a.walletDebit), money(a.walletRefund), money(a.walletDebit.subtract(a.walletRefund)),
                 money(a.commission), money(collected), money(a.openingOutstanding), money(a.handedOver),
-                money(a.closingOutstanding));
+                money(a.closingOutstanding), money(a.awaitingApproval));
     }
 
     private String detailOf(CashHandover h, UUID companyId) {
-        StringBuilder sb = new StringBuilder("Received by ").append(scope.displayName(h.getReceivedBy(), companyId));
+        StringBuilder sb = new StringBuilder();
+        if (h.getDecidedBy() != null) {
+            sb.append(h.getStatus() == com.courier.modules.finance.domain.CashHandoverStatus.REJECTED ? "Rejected by " : "Approved by ")
+                    .append(scope.displayName(h.getDecidedBy(), companyId));
+        } else {
+            sb.append("Awaiting approval");
+        }
         if (h.getReference() != null) sb.append(" · Ref ").append(h.getReference());
         if (h.getRemarks() != null) sb.append(" · ").append(h.getRemarks());
-        if (h.isVoided()) sb.append(" · Voided: ").append(h.getVoidReason());
+        if (h.getDecisionRemarks() != null) sb.append(" · ").append(h.getDecisionRemarks());
+        if (h.getVoidReason() != null) sb.append(" · Voided: ").append(h.getVoidReason());
         return sb.toString();
     }
 
@@ -388,7 +402,7 @@ public class UserPerformanceServiceImpl implements UserPerformanceService {
     }
 
     private record Facts(List<Booking> bookings, List<Delivery> deliveries, List<CashHandover> allHandovers,
-                         List<CashHandover> liveHandovers, List<Attributed> entries) {
+                         List<CashHandover> approvedHandovers, List<Attributed> entries) {
     }
 
     private record Attributed(WalletTransaction entry, Share share) {
@@ -402,11 +416,13 @@ public class UserPerformanceServiceImpl implements UserPerformanceService {
         BigDecimal deliveryCash = BigDecimal.ZERO;
         BigDecimal walletDebit = BigDecimal.ZERO, walletRefund = BigDecimal.ZERO, commission = BigDecimal.ZERO;
         BigDecimal handedOver = BigDecimal.ZERO, openingOutstanding = BigDecimal.ZERO, closingOutstanding = BigDecimal.ZERO;
+        BigDecimal awaitingApproval = BigDecimal.ZERO;
 
         boolean hasAnything() {
             return booked > 0 || delivered > 0 || deliveryPending > 0
                     || walletDebit.signum() != 0 || walletRefund.signum() != 0 || commission.signum() != 0
-                    || handedOver.signum() != 0 || openingOutstanding.signum() != 0 || closingOutstanding.signum() != 0;
+                    || handedOver.signum() != 0 || openingOutstanding.signum() != 0 || closingOutstanding.signum() != 0
+                    || awaitingApproval.signum() != 0;
         }
 
         void add(Acc o) {
@@ -420,6 +436,7 @@ public class UserPerformanceServiceImpl implements UserPerformanceService {
             commission = commission.add(o.commission); handedOver = handedOver.add(o.handedOver);
             openingOutstanding = openingOutstanding.add(o.openingOutstanding);
             closingOutstanding = closingOutstanding.add(o.closingOutstanding);
+            awaitingApproval = awaitingApproval.add(o.awaitingApproval);
         }
     }
 }

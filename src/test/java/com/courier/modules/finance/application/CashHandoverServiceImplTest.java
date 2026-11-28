@@ -5,6 +5,8 @@ import com.courier.modules.finance.domain.BranchDirectoryPort;
 import com.courier.modules.finance.domain.CashHandover;
 import com.courier.modules.finance.domain.CashHandoverMode;
 import com.courier.modules.finance.domain.CashHandoverRepository;
+import com.courier.modules.finance.domain.CashHandoverStatus;
+import com.courier.modules.shipment.application.storage.FileStoragePort;
 import com.courier.shared.audit.application.AuditService;
 import com.courier.shared.audit.domain.AuditAction;
 import com.courier.shared.company.CompanyContext;
@@ -17,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -41,6 +44,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -51,7 +55,9 @@ class CashHandoverServiceImplTest {
     private static final UUID BRANCH = UUID.randomUUID();
     private static final UUID OTHER_BRANCH = UUID.randomUUID();
     private static final UUID MANAGER = UUID.randomUUID();
+    private static final UUID ACCOUNTS = UUID.randomUUID();
     private static final UUID RAVI = UUID.randomUUID();
+    private static final String PROOF = "https://files.example/c/cash-handover-1.jpg";
     /** 2026-11-28 11:30 IST. */
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-11-28T06:00:00Z"), ZoneOffset.UTC);
     private static final LocalDate TODAY = LocalDate.of(2026, 11, 28);
@@ -59,19 +65,20 @@ class CashHandoverServiceImplTest {
     @Mock private CashHandoverRepository repository;
     @Mock private BranchDirectoryPort branchDirectory;
     @Mock private AuditService auditService;
+    @Mock private FileStoragePort fileStorage;
 
     private CashHandoverServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new CashHandoverServiceImpl(repository, new FinanceBranchScope(branchDirectory), auditService, CLOCK);
+        service = new CashHandoverServiceImpl(repository, new FinanceBranchScope(branchDirectory), auditService,
+                fileStorage, CLOCK);
         CompanyContext.setCompanyId(COMPANY);
-        when(branchDirectory.branchOfUser(MANAGER, COMPANY)).thenReturn(Optional.of(BRANCH));
-        when(branchDirectory.branchOfUser(RAVI, COMPANY)).thenReturn(Optional.of(BRANCH));
+        for (UUID u : List.of(MANAGER, ACCOUNTS, RAVI)) {
+            when(branchDirectory.branchOfUser(u, COMPANY)).thenReturn(Optional.of(BRANCH));
+        }
         when(branchDirectory.findBranch(any(), eq(COMPANY))).thenAnswer(i -> Optional.of(
                 new BranchDirectoryPort.BranchRef(i.getArgument(0), COMPANY, "B", "Branch", true)));
-        when(branchDirectory.findUser(any(), eq(COMPANY))).thenAnswer(i -> Optional.of(
-                new BranchDirectoryPort.UserRef(i.getArgument(0), COMPANY, "Someone")));
         when(repository.save(any(CashHandover.class))).thenAnswer(i -> i.getArgument(0));
     }
 
@@ -87,113 +94,163 @@ class CashHandoverServiceImplTest {
                 new UsernamePasswordAuthenticationToken(principal, null, principal.authorities()));
     }
 
-    private static CashHandoverService.RecordCommand cmd(UUID branch, UUID user, String amount, LocalDate day) {
-        return new CashHandoverService.RecordCommand(branch, user, amount == null ? null : new BigDecimal(amount),
-                CashHandoverMode.CASH, " slip 7 ", null, day);
+    private static CashHandoverService.SubmitCommand submit(UUID branch, String amount, LocalDate day, String proof) {
+        return new CashHandoverService.SubmitCommand(branch, amount == null ? null : new BigDecimal(amount),
+                CashHandoverMode.BANK_DEPOSIT, " slip 7 ", null, day, proof);
     }
 
-    @Test
-    @DisplayName("a branch manager records cash received from a user of their branch, dated today by default")
-    void records() {
-        signedInAs(MANAGER, Roles.BRANCH_MANAGER);
-        assertThatThrownBy(() -> service.record(cmd(OTHER_BRANCH, RAVI, "100", null)))
-                .as("another branch is not theirs to record for").isInstanceOf(ResourceNotFoundException.class);
-        CashHandover h = service.record(cmd(null, RAVI, "12600.50", null));
+    private CashHandover pendingFrom(UUID user, UUID branch) {
+        CashHandover h = CashHandover.builder().branchId(branch).userId(user).amount(new BigDecimal("500"))
+                .mode(CashHandoverMode.CASH).handoverDate(TODAY).proofImageUrl(PROOF).submittedAt(Instant.now(CLOCK)).build();
+        h.setCompanyId(COMPANY);
+        when(repository.findByIdWithinCompany(h.getId(), COMPANY)).thenReturn(Optional.of(h));
+        return h;
+    }
 
-        assertThat(h.getBranchId()).as("a branch caller's own branch").isEqualTo(BRANCH);
+    // ------------------------------------------------------------------------------------------------ submit
+
+    @Test
+    @DisplayName("a delivery operator hands over their own cash with proof; it waits for approval")
+    void submits() {
+        signedInAs(RAVI, DefaultRoleCatalog.DELIVERY_OPERATOR);
+        CashHandover h = service.submit(submit(null, "12600.50", null, PROOF));
+
         assertThat(h.getUserId()).isEqualTo(RAVI);
-        assertThat(h.getReceivedBy()).isEqualTo(MANAGER);
+        assertThat(h.getBranchId()).isEqualTo(BRANCH);
+        assertThat(h.getStatus()).isEqualTo(CashHandoverStatus.PENDING);
         assertThat(h.getAmount()).isEqualByComparingTo("12600.50");
         assertThat(h.getHandoverDate()).isEqualTo(TODAY);
         assertThat(h.getReference()).isEqualTo("slip 7");
-        assertThat(h.isVoided()).isFalse();
-        verify(auditService).record(eq(AuditAction.CASH_HANDOVER_RECORDED), any(), any(), any());
+        assertThat(h.getProofImageUrl()).isEqualTo(PROOF);
+        assertThat(h.getDecidedBy()).isNull();
+        verify(auditService).record(eq(AuditAction.CASH_HANDOVER_SUBMITTED), any(), any(), any());
     }
 
     @Test
-    @DisplayName("the accounts desk may record; a booking operator may not")
-    void whoRecords() {
-        signedInAs(MANAGER, DefaultRoleCatalog.ACCOUNTS);
-        assertThat(service.record(cmd(null, RAVI, "100", null)).getReceivedBy()).isEqualTo(MANAGER);
-
+    @DisplayName("no handover without a proof image, a positive amount and a date that is not in the future")
+    void submitValidation() {
         signedInAs(RAVI, DefaultRoleCatalog.BOOKING_OPERATOR);
-        assertThatThrownBy(() -> service.record(cmd(null, MANAGER, "100", null)))
-                .isInstanceOf(AccessDeniedException.class);
-    }
-
-    @Test
-    @DisplayName("nobody but a company admin records a handover from themselves")
-    void notFromSelf() {
-        signedInAs(MANAGER, Roles.BRANCH_MANAGER);
-        assertThatThrownBy(() -> service.record(cmd(null, MANAGER, "100", null)))
-                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("yourself");
-
-        signedInAs(MANAGER, Roles.COMPANY_ADMIN);
-        assertThat(service.record(cmd(BRANCH, MANAGER, "100", null)).getUserId()).isEqualTo(MANAGER);
-    }
-
-    @Test
-    @DisplayName("refuses a zero amount, a future date and an unknown user")
-    void validation() {
-        signedInAs(MANAGER, Roles.BRANCH_MANAGER);
-        assertThatThrownBy(() -> service.record(cmd(null, RAVI, "0", null))).isInstanceOf(BusinessRuleException.class);
-        assertThatThrownBy(() -> service.record(cmd(null, RAVI, "10.555", null))).isInstanceOf(BusinessRuleException.class);
-        assertThatThrownBy(() -> service.record(cmd(null, RAVI, "100", TODAY.plusDays(1))))
+        assertThatThrownBy(() -> service.submit(submit(null, "100", null, null)))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("proof");
+        assertThatThrownBy(() -> service.submit(submit(null, "100", null, "javascript:alert(1)")))
+                .isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> service.submit(submit(null, "0", null, PROOF))).isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> service.submit(submit(null, "10.555", null, PROOF))).isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> service.submit(submit(null, "100", TODAY.plusDays(1), PROOF)))
                 .isInstanceOf(BusinessRuleException.class).hasMessageContaining("future");
-        UUID stranger = UUID.randomUUID();
-        when(branchDirectory.findUser(stranger, COMPANY)).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> service.record(cmd(null, stranger, "100", null)))
+        assertThatThrownBy(() -> service.submit(submit(OTHER_BRANCH, "100", null, PROOF)))
                 .isInstanceOf(ResourceNotFoundException.class);
         verify(repository, never()).save(any());
     }
 
     @Test
-    @DisplayName("whoever recorded a handover voids it with a reason, once; another manager may not")
-    void voids() {
-        CashHandover h = CashHandover.builder().branchId(BRANCH).userId(RAVI).amount(new BigDecimal("500"))
-                .mode(CashHandoverMode.CASH).handoverDate(TODAY).receivedBy(MANAGER).receivedAt(Instant.now(CLOCK)).build();
-        h.setCompanyId(COMPANY);
-        when(repository.findByIdWithinCompany(h.getId(), COMPANY)).thenReturn(Optional.of(h));
+    @DisplayName("a proof image is stored under the company; other file types are refused")
+    void uploadsProof() {
+        signedInAs(RAVI, DefaultRoleCatalog.DELIVERY_OPERATOR);
+        when(fileStorage.upload(any())).thenReturn(new FileStoragePort.StoredFile(PROOF, "k"));
+        assertThat(service.uploadProof(new CashHandoverService.UploadProofCommand(new byte[]{1, 2}, "slip.JPG", "image/jpeg")))
+                .isEqualTo(PROOF);
+        ArgumentCaptor<FileStoragePort.UploadRequest> sent = ArgumentCaptor.forClass(FileStoragePort.UploadRequest.class);
+        verify(fileStorage).upload(sent.capture());
+        assertThat(sent.getValue().filename()).startsWith(COMPANY + "/cash-handover-").endsWith(".jpg");
 
-        UUID otherManager = UUID.randomUUID();
-        when(branchDirectory.branchOfUser(otherManager, COMPANY)).thenReturn(Optional.of(BRANCH));
-        signedInAs(otherManager, Roles.BRANCH_MANAGER);
-        assertThatThrownBy(() -> service.voidHandover(h.getId(), "typo")).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> service.uploadProof(new CashHandoverService.UploadProofCommand(new byte[]{1}, "x.pdf", "application/pdf")))
+                .isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> service.uploadProof(new CashHandoverService.UploadProofCommand(new byte[0], "x.png", "image/png")))
+                .isInstanceOf(BusinessRuleException.class);
+    }
+
+    // ------------------------------------------------------------------------------------------------ decide
+
+    @Test
+    @DisplayName("the branch manager approves after viewing the proof; a second decision is refused")
+    void approves() {
+        CashHandover h = pendingFrom(RAVI, BRANCH);
+        signedInAs(MANAGER, Roles.BRANCH_MANAGER);
+        CashHandover approved = service.approve(h.getId(), " counted ");
+
+        assertThat(approved.getStatus()).isEqualTo(CashHandoverStatus.APPROVED);
+        assertThat(approved.getDecidedBy()).isEqualTo(MANAGER);
+        assertThat(approved.getDecidedAt()).isEqualTo(Instant.now(CLOCK));
+        assertThat(approved.getDecisionRemarks()).isEqualTo("counted");
+        verify(auditService).record(eq(AuditAction.CASH_HANDOVER_APPROVED), any(), any(), any());
+        assertThatThrownBy(() -> service.reject(h.getId(), "late")).isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("already been approved");
+    }
+
+    @Test
+    @DisplayName("the accounts desk rejects with a reason; without one it is refused")
+    void rejects() {
+        CashHandover h = pendingFrom(RAVI, BRANCH);
+        signedInAs(ACCOUNTS, DefaultRoleCatalog.ACCOUNTS);
+        assertThatThrownBy(() -> service.reject(h.getId(), "  ")).isInstanceOf(BusinessRuleException.class);
+        CashHandover rejected = service.reject(h.getId(), "Slip unreadable");
+        assertThat(rejected.getStatus()).isEqualTo(CashHandoverStatus.REJECTED);
+        assertThat(rejected.getDecisionRemarks()).isEqualTo("Slip unreadable");
+        verify(auditService).record(eq(AuditAction.CASH_HANDOVER_REJECTED), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("an operator cannot approve; nobody approves their own; another branch's is not found")
+    void whoDecides() {
+        CashHandover ravis = pendingFrom(RAVI, BRANCH);
+        UUID other = UUID.randomUUID();
+        when(branchDirectory.branchOfUser(other, COMPANY)).thenReturn(Optional.of(BRANCH));
+        signedInAs(other, DefaultRoleCatalog.BOOKING_OPERATOR);
+        assertThatThrownBy(() -> service.approve(ravis.getId(), null)).isInstanceOf(AccessDeniedException.class);
+
+        CashHandover managers = pendingFrom(MANAGER, BRANCH);
+        signedInAs(MANAGER, Roles.BRANCH_MANAGER);
+        assertThatThrownBy(() -> service.approve(managers.getId(), null))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("your own");
+
+        CashHandover elsewhere = pendingFrom(UUID.randomUUID(), OTHER_BRANCH);
+        assertThatThrownBy(() -> service.approve(elsewhere.getId(), null)).isInstanceOf(ResourceNotFoundException.class);
+
+        signedInAs(ACCOUNTS, DefaultRoleCatalog.ACCOUNTS);
+        assertThat(service.approve(managers.getId(), null).isApproved())
+                .as("the manager's own cash is approved by someone else").isTrue();
+    }
+
+    @Test
+    @DisplayName("an approved handover is voided by whoever approved it or a company admin; a pending one cannot be voided")
+    void voids() {
+        CashHandover h = pendingFrom(RAVI, BRANCH);
+        signedInAs(MANAGER, Roles.BRANCH_MANAGER);
+        assertThatThrownBy(() -> service.voidHandover(h.getId(), "x")).isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("Only an approved");
+        service.approve(h.getId(), null);
+
+        signedInAs(ACCOUNTS, DefaultRoleCatalog.ACCOUNTS);
+        assertThatThrownBy(() -> service.voidHandover(h.getId(), "x")).isInstanceOf(AccessDeniedException.class);
 
         signedInAs(MANAGER, Roles.BRANCH_MANAGER);
-        assertThatThrownBy(() -> service.voidHandover(h.getId(), " ")).isInstanceOf(BusinessRuleException.class);
-        CashHandover voided = service.voidHandover(h.getId(), "Wrong amount");
-        assertThat(voided.isVoided()).isTrue();
+        CashHandover voided = service.voidHandover(h.getId(), "Counted twice");
+        assertThat(voided.getStatus()).isEqualTo(CashHandoverStatus.VOIDED);
         assertThat(voided.getVoidedBy()).isEqualTo(MANAGER);
-        assertThat(voided.getVoidReason()).isEqualTo("Wrong amount");
-        assertThatThrownBy(() -> service.voidHandover(h.getId(), "again"))
-                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("already");
+        assertThat(voided.getVoidReason()).isEqualTo("Counted twice");
         verify(auditService).record(eq(AuditAction.CASH_HANDOVER_VOIDED), any(), any(), any());
     }
 
-    @Test
-    @DisplayName("a handover of another branch is not found for a branch manager")
-    void otherBranchHidden() {
-        CashHandover h = CashHandover.builder().branchId(OTHER_BRANCH).userId(RAVI).amount(BigDecimal.TEN)
-                .mode(CashHandoverMode.CASH).handoverDate(TODAY).receivedBy(MANAGER).receivedAt(Instant.now(CLOCK)).build();
-        when(repository.findByIdWithinCompany(h.getId(), COMPANY)).thenReturn(Optional.of(h));
-        signedInAs(MANAGER, Roles.BRANCH_MANAGER);
-        assertThatThrownBy(() -> service.voidHandover(h.getId(), "x")).isInstanceOf(ResourceNotFoundException.class);
-    }
+    // ------------------------------------------------------------------------------------------------ reads
 
     @Test
-    @DisplayName("an operator lists only their own handovers; a manager sees the branch's")
+    @DisplayName("an operator lists and sees pending only their own; a manager sees the branch's")
     void listScope() {
         CashHandover mine = CashHandover.builder().branchId(BRANCH).userId(RAVI).amount(BigDecimal.TEN)
-                .mode(CashHandoverMode.CASH).handoverDate(TODAY).receivedBy(MANAGER).receivedAt(Instant.now(CLOCK)).build();
+                .mode(CashHandoverMode.CASH).handoverDate(TODAY).proofImageUrl(PROOF).submittedAt(Instant.now(CLOCK)).build();
         CashHandover theirs = CashHandover.builder().branchId(BRANCH).userId(UUID.randomUUID()).amount(BigDecimal.ONE)
-                .mode(CashHandoverMode.UPI).handoverDate(TODAY).receivedBy(MANAGER).receivedAt(Instant.now(CLOCK)).build();
+                .mode(CashHandoverMode.UPI).handoverDate(TODAY).proofImageUrl(PROOF).submittedAt(Instant.now(CLOCK)).build();
         when(repository.findForBranchBetween(COMPANY, BRANCH, TODAY, TODAY)).thenReturn(List.of(mine, theirs));
+        when(repository.findPendingForBranch(COMPANY, BRANCH)).thenReturn(List.of(mine, theirs));
 
         signedInAs(RAVI, DefaultRoleCatalog.DELIVERY_OPERATOR);
         assertThat(service.list(null, null, null, null)).containsExactly(mine);
+        assertThat(service.pending(null)).containsExactly(mine);
         signedInAs(MANAGER, Roles.BRANCH_MANAGER);
         assertThat(service.list(null, null, null, null)).containsExactly(mine, theirs);
+        assertThat(service.pending(null)).containsExactly(mine, theirs);
+        verifyNoInteractions(auditService);
     }
 
     @Test

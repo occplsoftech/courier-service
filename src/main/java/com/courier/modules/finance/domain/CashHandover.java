@@ -1,6 +1,7 @@
 package com.courier.modules.finance.domain;
 
 import com.courier.shared.domain.CompanyOwnedEntity;
+import com.courier.shared.exception.BusinessRuleException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -22,10 +23,10 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 /**
- * Cash a branch user handed over (V191). Recorded by whoever received it — a branch manager, the
- * branch's ACCOUNTS desk or a company admin — and never edited afterwards: a mistake is
- * {@linkplain #voidWith voided} with a reason and recorded again. Moves nothing in the branch
- * wallet; it only settles the user's outstanding cash on the User Performance Report.
+ * Cash a branch user hands over (V191). The user submits it with a proof image; a branch manager, the branch's ACCOUNTS
+ * desk or a company admin looks at the proof and {@linkplain #approve approves} or {@linkplain #reject rejects} it. Only
+ * an approved handover settles the user's outstanding cash on the User Performance Report. What was submitted is never
+ * edited. Moves nothing in the branch wallet.
  */
 @Entity
 @Getter
@@ -36,6 +37,7 @@ import java.util.UUID;
         name = "cash_handovers",
         indexes = {
                 @Index(name = "idx_cash_handover_branch_date", columnList = "company_id, branch_id, handover_date"),
+                @Index(name = "idx_cash_handover_branch_status", columnList = "company_id, branch_id, status"),
                 @Index(name = "idx_cash_handover_user_date", columnList = "company_id, user_id, handover_date")
         })
 // Repeated deliberately: Hibernate does not inherit @Filter from a @MappedSuperclass.
@@ -47,7 +49,7 @@ public class CashHandover extends CompanyOwnedEntity {
     @Column(name = "branch_id", columnDefinition = "BINARY(16)", nullable = false, updatable = false)
     private UUID branchId;
 
-    /** The user who handed the cash over. */
+    /** The user handing the cash over; they submitted it. */
     @JdbcTypeCode(SqlTypes.BINARY)
     @Column(name = "user_id", columnDefinition = "BINARY(16)", nullable = false, updatable = false)
     private UUID userId;
@@ -66,20 +68,31 @@ public class CashHandover extends CompanyOwnedEntity {
     @Column(name = "remarks", updatable = false, length = 500)
     private String remarks;
 
-    /** The business day (IST) the cash changed hands. */
+    /** The business day (IST) the cash changed hands or was deposited. */
     @Column(name = "handover_date", nullable = false, updatable = false)
     private LocalDate handoverDate;
 
-    @JdbcTypeCode(SqlTypes.BINARY)
-    @Column(name = "received_by", columnDefinition = "BINARY(16)", nullable = false, updatable = false)
-    private UUID receivedBy;
+    @Column(name = "proof_image_url", nullable = false, updatable = false, length = 500)
+    private String proofImageUrl;
 
-    @Column(name = "received_at", nullable = false, updatable = false)
-    private Instant receivedAt;
+    @Column(name = "submitted_at", nullable = false, updatable = false)
+    private Instant submittedAt;
 
     @Builder.Default
-    @Column(name = "voided", nullable = false)
-    private boolean voided = false;
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "status", nullable = false, length = 20)
+    private CashHandoverStatus status = CashHandoverStatus.PENDING;
+
+    @JdbcTypeCode(SqlTypes.BINARY)
+    @Column(name = "decided_by", columnDefinition = "BINARY(16)")
+    private UUID decidedBy;
+
+    @Column(name = "decided_at")
+    private Instant decidedAt;
+
+    @Column(name = "decision_remarks", length = 500)
+    private String decisionRemarks;
 
     @JdbcTypeCode(SqlTypes.BINARY)
     @Column(name = "voided_by", columnDefinition = "BINARY(16)")
@@ -91,17 +104,53 @@ public class CashHandover extends CompanyOwnedEntity {
     @Column(name = "void_reason", length = 500)
     private String voidReason;
 
-    /** Cancels a handover recorded by mistake. Once only; the amount counts as outstanding again. */
+    public boolean isPending() {
+        return status == CashHandoverStatus.PENDING;
+    }
+
+    /** Counts against the user's outstanding cash. */
+    public boolean isApproved() {
+        return status == CashHandoverStatus.APPROVED;
+    }
+
+    /** The receiver confirms the money arrived. Pending only. */
+    public void approve(UUID by, Instant at, String note) {
+        requirePending();
+        this.status = CashHandoverStatus.APPROVED;
+        this.decidedBy = by;
+        this.decidedAt = at;
+        this.decisionRemarks = note;
+    }
+
+    /** The receiver refuses it; a reason is required so the user knows what to fix. Pending only. */
+    public void reject(UUID by, Instant at, String reason) {
+        requirePending();
+        if (reason == null || reason.isBlank()) {
+            throw new BusinessRuleException("A reason is required to reject a handover.");
+        }
+        this.status = CashHandoverStatus.REJECTED;
+        this.decidedBy = by;
+        this.decidedAt = at;
+        this.decisionRemarks = reason.strip();
+    }
+
+    /** Cancels an approved handover found to be wrong; the amount counts as outstanding again. */
     public void voidWith(UUID by, Instant at, String reason) {
-        if (voided) {
-            throw new com.courier.shared.exception.BusinessRuleException("This handover is already voided.");
+        if (status != CashHandoverStatus.APPROVED) {
+            throw new BusinessRuleException("Only an approved handover can be voided; a pending one is rejected instead.");
         }
         if (reason == null || reason.isBlank()) {
-            throw new com.courier.shared.exception.BusinessRuleException("A reason is required to void a handover.");
+            throw new BusinessRuleException("A reason is required to void a handover.");
         }
-        this.voided = true;
+        this.status = CashHandoverStatus.VOIDED;
         this.voidedBy = by;
         this.voidedAt = at;
         this.voidReason = reason.strip();
+    }
+
+    private void requirePending() {
+        if (status != CashHandoverStatus.PENDING) {
+            throw new BusinessRuleException("This handover has already been " + status.name().toLowerCase() + ".");
+        }
     }
 }

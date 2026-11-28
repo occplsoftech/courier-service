@@ -10,8 +10,9 @@
 ## HANDOFF — V191: User Performance Report and cash handover (2026-11-28, newest)
 
 Reports → User Performance: per user of a branch, bookings, counter cash, deliveries and cash collected on delivery,
-branch-wallet debits under their name, cash handed over and still outstanding; managers record cash received ("Receive
-cash") and void mistakes. V191 adds `cash_handovers` and `cash_handover_settings` (outstanding counts from the migration
+branch-wallet debits under their name, cash handed over and still outstanding. Users hand over cash with a proof image;
+the branch manager / accounts desk views the proof and approves or rejects; only approved handovers reduce outstanding.
+V191 adds `cash_handovers` and `cash_handover_settings` (outstanding counts from the migration
 day). Rules and API: `modules/user-performance.md`. **Next free Flyway migration: V192** (V190 = Pune cash rate card,
 V191 = cash handovers).
 
