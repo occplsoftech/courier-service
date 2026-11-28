@@ -1,5 +1,5 @@
 -- =============================================================================
--- V188 — Daily booking summary e-mail to business customers, one row per (company, customer, day).
+-- V189 — Daily booking summary e-mail to business customers, one row per (company, customer, day).
 --
 -- Every night at 23:30 IST each business customer with an e-mail address (and e-mail notifications on) who had
 -- bookings in the last 24 hours (23:30 the day before to 23:30) gets one e-mail listing them: AWB, booked at,

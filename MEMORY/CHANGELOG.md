@@ -16,7 +16,7 @@ All notable changes to this project. Format based on
   out. Customers without an e-mail address, or with e-mail notifications off (`customers.email_enabled`), get nothing.
 - Sent as the company (its e-mail channel identity, else its name), through `EmailProvider`: real SMTP only when
   `spring.mail.host` is configured, otherwise logged.
-- **V188** `booking_summary_email_log`: one row per (company, customer, day); the unique key stops duplicates, 3 attempts max.
+- **V189** `booking_summary_email_log`: one row per (company, customer, day); the unique key stops duplicates, 3 attempts max.
 - Settings: `app.booking-summary-email.enabled` (default true), `.cron`, `.zone`.
 
 ## 2026-11-27 — Latest pincode master (V185) and the customers' rate zones (V186)
