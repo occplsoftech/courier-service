@@ -74,9 +74,10 @@ All notable changes to this project. Format based on
 ## 2026-11-27 — V188: zones and regions from the pincode master
 
 - **V188**: Regional Zones master = the sheet's 7 Regions; every listed pincode's Zone = the zone column (NORTH, SOUTH,
-  EAST, WEST, CENTRAL) and Regional zone = its Region; Zone Tariff zones NORTH…CENTRAL with places for OCCPL and
-  OCCPL_COURIER (no rate cards). Checked on MySQL 8 after V187: 7 regions, 19,126 pincodes set, 5 zones with
-  5,471 city and 31 pincode places per company; the pincode list shows Zone and Region.
+  EAST, WEST, CENTRAL) and Regional zone = its Region. Zone Tariff (OCCPL, OCCPL_COURIER): 7 Region zones with one
+  REGIONAL_ZONE place each, and To zones NORTH, SOUTH, EAST, WEST, CENTRAL, METRO without places.
+- Pricing: "first the Region's rate, then the zone's" — a card with no lane to the pincode's Region zone uses its lane
+  to the zone the pincode master's Zone names (TariffQuoteServiceImpl, single quote and all-services options).
 
 ## 2026-11-27 — V187: zones, regions and customer rates cleared
 

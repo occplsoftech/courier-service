@@ -14,8 +14,15 @@ sheet's zone column, region = the sheet's Region column"**:
 - **Regional Zones master** (global): PUNE, X_PUNE, MAHARASHTRA, X_MAHARASHTRA, VIDHARBHA, REST_OF_INDIA, NORTH_EAST
   (sheet EXPUNE / EXMAHARASHTRA = X_PUNE / X_MAHARASHTRA). Each pincode's Regional zone is its Region.
 - **Pincode Zone**: NORTH, SOUTH, EAST, WEST, CENTRAL (Pune, Maharashtra and Vidharbha are WEST).
-- **Zone Tariff zones** (OCCPL, OCCPL_COURIER): NORTH, SOUTH, EAST, WEST, CENTRAL with places (whole cities, else
-  pincodes). **No rate cards** yet — bookings use District Level Freight until cards are set up on these zones.
+- **Pricing rule (owner, 2026-11-28): "customer rates are from Pune; first the Region's rate, then the zone's."**
+  Zone Tariff (OCCPL, OCCPL_COURIER): 7 **Region zones** (PUNE … NORTH_EAST, From and To), each with one place = its
+  whole regional zone, so every pincode resolves to its Region zone; plus To zones **NORTH, SOUTH, EAST, WEST, CENTRAL,
+  METRO with no places**. `TariffQuoteServiceImpl`: per card (customer's first, then company's) the lane to the Region
+  zone is used, else the lane to the zone the pincode master's Zone names (`Destination.fallback`). E.g. AEXONIC's sheet
+  (PUNE → PUNE, EXPUNE, MAHARASHTRA, EXMAHARASHTRA, VIDHARBHA, NORTH EAST, WEST, CENTRAL, SOUTH, NORTH, EAST, METRO):
+  Region REST OF INDIA has no row, so those pincodes take their Zone's (NORTH/SOUTH/WEST/CENTRAL) rate; METRO and EAST
+  rows are never reached (no pincode has METRO; every EAST pincode is Region NORTH EAST, which matches first).
+  **No rate cards** yet — upload customers' sheets (Business Customer → Upload Rates) on these zones.
 **Next free Flyway migration: V189.**
 
 ## HANDOFF — V187: zones, regions and customer rates cleared (2026-11-27, read before anything about pricing)

@@ -9,9 +9,15 @@
 --   * Every pincode the sheet lists (19127): Zone = the zone column, Regional zone = its Region.
 --     Zone: SOUTH 6652, NORTH 4483, EAST 4262, WEST 2698, CENTRAL 1032.
 --     Region: REST_OF_INDIA 13281, NORTH_EAST 4262, X_MAHARASHTRA 999, VIDHARBHA 301, MAHARASHTRA 222, PUNE 50, X_PUNE 12.
---   * Zone Tariff, companies OCCPL and OCCPL_COURIER: zones NORTH, SOUTH, EAST, WEST, CENTRAL (From and To), with
---     places the V173 way — a whole city when all its pincodes on file are in one zone, else each pincode.
---     No rate cards: they are set up next.
+--   * Zone Tariff, companies OCCPL and OCCPL_COURIER — the owner's pricing rule "first the Region's rate, then the
+--     zone's" (customer sheets are priced from PUNE to PUNE, EXPUNE, MAHARASHTRA, EXMAHARASHTRA, VIDHARBHA, NORTH EAST,
+--     WEST, CENTRAL, SOUTH, NORTH, EAST, METRO):
+--       - 7 Region zones PUNE, X_PUNE, MAHARASHTRA, X_MAHARASHTRA, VIDHARBHA, REST_OF_INDIA, NORTH_EAST (From and To),
+--         each with one place: its whole regional zone. Every pincode resolves to its Region's zone.
+--       - 6 more To zones NORTH, SOUTH, EAST, WEST, CENTRAL, METRO with no places: a card's lane to one of them is used
+--         when the card has no rate to the pincode's Region zone and the pincode master's Zone names it
+--         (TariffQuoteServiceImpl). METRO has no pincode yet (it is in neither column of the sheet).
+--     No rate cards: they are uploaded next.
 -- Pincodes not on file are not added; the pincode's coverage, TAT and ODA are untouched.
 -- =============================================================================
 
@@ -19210,65 +19216,38 @@ INSERT INTO tmp_v188_co (company_id)
 SELECT company_id FROM companies WHERE company_code IN ('OCCPL', 'OCCPL_COURIER') AND deleted = FALSE;
 
 DROP TABLE IF EXISTS tmp_v188_zone;
-CREATE TABLE tmp_v188_zone (code VARCHAR(30) NOT NULL PRIMARY KEY, name VARCHAR(100) NOT NULL, ord INT NOT NULL)
+CREATE TABLE tmp_v188_zone (code VARCHAR(30) NOT NULL PRIMARY KEY, name VARCHAR(100) NOT NULL, ord INT NOT NULL,
+                            usage_ VARCHAR(10) NOT NULL, region BOOLEAN NOT NULL)
     ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
-INSERT INTO tmp_v188_zone (code, name, ord) VALUES ('NORTH', 'North', 0), ('SOUTH', 'South', 1), ('EAST', 'East', 2), ('WEST', 'West', 3), ('CENTRAL', 'Central', 4);
+INSERT INTO tmp_v188_zone (code, name, ord, usage_, region) VALUES
+    ('PUNE', 'Pune', 0, 'BOTH', TRUE), ('X_PUNE', 'X - Pune', 1, 'BOTH', TRUE), ('MAHARASHTRA', 'Maharashtra', 2, 'BOTH', TRUE),
+    ('X_MAHARASHTRA', 'X - Maharashtra', 3, 'BOTH', TRUE), ('VIDHARBHA', 'Vidharbha', 4, 'BOTH', TRUE),
+    ('REST_OF_INDIA', 'Rest of India', 5, 'BOTH', TRUE), ('NORTH_EAST', 'North East', 6, 'BOTH', TRUE),
+    ('NORTH', 'North', 7, 'TO', FALSE), ('SOUTH', 'South', 8, 'TO', FALSE), ('EAST', 'East', 9, 'TO', FALSE),
+    ('WEST', 'West', 10, 'TO', FALSE), ('CENTRAL', 'Central', 11, 'TO', FALSE), ('METRO', 'Metro cities', 12, 'TO', FALSE);
 
 INSERT INTO tariff_zones (id, company_id, code, name, zone_usage, description, display_order, status,
                           created_at, updated_at, deleted, version)
-SELECT UNHEX(REPLACE(UUID(), '-', '')), c.company_id, t.code, t.name, 'BOTH', 'Zone of the OCCPL pincode master (V188)',
+SELECT UNHEX(REPLACE(UUID(), '-', '')), c.company_id, t.code, t.name, t.usage_,
+       IF(t.region, 'Region of the pincode master (V188)', 'Zone of the pincode master: rate used when there is none for the Region (V188)'),
        t.ord, 'ACTIVE', @now, @now, FALSE, 0
 FROM tmp_v188_co c
 JOIN tmp_v188_zone t
 WHERE NOT EXISTS (SELECT 1 FROM tariff_zones z WHERE z.company_id = c.company_id AND z.code = t.code AND z.deleted = FALSE);
 
-DROP TABLE IF EXISTS tmp_v188_place;
-CREATE TABLE tmp_v188_place (
-    pincode VARCHAR(10) NOT NULL PRIMARY KEY, city_id BINARY(16) NOT NULL, district_id BINARY(16) NULL,
-    state_id BINARY(16) NULL, zone_code VARCHAR(30) NULL, KEY (city_id)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
-INSERT IGNORE INTO tmp_v188_place (pincode, city_id, district_id, state_id, zone_code)
-SELECT p.code, a.city_id, ci.district_id, d.state_id, t.zone
-FROM master_pincodes p
-JOIN master_areas a ON a.id = p.area_id
-JOIN master_cities ci ON ci.id = a.city_id
-LEFT JOIN master_districts d ON d.id = ci.district_id
-LEFT JOIN tmp_v188_pin t ON t.pincode = p.code
-WHERE p.company_id = @g AND p.deleted = FALSE AND LENGTH(p.code) = 6;
-
-DROP TABLE IF EXISTS tmp_v188_city;
-CREATE TABLE tmp_v188_city (city_id BINARY(16) NOT NULL PRIMARY KEY, zone_code VARCHAR(30) NOT NULL)
-    ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
-INSERT INTO tmp_v188_city (city_id, zone_code)
-SELECT city_id, MIN(zone_code) FROM tmp_v188_place GROUP BY city_id
-HAVING SUM(zone_code IS NULL) = 0 AND COUNT(DISTINCT zone_code) = 1;
-
-INSERT INTO tariff_zone_locations (id, company_id, zone_id, scope, state_id, district_id, city_id, pincode,
-                                   created_at, updated_at, deleted, version)
-SELECT UNHEX(REPLACE(UUID(), '-', '')), z.company_id, z.id, 'CITY', d.state_id, ci.district_id, w.city_id, NULL,
-       @now, @now, FALSE, 0
-FROM tmp_v188_city w
-JOIN master_cities ci ON ci.id = w.city_id
-LEFT JOIN master_districts d ON d.id = ci.district_id
-JOIN tariff_zones z ON z.code = w.zone_code AND z.deleted = FALSE
-JOIN tmp_v188_co c ON c.company_id = z.company_id;
-
-INSERT INTO tariff_zone_locations (id, company_id, zone_id, scope, state_id, district_id, city_id, pincode,
-                                   created_at, updated_at, deleted, version)
-SELECT UNHEX(REPLACE(UUID(), '-', '')), z.company_id, z.id, 'PINCODE', t.state_id, t.district_id, t.city_id, t.pincode,
-       @now, @now, FALSE, 0
-FROM tmp_v188_place t
-JOIN tariff_zones z ON z.code = t.zone_code AND z.deleted = FALSE
+-- One place per Region zone: its whole regional zone.
+INSERT INTO tariff_zone_locations (id, company_id, zone_id, scope, regional_zone_id, created_at, updated_at, deleted, version)
+SELECT UNHEX(REPLACE(UUID(), '-', '')), z.company_id, z.id, 'REGIONAL_ZONE', rz.id, @now, @now, FALSE, 0
+FROM tariff_zones z
 JOIN tmp_v188_co c ON c.company_id = z.company_id
-WHERE t.zone_code IS NOT NULL
-  AND NOT EXISTS (SELECT 1 FROM tmp_v188_city w WHERE w.city_id = t.city_id);
+JOIN tmp_v188_zone t ON t.code = z.code AND t.region
+JOIN master_regional_zones rz ON rz.company_id = @g AND rz.code = z.code AND rz.deleted = FALSE
+WHERE z.deleted = FALSE;
 
 UPDATE tariff_zones z JOIN tmp_v188_co c ON c.company_id = z.company_id
 SET z.location_count = (SELECT COUNT(*) FROM tariff_zone_locations l WHERE l.zone_id = z.id AND l.deleted = FALSE)
 WHERE z.deleted = FALSE;
 
-DROP TABLE tmp_v188_city;
-DROP TABLE tmp_v188_place;
 DROP TABLE tmp_v188_zone;
 DROP TABLE tmp_v188_co;
 DROP TABLE tmp_v188_pin;
