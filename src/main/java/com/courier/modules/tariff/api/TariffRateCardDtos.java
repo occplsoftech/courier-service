@@ -82,7 +82,9 @@ public final class TariffRateCardDtos {
                                Integer volumetricDivisor, TotalRounding totalRounding, String description,
                                TariffStatus status, int laneCount, int chargeCount, List<LaneResponse> lanes,
                                List<ChargeResponse> charges, Instant createdDate, Instant updatedDate, Long version,
-                               UUID customerId) {
+                               UUID customerId,
+                               /** The business customer a customer card belongs to; null on a company card. */
+                               String customerName) {
     }
 
     public record QuoteRequest(

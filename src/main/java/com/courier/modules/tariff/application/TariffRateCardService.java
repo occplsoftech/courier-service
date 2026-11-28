@@ -30,6 +30,9 @@ public interface TariffRateCardService {
 
     List<RateCardSummary> search(UUID fromZoneId, TariffStatus status, String search);
 
+    /** As {@link #search}, with {@code owner} ALL, COMPANY or CUSTOMER (business customers' own cards). */
+    List<RateCardSummary> search(UUID fromZoneId, TariffStatus status, String search, String owner);
+
     /** Refused while another active card of the same from zone covers any of the same dates, or the card has no rates. */
     RateCardDetail activate(UUID cardId);
 
