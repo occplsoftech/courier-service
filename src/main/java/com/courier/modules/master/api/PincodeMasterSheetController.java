@@ -33,18 +33,28 @@ public class PincodeMasterSheetController {
     private final PincodeMasterSheetRepository rows;
     private final com.courier.modules.master.application.PincodeService pincodes;
 
-    /** A network's live state at a pincode in the pincode master: on, off, or null when not set (follows the pincode). */
-    public record LiveCoverage(Boolean premium, Boolean airCargo, Boolean surfaceCargo) {
-        static LiveCoverage of(com.courier.modules.master.domain.Pincode p) {
-            if (p == null) return null;
-            return new LiveCoverage(p.coverage(com.courier.modules.master.domain.ServiceNetwork.PREMIUM).serviceable(),
-                    p.coverage(com.courier.modules.master.domain.ServiceNetwork.AIR_CARGO).serviceable(),
-                    p.coverage(com.courier.modules.master.domain.ServiceNetwork.SURFACE_CARGO).serviceable());
+    /** One network's live coverage at a pincode: on/off, ODA, TAT hours (each null when not set). */
+    public record Live(Boolean serviceable, Boolean oda, Integer tatHours) {
+        static Live of(com.courier.modules.master.domain.Pincode p, com.courier.modules.master.domain.ServiceNetwork n) {
+            var c = p.coverage(n);
+            return new Live(c.serviceable(), c.oda(), c.tatHours());
         }
     }
 
+    /** The three switchable networks' live coverage at a pincode in the pincode master. */
+    public record LiveCoverage(Live premium, Live airCargo, Live surfaceCargo) {
+        static LiveCoverage of(com.courier.modules.master.domain.Pincode p) {
+            if (p == null) return null;
+            return new LiveCoverage(Live.of(p, com.courier.modules.master.domain.ServiceNetwork.PREMIUM),
+                    Live.of(p, com.courier.modules.master.domain.ServiceNetwork.AIR_CARGO),
+                    Live.of(p, com.courier.modules.master.domain.ServiceNetwork.SURFACE_CARGO));
+        }
+    }
+
+    /** What to change; a field left out (null) stays as it is. */
     public record SwitchRequest(@jakarta.validation.constraints.NotNull com.courier.modules.master.domain.ServiceNetwork network,
-                                boolean serviceable) {
+                                Boolean serviceable, Boolean oda,
+                                @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(2400) Integer tatHours) {
     }
 
     /** One sheet row, column for column. Every value is the text the sheet shows. */
@@ -53,15 +63,24 @@ public class PincodeMasterSheetController {
                                    String surfaceTat, String airService, String airTat, String airCargoTat,
                                    String surfaceCargoTat, String airCargoOda, String surfaceCargoOda, String premiumService,
                                    String premiumTat,
-                                   /** Live, from the pincode master: true on, false off, null not set or pincode not on file. */
-                                   Boolean livePremium, Boolean liveAirCargo, Boolean liveSurfaceCargo) {
+                                   /** Live, from the pincode master (what bookings check); null when not set or not on file. */
+                                   Boolean livePremium, Boolean liveAirCargo, Boolean liveSurfaceCargo,
+                                   Boolean livePremiumOda, Boolean liveAirCargoOda, Boolean liveSurfaceCargoOda,
+                                   Integer livePremiumTat, Integer liveAirCargoTat, Integer liveSurfaceCargoTat,
+                                   /** True when the pincode is in the pincode master (so it can be switched). */
+                                   boolean inMaster) {
         static SheetRowResponse of(PincodeMasterSheetRow r, LiveCoverage live) {
             return new SheetRowResponse(r.getRowNo(), r.getPincode(), r.getCity(), r.getState(), r.getRegion(),
                     r.getZone(), r.getDocIsOda(), r.getDocServ(), r.getDocTat(), r.getSurfaceServ(), r.getSurfaceTat(),
                     r.getAirService(), r.getAirTat(), r.getAirCargoTat(), r.getSurfaceCargoTat(), r.getAirCargoOda(),
                     r.getSurfaceCargoOda(), r.getPremiumService(), r.getPremiumTat(),
-                    live == null ? null : live.premium(), live == null ? null : live.airCargo(),
-                    live == null ? null : live.surfaceCargo());
+                    live == null ? null : live.premium().serviceable(), live == null ? null : live.airCargo().serviceable(),
+                    live == null ? null : live.surfaceCargo().serviceable(),
+                    live == null ? null : live.premium().oda(), live == null ? null : live.airCargo().oda(),
+                    live == null ? null : live.surfaceCargo().oda(),
+                    live == null ? null : live.premium().tatHours(), live == null ? null : live.airCargo().tatHours(),
+                    live == null ? null : live.surfaceCargo().tatHours(),
+                    live != null);
         }
     }
 
@@ -86,13 +105,14 @@ public class PincodeMasterSheetController {
     }
 
     @org.springframework.web.bind.annotation.PutMapping("/{pincode}/coverage")
-    @Operation(summary = "Switch Premium, Air Cargo or Surface Cargo on or off at a pincode",
-            description = "Changes the pincode master (what bookings check), keeping that network's ODA and TAT. The sheet's own "
-                    + "text is not changed. Super admin or company admin; audited like any pincode edit.")
+    @Operation(summary = "Change Premium, Air Cargo or Surface Cargo coverage at a pincode",
+            description = "On/off, ODA and TAT hours; each field left out stays as it is. Changes the pincode master (what "
+                    + "bookings check), never the sheet's own text. Super admin or company admin; audited like any pincode edit.")
     public ApiResponse<LiveCoverage> switchCoverage(@org.springframework.web.bind.annotation.PathVariable String pincode,
                                                     @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody SwitchRequest request) {
-        return ApiResponse.success(LiveCoverage.of(pincodes.setNetworkServiceable(pincode, request.network(), request.serviceable())),
-                "%s %s at %s".formatted(label(request.network()), request.serviceable() ? "on" : "off", pincode));
+        return ApiResponse.success(LiveCoverage.of(pincodes.setNetworkCoverage(pincode, request.network(), request.serviceable(),
+                        request.oda(), request.tatHours())),
+                "%s updated at %s".formatted(label(request.network()), pincode));
     }
 
     private static String label(com.courier.modules.master.domain.ServiceNetwork n) {

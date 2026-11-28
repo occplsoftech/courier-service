@@ -16,14 +16,21 @@ class PincodeSheetSwitchTest {
     @Test
     @DisplayName("switching on keeps the network's ODA and TAT; an unset ODA reads as not ODA")
     void onKeepsOdaAndTat() {
-        assertThat(PincodeServiceImpl.switched(new NetworkCoverage(false, true, 48), true)).isEqualTo(new NetworkCoverage(true, true, 48));
-        assertThat(PincodeServiceImpl.switched(new NetworkCoverage(null, null, null), true)).isEqualTo(new NetworkCoverage(true, false, null));
+        assertThat(PincodeServiceImpl.changed(new NetworkCoverage(false, true, 48), true, null, null)).isEqualTo(new NetworkCoverage(true, true, 48));
+        assertThat(PincodeServiceImpl.changed(new NetworkCoverage(null, null, null), true, null, null)).isEqualTo(new NetworkCoverage(true, false, null));
     }
 
     @Test
     @DisplayName("switching off changes only on/off")
     void offOnlyFlag() {
-        assertThat(PincodeServiceImpl.switched(new NetworkCoverage(true, false, 24), false)).isEqualTo(new NetworkCoverage(false, false, 24));
+        assertThat(PincodeServiceImpl.changed(new NetworkCoverage(true, false, 24), false, null, null)).isEqualTo(new NetworkCoverage(false, false, 24));
+    }
+
+    @Test
+    @DisplayName("ODA and TAT change on their own, leaving on/off as it is")
+    void odaAndTat() {
+        assertThat(PincodeServiceImpl.changed(new NetworkCoverage(true, false, 24), null, true, null)).isEqualTo(new NetworkCoverage(true, true, 24));
+        assertThat(PincodeServiceImpl.changed(new NetworkCoverage(true, false, 24), null, null, 72)).isEqualTo(new NetworkCoverage(true, false, 72));
     }
 
     @Test

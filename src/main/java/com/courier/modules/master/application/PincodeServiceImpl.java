@@ -186,13 +186,16 @@ public class PincodeServiceImpl extends AbstractMasterDataService<Pincode> imple
     @Override
     @Transactional
     @PreAuthorize(WRITE)
-    public Pincode setNetworkServiceable(String code, ServiceNetwork network, boolean serviceable) {
+    public Pincode setNetworkCoverage(String code, ServiceNetwork network, Boolean serviceable, Boolean oda, Integer tatHours) {
         requireSwitchable(network);
+        if (tatHours != null && (tatHours < 1 || tatHours > 2400)) {
+            throw new BusinessRuleException("TAT must be between 1 and 2400 hours.");
+        }
         String pin = code == null ? "" : code.trim();
         Pincode pincode = CompanyContext.runAs(GlobalMasters.PLATFORM_COMPANY_ID,
                         () -> repository.findByCodeWithinCompany(pin, GlobalMasters.PLATFORM_COMPANY_ID))
                 .orElseThrow(() -> new com.courier.shared.exception.ResourceNotFoundException("Pincode", pin));
-        return updateEntity(pincode.getId(), null, p -> p.setCoverage(network, switched(p.coverage(network), serviceable)));
+        return updateEntity(pincode.getId(), null, p -> p.setCoverage(network, changed(p.coverage(network), serviceable, oda, tatHours)));
     }
 
     static void requireSwitchable(ServiceNetwork network) {
@@ -201,9 +204,11 @@ public class PincodeServiceImpl extends AbstractMasterDataService<Pincode> imple
         }
     }
 
-    /** The coverage with only its on/off changed: the ODA (unset reads as not ODA) and TAT stay. */
-    static NetworkCoverage switched(NetworkCoverage now, boolean serviceable) {
-        return new NetworkCoverage(serviceable, now.oda() == null ? Boolean.FALSE : now.oda(), now.tatHours());
+    /** The coverage with what was sent changed and the rest kept; an unset ODA reads as not ODA. */
+    static NetworkCoverage changed(NetworkCoverage now, Boolean serviceable, Boolean oda, Integer tatHours) {
+        return new NetworkCoverage(serviceable != null ? serviceable : now.serviceable(),
+                oda != null ? oda : (now.oda() == null ? Boolean.FALSE : now.oda()),
+                tatHours != null ? tatHours : now.tatHours());
     }
 
     @Override
