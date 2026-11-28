@@ -19,8 +19,23 @@ public interface EmailProvider {
             String subject,
             /** HTML body — templates may contain markup, per the brief's own "Support HTML
              *  templates". */
-            String htmlBody
+            String htmlBody,
+            /** Images the body shows as {@code <img src="cid:contentId">}, sent inside the e-mail (a logo): mail apps
+             *  such as Gmail do not show {@code data:} images. Empty for most messages. */
+            java.util.List<InlineImage> inlineImages
     ) {
+        public EmailMessage {
+            inlineImages = inlineImages == null ? java.util.List.of() : java.util.List.copyOf(inlineImages);
+        }
+
+        /** A plain HTML message with no inline images. */
+        public EmailMessage(String toEmail, String subject, String htmlBody) {
+            this(toEmail, subject, htmlBody, java.util.List.of());
+        }
+    }
+
+    /** One image sent inside an e-mail, shown where the body says {@code cid:contentId}. */
+    record InlineImage(String contentId, byte[] bytes, String contentType) {
     }
 
     record EmailIdentity(String fromName, String fromEmail) {

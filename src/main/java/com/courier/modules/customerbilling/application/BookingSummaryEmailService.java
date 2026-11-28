@@ -103,6 +103,7 @@ public class BookingSummaryEmailService {
                         MasterDataCriteria.none().withCompanyId(companyId))).stream()
                 .collect(Collectors.toMap(ServiceType::getId, ServiceType::getName, (a, b) -> a));
         EmailProvider.EmailIdentity identity = null;
+        Logo logo = null;
         int attempted = 0;
         for (Map.Entry<UUID, List<Shipment>> e : byCustomer.entrySet()) {
             Customer customer = customers.findByIdWithinCompany(e.getKey(), companyId).orElse(null);
@@ -116,8 +117,9 @@ public class BookingSummaryEmailService {
             }
             if (identity == null) {
                 identity = companyIdentity.identity(companyId);
+                logo = logo(companyId);
             }
-            send(row, identity, customer, e.getValue(), services, from, to, reportDate);
+            send(row, identity, logo, customer, e.getValue(), services, from, to, reportDate);
             attempted++;
         }
         return attempted;
@@ -142,15 +144,16 @@ public class BookingSummaryEmailService {
         }
     }
 
-    private void send(BookingSummaryEmailLog row, EmailProvider.EmailIdentity identity, Customer customer,
+    private void send(BookingSummaryEmailLog row, EmailProvider.EmailIdentity identity, Logo logo, Customer customer,
                       List<Shipment> list, Map<UUID, String> services, Instant from, Instant to, LocalDate reportDate) {
         row.setRecipient(customer.getEmail().trim());
         row.setBookingCount(list.size());
         try {
-            String subject = "Your bookings on %s — %d shipment%s".formatted(reportDate.format(DAY), list.size(),
-                    list.size() == 1 ? "" : "s");
+            String subject = subject(reportDate, list.size());
+            List<EmailProvider.InlineImage> images = logo == null || logo.inline() == null ? List.of() : List.of(logo.inline());
             emailProvider.send(new EmailProvider.EmailMessage(row.getRecipient(), subject,
-                    html(identity.fromName(), customer.displayName(), list, services, from, to)), identity);
+                    html(identity.fromName(), logo == null ? null : logo.src(), customer.displayName(), list, services, from, to),
+                    images), identity);
             row.setStatus(BookingSummaryEmailLog.SENT);
             row.setErrorMessage(null);
             row.setSentAt(Instant.now());
@@ -166,8 +169,18 @@ public class BookingSummaryEmailService {
         logs.save(row);
     }
 
-    /** A plain HTML e-mail: a greeting, the window, and one row per booking. No rate, no weight. */
-    String html(String company, String customerName, List<Shipment> list, Map<UUID, String> services,
+    /** "Your booking details dated: 28 Nov 2026 - 4 shipments". */
+    static String subject(LocalDate day, int count) {
+        return "Your booking details dated: %s - %d shipment%s".formatted(day.format(DAY), count, count == 1 ? "" : "s");
+    }
+
+    /**
+     * A plain HTML e-mail: the company logo on top (when it has one), a greeting, the window, and one row per booking —
+     * AWB, consignee, destination city, pieces, service. No rate, no weight, no booking time, no pincode, no status.
+     *
+     * @param logoSrc {@code cid:…} for a logo sent inside the e-mail, an https link, or null for no logo
+     */
+    String html(String company, String logoSrc, String customerName, List<Shipment> list, Map<UUID, String> services,
                 Instant from, Instant to) {
         ZoneId z = ZoneId.of(zone);
         String cell = "padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:left;vertical-align:top";
@@ -175,49 +188,81 @@ public class BookingSummaryEmailService {
         int i = 0;
         for (Shipment s : list) {
             if (i >= MAX_ROWS) {
-                rows.append("<tr><td colspan=\"8\" style=\"").append(cell).append("\">… and ").append(list.size() - MAX_ROWS)
+                rows.append("<tr><td colspan=\"6\" style=\"").append(cell).append("\">… and ").append(list.size() - MAX_ROWS)
                         .append(" more.</td></tr>");
                 break;
             }
             i++;
-            String dest = List.of(nz(s.getToCity()), nz(s.getDeliveryPincode())).stream()
-                    .filter(v -> !v.isBlank()).collect(Collectors.joining(" – "));
             rows.append("<tr>")
                     .append(td(cell, String.valueOf(i)))
                     .append(td(cell, awb(s)))
-                    .append(td(cell, s.getCreatedAt() == null ? "" : WHEN.format(s.getCreatedAt().atZone(z))))
                     .append(td(cell, nz(s.getReceiverName())))
-                    .append(td(cell, dest))
+                    .append(td(cell, nz(s.getToCity())))
                     .append(td(cell, s.getNumberOfPackages() == null ? "" : String.valueOf(s.getNumberOfPackages())))
                     .append(td(cell, nz(services.get(s.getServiceTypeId()))))
-                    .append(td(cell, statusLabel(s.getStatus())))
                     .append("</tr>");
         }
         String head = "padding:6px 8px;background:#f3f4f6;border-bottom:1px solid #d1d5db;text-align:left;font-weight:600";
-        List<String> heads = new ArrayList<>(List.of("#", "AWB No.", "Booked on", "Consignee", "Destination", "Pieces",
-                "Service", "Status"));
-        String header = heads.stream().map(h -> "<th style=\"" + head + "\">" + esc(h) + "</th>").collect(Collectors.joining());
+        String header = List.of("#", "AWB No.", "Consignee", "Destination", "Pieces", "Service").stream()
+                .map(h -> "<th style=\"" + head + "\">" + esc(h) + "</th>").collect(Collectors.joining());
+        String team = company == null || company.isBlank() ? "" : company;
+        String logoHtml = logoSrc == null ? "" : "<p style=\"margin:0 0 16px\"><img src=\"" + esc(logoSrc) + "\" alt=\""
+                + esc(team) + "\" style=\"max-height:60px;max-width:240px;display:block\"></p>";
         return "<!doctype html><html><body style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111827\">"
+                + logoHtml
                 + "<p>Dear " + esc(customerName == null || customerName.isBlank() ? "Customer" : customerName) + ",</p>"
                 + "<p>Here are the " + list.size() + " shipment" + (list.size() == 1 ? "" : "s") + " booked for you between <b>"
                 + esc(WHEN.format(from.atZone(z))) + "</b> and <b>" + esc(WHEN.format(to.atZone(z))) + "</b>.</p>"
                 + "<table cellspacing=\"0\" cellpadding=\"0\" style=\"border-collapse:collapse;font-size:13px\"><thead><tr>"
                 + header + "</tr></thead><tbody>" + rows + "</tbody></table>"
-                + "<p style=\"margin-top:16px\">Regards,<br>" + esc(company == null ? "" : company) + "</p>"
+                + "<p style=\"margin-top:16px\">Thanks,<br>Team " + esc(team) + "</p>"
                 + "<p style=\"color:#6b7280;font-size:12px\">This is an automatic daily summary of your bookings.</p>"
                 + "</body></html>";
+    }
+
+    /** The company logo for the e-mail: an uploaded one goes inside the e-mail (Gmail does not show data: images). */
+    record Logo(String src, EmailProvider.InlineImage inline) {
+    }
+
+    static final String LOGO_CID = "company-logo";
+
+    /** The uploaded logo (Settings → Company Logo), else the logo link on the company record, else none. */
+    @SuppressWarnings("unchecked")
+    Logo logo(UUID companyId) {
+        try {
+            List<Object[]> rows = em.createNativeQuery("SELECT logo_data_url, logo FROM companies WHERE company_id = :c")
+                    .setParameter("c", TimeOrderedUuid.toBytes(companyId)).getResultList();
+            if (rows.isEmpty()) return null;
+            return logoFrom((String) rows.get(0)[0], (String) rows.get(0)[1]);
+        } catch (RuntimeException e) {
+            log.debug("Booking summary e-mail: no company logo for {}: {}", companyId, e.getMessage());
+            return null;
+        }
+    }
+
+    static Logo logoFrom(String dataUrl, String link) {
+        if (dataUrl != null && dataUrl.startsWith("data:")) {
+            int comma = dataUrl.indexOf(',');
+            String meta = comma < 0 ? "" : dataUrl.substring(5, comma);          // image/png;base64
+            if (comma > 0 && meta.endsWith(";base64")) {
+                try {
+                    byte[] bytes = java.util.Base64.getDecoder().decode(dataUrl.substring(comma + 1));
+                    String type = meta.substring(0, meta.length() - ";base64".length());
+                    return new Logo("cid:" + LOGO_CID, new EmailProvider.InlineImage(LOGO_CID, bytes, type));
+                } catch (IllegalArgumentException ignored) {
+                    // a broken upload: fall through to the link
+                }
+            }
+        }
+        if (link != null && (link.startsWith("https://") || link.startsWith("http://"))) {
+            return new Logo(link, null);
+        }
+        return null;
     }
 
     /** The AWB: the tracking number, else the shipment number. */
     static String awb(Shipment s) {
         return s.getTrackingNumber() != null && !s.getTrackingNumber().isBlank() ? s.getTrackingNumber() : nz(s.getShipmentNumber());
-    }
-
-    /** OUT_FOR_DELIVERY → "Out for delivery". */
-    static String statusLabel(ShipmentStatus status) {
-        if (status == null) return "";
-        String words = status.name().toLowerCase(Locale.ROOT).replace('_', ' ');
-        return Character.toUpperCase(words.charAt(0)) + words.substring(1);
     }
 
     private static String td(String style, String value) {
