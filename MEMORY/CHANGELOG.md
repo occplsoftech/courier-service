@@ -8,6 +8,20 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-28 — Domestic (CASH) rates (V190) and no Air inside Maharashtra
+
+- **V190** (generated from the card set up on dev from the owner's `CASH_BOOKING_RATES.xlsx`): rate card `PUNE_CASH_2025`
+  "Pune Cash", from PUNE, GST 0 %, effective 2025-04-01, ACTIVE, 68 lanes / 162 slabs, companies OCCPL and OCCPL_COURIER.
+  Zones (V188), service types SRF / AIR / SURFACE_CARGO / PRM and package types DOCUMENT / NON-DOC matched by code. The sheet
+  is one 500-row block pasted twice; Kerala rows dropped (owner: Kerala priced as South); Premium "Addition 500GM" = per
+  extra 0.5 kg (owner), "Per Kg" per extra 1 kg. Skips a company that already has `PUNE_CASH_2025` or an ACTIVE company card
+  from PUNE (dev: set up by hand on 2026-11-28).
+- Zone fallback (`TariffQuoteServiceImpl`): a card falls back to the pincode master's Zone (WEST, SOUTH…) only when it has
+  **no rate to the pincode's Region zone at all**. A card that prices a Region lists every service it offers there, so a
+  service it leaves out is not offered there: no Air to PUNE / X_PUNE / MAHARASHTRA / X_MAHARASHTRA on the cash card (it used
+  to borrow WEST's Air rate), and no Surface Cargo to X_MAHARASHTRA (the sheet has none). REST_OF_INDIA, which the card never
+  names, is still priced by zone. Customer cards follow the same rule, then the company card.
+
 ## 2026-11-28 — Nightly booking summary e-mail to business customers
 
 - Every night at **23:30 IST** (`BookingSummaryEmailJob`, retry ticks 23:40 / 23:50) each business customer who booked

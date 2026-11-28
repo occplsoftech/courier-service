@@ -21,6 +21,12 @@ public interface TariffRateSlabRepository extends JpaRepository<TariffRateSlab, 
                                   @Param("toZoneId") UUID toZoneId, @Param("serviceTypeId") UUID serviceTypeId,
                                   @Param("packageTypeId") UUID packageTypeId);
 
+    /** Whether a card has any rate to a to zone — a card that prices a Region does not borrow the zone's rates. */
+    @Query("select count(s) > 0 from TariffRateSlab s where s.companyId = :companyId and s.rateCardId = :cardId"
+            + " and s.toZoneId = :zoneId")
+    boolean existsByCardAndToZone(@Param("companyId") UUID companyId, @Param("cardId") UUID cardId,
+                                  @Param("zoneId") UUID zoneId);
+
     @Query("select count(s) > 0 from TariffRateSlab s where s.companyId = :companyId and s.toZoneId = :zoneId")
     boolean existsByToZone(@Param("companyId") UUID companyId, @Param("zoneId") UUID zoneId);
 }
