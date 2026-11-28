@@ -1745,4 +1745,58 @@ class ShipmentServiceImplTest {
                 new BigDecimal("5.000"), "1-15 KG", new BigDecimal("20.00"), baseFreight, odaApplicable, odaCharge,
                 baseFreight.add(odaCharge));
     }
+
+    // ------------------------------------------------ the operator's final amount (V193)
+
+    private void netAmountLimits(String down, String up, String gst) {
+        when(companySettingsService.get()).thenReturn(com.courier.modules.company.domain.CompanySettings.builder()
+                .toPayCharge(BigDecimal.ZERO).gstPercentage(new BigDecimal(gst))
+                .netAmountMaxDecreasePercent(new BigDecimal(down)).netAmountMaxIncreasePercent(new BigDecimal(up)).build());
+    }
+
+    @Test
+    @DisplayName("final amount: within the company's limits and with a reason; unchanged or absent means the system amount")
+    void finalAmountLimits() {
+        netAmountLimits("10", "50", "18");
+        BigDecimal system = new BigDecimal("500");
+
+        assertThat(service.requireFinalAmountAllowed(null, null, system)).isNull();
+        assertThat(service.requireFinalAmountAllowed(new BigDecimal("500.00"), null, system)).isNull();
+        assertThat(service.requireFinalAmountAllowed(new BigDecimal("450"), "regular customer", system))
+                .isEqualByComparingTo("450");
+        assertThat(service.requireFinalAmountAllowed(new BigDecimal("750"), "extra handling", system))
+                .isEqualByComparingTo("750");
+        assertThatThrownBy(() -> service.requireFinalAmountAllowed(new BigDecimal("449"), "too low", system))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("at most 10% below 500: at least 450");
+        assertThatThrownBy(() -> service.requireFinalAmountAllowed(new BigDecimal("751"), "too high", system))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("at most 50% above 500: at most 750");
+        assertThatThrownBy(() -> service.requireFinalAmountAllowed(new BigDecimal("480"), "  ", system))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("reason");
+    }
+
+    @Test
+    @DisplayName("final amount: the difference splits into freight and GST at the company GST %, commission follows freight")
+    void finalAmountSplitsIntoFreightAndGst() {
+        netAmountLimits("10", "50", "18");
+        com.courier.modules.shipment.domain.ShipmentCharge charge = com.courier.modules.shipment.domain.ShipmentCharge.builder()
+                .freight(new BigDecimal("400.00")).gstAmount(new BigDecimal("72.00")).roundOff(new BigDecimal("3.00"))
+                .otherCharges(new BigDecimal("25.00")).branchCommissionOnOtherAmount(new BigDecimal("5.00"))
+                .netAmount(new BigDecimal("500.00")).build();
+        Branch branch = Branch.builder().branchCode("PUNE").commissionOnBasicFreight(new BigDecimal("20.00"))
+                .companyServiceChargePercentage(new BigDecimal("10.00")).build();
+
+        service.applyFinalAmount(charge, new BigDecimal("441.00"), " regular customer ", branch);
+
+        // -59 = -50 freight (59 × 100 / 118) and -9 GST.
+        assertThat(charge.getNetAmount()).isEqualByComparingTo("441");
+        assertThat(charge.getFreight()).isEqualByComparingTo("350");
+        assertThat(charge.getGstAmount()).isEqualByComparingTo("63");
+        assertThat(charge.getFreight().add(charge.getOtherCharges()).add(charge.getGstAmount()).add(charge.getRoundOff()))
+                .isEqualByComparingTo(charge.getNetAmount());
+        assertThat(charge.getCompanyCommissionOnBasicFreight()).isEqualByComparingTo("35");   // 10% of 350
+        assertThat(charge.getCommissionOnBasicFreight()).isEqualByComparingTo("63");          // 20% of 315
+        assertThat(charge.getTotalCommission()).isEqualByComparingTo("103");                  // 35 + 63 + 5
+        assertThat(charge.getSystemNetAmount()).isEqualByComparingTo("500");
+        assertThat(charge.getFinalAmountReason()).isEqualTo("regular customer");
+    }
 }

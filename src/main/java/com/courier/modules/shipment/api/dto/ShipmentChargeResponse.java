@@ -45,7 +45,12 @@ public record ShipmentChargeResponse(
         BigDecimal appliedFreightFactor,
         @Schema(description = "Cash on Delivery: 2% of the COD collection amount, at least 100. Taxed with GST "
                 + "(folded into gstAmount). Zero otherwise.")
-        BigDecimal codCharge
+        BigDecimal codCharge,
+        @Schema(description = "Set when the operator changed the final amount at booking: the system's own amount. "
+                + "netAmount is then the edited one.")
+        BigDecimal systemNetAmount,
+        @Schema(description = "Why the final amount was changed; null when it was not.")
+        String finalAmountReason
 ) {
     @Schema(name = "ApplicableChargeLine")
     public record ApplicableChargeLine(String chargeName, BigDecimal amount) {

@@ -111,7 +111,7 @@ Do that for any data migration: CI does not run migrations, and a V184 column mi
 ## HANDOFF — update on 2026-11-27 (read this, then the 2026-11-20 block below)
 
 Two Claude accounts work on these repos at the same time: fetch `main` before branching, and check open PRs first.
-Next free Flyway migration: **V190** (see the top block). Details of everything
+Next free Flyway migration: **V193** (see the top block). Details of everything
 below are in `MEMORY/CHANGELOG.md` → 2026-11-27.
 
 **Scan screen (OCCPL Operation → Scan), all merged and checked live on dev:**

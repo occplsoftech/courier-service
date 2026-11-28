@@ -148,6 +148,12 @@ public record CreateShipmentRequest(
         com.courier.modules.shipment.domain.ShipmentPayment.Method paymentMethod,
         @Schema(description = "UPI_QR: the UPI reference (UTR) the customer's app shows. Optional.")
         @Size(max = 100) String paymentReference,
+        @Schema(description = "The final amount (GST included) the operator typed in place of the system's. Optional. "
+                + "Allowed between the company's Net Amount limits (Settings → Finance: max % lower / higher) and "
+                + "needs finalAmountReason. Freight is worked back from it at the company GST %; GST is the rest.")
+        @DecimalMin(value = "0.0", inclusive = false, message = "must be greater than zero") BigDecimal finalAmount,
+        @Schema(description = "Why the final amount was changed. Required with finalAmount.")
+        @Size(max = 255) String finalAmountReason,
         @Schema(description = "Charges Master charges the clerk ticked: [{code, amount}], code HANDLING, PICKUP, DELIVERY, AWB, "
                 + "GREEN_TAX, REVERSE_PICKUP, COD or OTHER; amount optional (as calculated; COD is always calculated). "
                 + "Omit on a screen without them: COD then comes from the Charges Master.")

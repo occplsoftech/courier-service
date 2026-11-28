@@ -163,6 +163,16 @@ public class ShipmentCharge extends CompanyOwnedEntity {
     @Column(name = "applied_freight_factor", precision = 19, scale = 4)
     private BigDecimal appliedFreightFactor;
 
+    /** The system's own net amount when the operator changed the final amount at booking (V193); null otherwise. */
+    @Column(name = "system_net_amount", precision = 19, scale = 4)
+    private BigDecimal systemNetAmount;
+    /** Why the final amount was changed (V193). */
+    @Column(name = "final_amount_reason", length = 255)
+    private String finalAmountReason;
+    /** Who changed the final amount (V193). */
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.BINARY)
+    @Column(name = "final_amount_changed_by", columnDefinition = "BINARY(16)")
+    private java.util.UUID finalAmountChangedBy;
     /** Rate/KG fixed by a company admin after booking (see V101); null = follows the slab. */
     @Column(name = "rate_per_kg_override", precision = 19, scale = 4)
     private BigDecimal ratePerKgOverride;
