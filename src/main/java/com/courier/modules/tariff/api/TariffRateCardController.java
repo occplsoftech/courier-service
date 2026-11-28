@@ -68,6 +68,7 @@ public class TariffRateCardController {
     private final TariffRateCardService service;
     private final TariffQuoteService quoteService;
     private final TariffRateImportService importService;
+    private final com.courier.modules.customer.application.CustomerPortalLookup customerLookup;
 
     @PostMapping
     @Operation(summary = "Create a rate card", description = "Starts INACTIVE: add its rates, then activate it.")
@@ -78,13 +79,32 @@ public class TariffRateCardController {
 
     @GetMapping
     @Operation(summary = "List rate cards", description = "Optionally by from zone, status or a code/name search. "
-            + "Lanes and charges are counted, not listed.")
+            + "Lanes and charges are counted, not listed. `owner`: COMPANY (default, the company's own cards), CUSTOMER "
+            + "(business customers' own cards) or ALL; a customer card carries its customer's name.")
     public ApiResponse<List<CardResponse>> list(@RequestParam(required = false) UUID fromZoneId,
                                                 @RequestParam(required = false) TariffStatus status,
-                                                @RequestParam(required = false) String search) {
-        return ApiResponse.success(service.search(fromZoneId, status, search).stream()
-                .map(s -> card(s.card(), s.fromZoneCode(), s.laneCount(), s.chargeCount(), List.of(), List.of()))
+                                                @RequestParam(required = false) String search,
+                                                @RequestParam(required = false, defaultValue = "COMPANY") String owner) {
+        java.util.Map<UUID, String> customerNames = new java.util.HashMap<>();
+        UUID companyId = com.courier.shared.company.CompanyContext.getCompanyId().orElse(null);
+        return ApiResponse.success(service.search(fromZoneId, status, search, owner).stream()
+                .map(s -> {
+                    CardResponse r = card(s.card(), s.fromZoneCode(), s.laneCount(), s.chargeCount(), List.of(), List.of());
+                    UUID cid = s.card().getCustomerId();
+                    if (cid == null || companyId == null) {
+                        return r;
+                    }
+                    String name = customerNames.computeIfAbsent(cid, id -> customerLookup.findActiveBusinessCustomer(companyId, id)
+                            .map(com.courier.modules.customer.domain.Customer::displayName).orElse(null));
+                    return withCustomerName(r, name);
+                })
                 .toList());
+    }
+
+    private static CardResponse withCustomerName(CardResponse r, String name) {
+        return new CardResponse(r.id(), r.code(), r.name(), r.fromZoneId(), r.fromZoneCode(), r.effectiveFrom(), r.effectiveTo(),
+                r.gstPercent(), r.volumetricDivisor(), r.totalRounding(), r.description(), r.status(), r.laneCount(),
+                r.chargeCount(), r.lanes(), r.charges(), r.createdDate(), r.updatedDate(), r.version(), r.customerId(), name);
     }
 
     @PostMapping("/quote")
@@ -255,6 +275,6 @@ public class TariffRateCardController {
         return new CardResponse(c.getId(), c.getCode(), c.getName(), c.getFromZoneId(), fromZoneCode, c.getEffectiveFrom(),
                 c.getEffectiveTo(), c.getGstPercent(), c.getVolumetricDivisor(), c.getTotalRounding(), c.getDescription(),
                 c.getStatus(), laneCount, chargeCount, lanes, charges, c.getCreatedAt(), c.getUpdatedAt(), c.getVersion(),
-                c.getCustomerId());
+                c.getCustomerId(), null);
     }
 }

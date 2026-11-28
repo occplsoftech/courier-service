@@ -104,9 +104,20 @@ public class TariffRateCardServiceImpl implements TariffRateCardService {
     @Transactional(readOnly = true)
     @PreAuthorize(READ)
     public List<RateCardSummary> search(UUID fromZoneId, TariffStatus status, String search) {
+        return search(fromZoneId, status, search, "COMPANY");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize(READ)
+    public List<RateCardSummary> search(UUID fromZoneId, TariffStatus status, String search, String owner) {
         UUID companyId = requireCompany();
         String pattern = search == null || search.isBlank() ? null : "%" + search.trim().toLowerCase() + "%";
-        List<TariffRateCard> found = cards.search(companyId, fromZoneId, status, pattern);
+        String who = owner == null ? "COMPANY" : owner.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!java.util.Set.of("ALL", "COMPANY", "CUSTOMER").contains(who)) {
+            throw new BusinessRuleException("Owner must be ALL, COMPANY or CUSTOMER.");
+        }
+        List<TariffRateCard> found = cards.searchByOwner(companyId, fromZoneId, status, pattern, who);
         Map<UUID, String> zoneCodes = zones.findAllWithinCompany(
                         found.stream().map(TariffRateCard::getFromZoneId).collect(Collectors.toSet()), companyId)
                 .stream().collect(Collectors.toMap(TariffZone::getId, TariffZone::getCode));

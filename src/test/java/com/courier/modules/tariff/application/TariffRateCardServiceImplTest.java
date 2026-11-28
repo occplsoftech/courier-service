@@ -204,6 +204,20 @@ class TariffRateCardServiceImplTest {
     }
 
     @Test
+    @DisplayName("the Rate Cards list filters by owner: COMPANY by default, CUSTOMER or ALL; anything else is refused")
+    void searchByOwner() {
+        when(cards.searchByOwner(any(), any(), any(), any(), any())).thenReturn(java.util.List.of());
+        service.search(null, null, "Pune");
+        org.mockito.Mockito.verify(cards).searchByOwner(COMPANY, null, null, "%pune%", "COMPANY");
+        service.search(null, null, null, "customer");
+        org.mockito.Mockito.verify(cards).searchByOwner(COMPANY, null, null, null, "CUSTOMER");
+        service.search(null, null, null, "all");
+        org.mockito.Mockito.verify(cards).searchByOwner(COMPANY, null, null, null, "ALL");
+        assertThatThrownBy(() -> service.search(null, null, null, "OTHERS"))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("ALL, COMPANY or CUSTOMER");
+    }
+
+    @Test
     @DisplayName("a new card starts inactive with GST 18% and rupee rounding")
     void create() {
         RateCardDetail d = service.create(cardInput("pune cash", pune, LocalDate.of(2025, 4, 1), null));
