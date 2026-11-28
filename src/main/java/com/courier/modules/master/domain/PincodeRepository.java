@@ -14,4 +14,6 @@ public interface PincodeRepository extends MasterDataRepository<Pincode> {
     long countByCompanyIdAndAreaId(UUID companyId, UUID areaId);
 
     List<Pincode> findByCompanyIdAndAreaIdOrderByCodeAsc(UUID companyId, UUID areaId);
+
+    List<Pincode> findByCompanyIdAndCodeIn(UUID companyId, java.util.Collection<String> codes);
 }

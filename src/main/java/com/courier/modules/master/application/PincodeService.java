@@ -15,6 +15,24 @@ public interface PincodeService extends MasterDataService<Pincode, PincodeComman
      */
     Pincode findByCode(String code);
 
+    /** The networks the Pincode Master Sheet can switch on or off per pincode. */
+    java.util.Set<com.courier.modules.master.domain.ServiceNetwork> SWITCHABLE = java.util.EnumSet.of(
+            com.courier.modules.master.domain.ServiceNetwork.PREMIUM,
+            com.courier.modules.master.domain.ServiceNetwork.AIR_CARGO,
+            com.courier.modules.master.domain.ServiceNetwork.SURFACE_CARGO);
+
+    /**
+     * Changes one network's coverage (Premium, Air Cargo, Surface Cargo) at a pincode: on/off, ODA and TAT hours, each
+     * left as it is when null. Same write audience as {@link #update}; audited like any pincode edit.
+     *
+     * @throws com.courier.shared.exception.ResourceNotFoundException no such pincode
+     */
+    Pincode setNetworkCoverage(String code, com.courier.modules.master.domain.ServiceNetwork network, Boolean serviceable,
+                               Boolean oda, Integer tatHours);
+
+    /** The pincodes carrying these postal codes, by code; codes not on file are left out. Same read audience as {@link #getById}. */
+    java.util.Map<String, Pincode> findByCodes(java.util.Collection<String> codes);
+
     /**
      * Resolves the Area a raw pincode belongs to via the postal directory, auto-creating
      * whatever State/District/City/Area rows are missing. Same write audience as

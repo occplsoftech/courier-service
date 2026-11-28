@@ -1,5 +1,7 @@
 package com.courier.modules.master.application;
 
+import com.courier.modules.master.domain.NetworkCoverage;
+
 import com.courier.modules.master.application.port.PincodePostalLookupProvider;
 import com.courier.modules.master.application.command.PincodeCommand;
 import com.courier.modules.master.domain.Area;
@@ -179,6 +181,46 @@ public class PincodeServiceImpl extends AbstractMasterDataService<Pincode> imple
         return CompanyContext.runAs(GlobalMasters.PLATFORM_COMPANY_ID, () -> repository.findById(pincodeId)
                 .filter(p -> GlobalMasters.PLATFORM_COMPANY_ID.equals(p.getCompanyId()))
                 .map(Pincode::getCode));
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize(WRITE)
+    public Pincode setNetworkCoverage(String code, ServiceNetwork network, Boolean serviceable, Boolean oda, Integer tatHours) {
+        requireSwitchable(network);
+        if (tatHours != null && (tatHours < 1 || tatHours > 2400)) {
+            throw new BusinessRuleException("TAT must be between 1 and 2400 hours.");
+        }
+        String pin = code == null ? "" : code.trim();
+        Pincode pincode = CompanyContext.runAs(GlobalMasters.PLATFORM_COMPANY_ID,
+                        () -> repository.findByCodeWithinCompany(pin, GlobalMasters.PLATFORM_COMPANY_ID))
+                .orElseThrow(() -> new com.courier.shared.exception.ResourceNotFoundException("Pincode", pin));
+        return updateEntity(pincode.getId(), null, p -> p.setCoverage(network, changed(p.coverage(network), serviceable, oda, tatHours)));
+    }
+
+    static void requireSwitchable(ServiceNetwork network) {
+        if (network == null || !SWITCHABLE.contains(network)) {
+            throw new BusinessRuleException("Only Premium, Air Cargo and Surface Cargo can be switched here.");
+        }
+    }
+
+    /** The coverage with what was sent changed and the rest kept; an unset ODA reads as not ODA. */
+    static NetworkCoverage changed(NetworkCoverage now, Boolean serviceable, Boolean oda, Integer tatHours) {
+        return new NetworkCoverage(serviceable != null ? serviceable : now.serviceable(),
+                oda != null ? oda : (now.oda() == null ? Boolean.FALSE : now.oda()),
+                tatHours != null ? tatHours : now.tatHours());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize(READ)
+    public java.util.Map<String, Pincode> findByCodes(java.util.Collection<String> codes) {
+        if (codes == null || codes.isEmpty()) {
+            return java.util.Map.of();
+        }
+        return CompanyContext.runAs(GlobalMasters.PLATFORM_COMPANY_ID, () -> ((PincodeRepository) repository)
+                .findByCompanyIdAndCodeIn(GlobalMasters.PLATFORM_COMPANY_ID, codes).stream()
+                .collect(java.util.stream.Collectors.toMap(Pincode::getCode, x -> x, (a, b) -> a)));
     }
 
     @Override
