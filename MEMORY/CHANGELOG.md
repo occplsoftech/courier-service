@@ -8,6 +8,15 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-28 — Pincode Master Sheet: Premium / Air Cargo / Surface Cargo switches
+
+- `GET /global-masters/pincode-sheet` rows gain `livePremium`, `liveAirCargo`, `liveSurfaceCargo`: the pincode master's live
+  coverage (what bookings check), null when not set or the pincode is not on file. The sheet's own text is unchanged.
+- `PUT /global-masters/pincode-sheet/{pincode}/coverage` `{network: PREMIUM|AIR_CARGO|SURFACE_CARGO, serviceable}`: switches
+  that network on or off at the pincode, keeping its ODA and TAT (`PincodeService.setNetworkServiceable`, same write rule
+  as the pincode edit: super admin / company admin; audited as MASTER_DATA_UPDATED).
+- Web: Zone Tariff → Pincode Master Sheet shows the three live switches per row.
+
 ## 2026-11-28 — Domestic (CASH) rates (V190) and no Air inside Maharashtra
 
 - **V190** (generated from the card set up on dev from the owner's `CASH_BOOKING_RATES.xlsx`): rate card `PUNE_CASH_2025`
