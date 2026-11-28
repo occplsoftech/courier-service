@@ -16,7 +16,7 @@ only), optional minimum. Seeded inactive at 0 except COD 2 % min 100 (what COD c
 (GET, PUT /{code}, customers/{id}[/{code}], POST /quote, GET /shipments/{id}). Booking: `additionalCharges` [{code, amount}]
 on POST /shipments — COD from the master (only if ticked); the rest add to otherCharges (GST, commission as before) and
 are kept per line. No `additionalCharges` (older screens): COD from the master, nothing else. Freight, ODA, fuel and FOV
-stay automatic. **Next free Flyway migration: V193.**
+stay automatic. **Next free Flyway migration: V194** (V193 = shipment final amount override, CS#168).
 
 ## HANDOFF — V191: User Performance Report and cash handover (2026-11-28)
 
