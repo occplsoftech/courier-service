@@ -138,6 +138,11 @@ class ShipmentServiceImplTest {
             org.mockito.Mockito.mock(com.courier.modules.manifest.application.CoLoaderService.class);
     private ShipmentServiceImpl service;
 
+    private final com.courier.modules.charge.domain.BookingChargeRateRepository bookingChargeRates =
+            mock(com.courier.modules.charge.domain.BookingChargeRateRepository.class);
+    private final com.courier.modules.charge.domain.ShipmentBookingChargeRepository bookingChargeLines =
+            mock(com.courier.modules.charge.domain.ShipmentBookingChargeRepository.class);
+
     @BeforeEach
     void setUp() {
         service = new ShipmentServiceImpl(shipmentRepository, itemRepository, chargeRepository,
@@ -148,9 +153,7 @@ class ShipmentServiceImplTest {
                 userService, branchService, branchLookup, paymentModeRepository, serviceTypeRepository, packageTypeRepository, customerService, crossingService, ticketService, ticketCategoryService,
                 ewayBillService, freightCalculationService,
                 applicableChargesCalculator,
-                new com.courier.modules.charge.application.BookingChargeServiceImpl(
-                        org.mockito.Mockito.mock(com.courier.modules.charge.domain.BookingChargeRateRepository.class),
-                        org.mockito.Mockito.mock(com.courier.modules.charge.domain.ShipmentBookingChargeRepository.class),
+                new com.courier.modules.charge.application.BookingChargeServiceImpl(bookingChargeRates, bookingChargeLines,
                         org.mockito.Mockito.mock(com.courier.modules.customer.application.CustomerPortalLookup.class), auditService),
                 auditService, eventPublisher, fileStoragePort, shipmentAssetRepository,
                 deliveryDispatchOtpRepository, passwordEncoder, companySettingsService, communicationSettingService,
@@ -607,6 +610,62 @@ class ShipmentServiceImplTest {
         assertThatThrownBy(() -> service.create(command()))
                 .isInstanceOf(BusinessRuleException.class).hasMessageContaining("COD collection amount");
         verify(shipmentRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Charges Master: ticked charges add to Other Charges with GST and are kept per line; COD only when ticked")
+    void tickedChargesFromTheChargesMaster() {
+        com.courier.modules.charge.domain.BookingChargeRate awb = com.courier.modules.charge.domain.BookingChargeRate.of(null,
+                com.courier.modules.charge.domain.BookingChargeCode.AWB);
+        awb.set(com.courier.modules.charge.domain.BookingChargeCalc.FIXED, new BigDecimal("50"), null, true);
+        when(bookingChargeRates.findCompanyRates(any())).thenReturn(List.of(awb));
+        PaymentMode cod = paymentMode(false);
+        cod.setCashOnDelivery(true);
+        when(paymentModeService.getById(PAYMENT_MODE)).thenReturn(cod);
+        allowWallet();
+
+        var picks = List.of(new com.courier.modules.charge.application.BookingChargeService.Picked(
+                com.courier.modules.charge.domain.BookingChargeCode.AWB, new BigDecimal("40")));
+        service.create(withPicks(withCod(command(), "10000", null), picks));
+
+        org.mockito.ArgumentCaptor<com.courier.modules.shipment.domain.ShipmentCharge> captor =
+                org.mockito.ArgumentCaptor.forClass(com.courier.modules.shipment.domain.ShipmentCharge.class);
+        verify(chargeRepository).save(captor.capture());
+        assertThat(captor.getValue().getCodCharge()).isEqualByComparingTo("0");     // COD left unticked
+        assertThat(captor.getValue().getOtherCharges()).isEqualByComparingTo("40"); // the typed AWB amount
+        assertThat(captor.getValue().getGstAmount()).isEqualByComparingTo("27.90"); // 20.70 + 18% of 40
+        org.mockito.ArgumentCaptor<com.courier.modules.charge.domain.ShipmentBookingCharge> line =
+                org.mockito.ArgumentCaptor.forClass(com.courier.modules.charge.domain.ShipmentBookingCharge.class);
+        verify(bookingChargeLines).save(line.capture());
+        assertThat(line.getValue().getCode()).isEqualTo(com.courier.modules.charge.domain.BookingChargeCode.AWB);
+        assertThat(line.getValue().getAmount()).isEqualByComparingTo("40");
+    }
+
+    @Test
+    @DisplayName("Charges Master: an inactive charge cannot be ticked")
+    void inactiveChargeIsRefused() {
+        var picks = List.of(new com.courier.modules.charge.application.BookingChargeService.Picked(
+                com.courier.modules.charge.domain.BookingChargeCode.GREEN_TAX, null));
+        assertThatThrownBy(() -> service.create(withPicks(command(), picks)))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("not active");
+        verify(shipmentRepository, never()).save(any());
+    }
+
+    private static CreateShipmentCommand withPicks(CreateShipmentCommand c,
+                                                   List<com.courier.modules.charge.application.BookingChargeService.Picked> picks) {
+        try {
+            var parts = CreateShipmentCommand.class.getRecordComponents();
+            Object[] values = new Object[parts.length];
+            Class<?>[] types = new Class<?>[parts.length];
+            for (int i = 0; i < parts.length; i++) {
+                values[i] = parts[i].getAccessor().invoke(c);
+                types[i] = parts[i].getType();
+                if (parts[i].getName().equals("additionalCharges")) values[i] = picks;
+            }
+            return CreateShipmentCommand.class.getDeclaredConstructor(types).newInstance(values);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Test
