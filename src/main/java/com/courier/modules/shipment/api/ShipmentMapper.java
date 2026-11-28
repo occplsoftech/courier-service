@@ -65,7 +65,10 @@ public class ShipmentMapper {
                 r.appointmentDelivery(), r.appointmentDate(), r.appointmentTimeSlot(),
                 r.appointmentDeliveryCharge(), r.insuranceApplicable(),
                 r.deliveryType(), r.doorDeliveryCharge(), r.flowType(), r.deliveryBranchId(),
-                r.businessCustomerId(), r.codAmount());
+                r.businessCustomerId(), r.codAmount(),
+                r.additionalCharges() == null ? null : r.additionalCharges().stream()
+                        .map(a -> new com.courier.modules.charge.application.BookingChargeService.Picked(a.code(), a.amount()))
+                        .toList());
     }
 
     public UpdateShipmentCommand toCommand(UpdateShipmentRequest r) {

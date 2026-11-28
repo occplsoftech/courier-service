@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-28 — Charges Master (V192)
+
+- Booking charges the clerk ticks: Handling, Pick up, Delivery, AWB, Green Tax, Reverse Pick Up, COD, Other. Per company,
+  with business-customer overrides. Fixed / per kg / per piece / % of freight (COD: % of the COD amount), optional minimum.
+- `booking_charge_rates`, `shipment_booking_charges`; `/api/v1/booking-charges`; POST /shipments `additionalCharges`.
+- COD now comes from the master (seeded 2 %, min 100 — unchanged unless edited); a clerk can untick it.
+
 ## 2026-11-28 — Cash handover notifications
 
 - In-app notifications (the bell) for cash handovers: **submitted** → the branch's managers and accounts desk (company

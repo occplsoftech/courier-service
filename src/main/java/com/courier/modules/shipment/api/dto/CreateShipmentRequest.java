@@ -147,6 +147,15 @@ public record CreateShipmentRequest(
                 + "debit the branch wallet.")
         com.courier.modules.shipment.domain.ShipmentPayment.Method paymentMethod,
         @Schema(description = "UPI_QR: the UPI reference (UTR) the customer's app shows. Optional.")
-        @Size(max = 100) String paymentReference
+        @Size(max = 100) String paymentReference,
+        @Schema(description = "Charges Master charges the clerk ticked: [{code, amount}], code HANDLING, PICKUP, DELIVERY, AWB, "
+                + "GREEN_TAX, REVERSE_PICKUP, COD or OTHER; amount optional (as calculated; COD is always calculated). "
+                + "Omit on a screen without them: COD then comes from the Charges Master.")
+        @jakarta.validation.Valid java.util.List<AdditionalCharge> additionalCharges
 ) {
+    /** One ticked Charges Master charge. */
+    public record AdditionalCharge(
+            @jakarta.validation.constraints.NotNull com.courier.modules.charge.domain.BookingChargeCode code,
+            @DecimalMin(value = "0") BigDecimal amount) {
+    }
 }

@@ -147,7 +147,12 @@ class ShipmentServiceImplTest {
                 rateService, routeService, pricingEngine, new PricingProperties(), walletService,
                 userService, branchService, branchLookup, paymentModeRepository, serviceTypeRepository, packageTypeRepository, customerService, crossingService, ticketService, ticketCategoryService,
                 ewayBillService, freightCalculationService,
-                applicableChargesCalculator, auditService, eventPublisher, fileStoragePort, shipmentAssetRepository,
+                applicableChargesCalculator,
+                new com.courier.modules.charge.application.BookingChargeServiceImpl(
+                        org.mockito.Mockito.mock(com.courier.modules.charge.domain.BookingChargeRateRepository.class),
+                        org.mockito.Mockito.mock(com.courier.modules.charge.domain.ShipmentBookingChargeRepository.class),
+                        org.mockito.Mockito.mock(com.courier.modules.customer.application.CustomerPortalLookup.class), auditService),
+                auditService, eventPublisher, fileStoragePort, shipmentAssetRepository,
                 deliveryDispatchOtpRepository, passwordEncoder, companySettingsService, communicationSettingService,
                 smsProvider, objectMapper, shipmentPaymentService, coLoaderLookup);
 

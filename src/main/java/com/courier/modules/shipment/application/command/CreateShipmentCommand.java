@@ -111,8 +111,35 @@ public record CreateShipmentCommand(
         FlowType flowType,
         UUID deliveryBranchId,
         UUID businessCustomerId,
-        BigDecimal codAmount
+        BigDecimal codAmount,
+        /** Charges Master charges the clerk ticked; null = a screen without them (COD then comes from the master). */
+        List<com.courier.modules.charge.application.BookingChargeService.Picked> additionalCharges
 ) {
+    /** Without Charges Master picks. */
+    public CreateShipmentCommand(
+            UUID bookingBranchId, String manualShipmentNumber, String pickupPincode, String deliveryPincode,
+            String senderName, String senderAddress, String senderContact,
+            String receiverName, String receiverAddress, String receiverContact,
+            UUID serviceTypeId, UUID packageTypeId, UUID paymentModeId, ShipmentType shipmentType,
+            LocalDate bookingDate, BigDecimal declaredValue, Integer numberOfPackages, String remarks,
+            BigDecimal otherCharges, BigDecimal odaCharge, BigDecimal freightFactorOverride,
+            List<ShipmentItemCommand> items, BigDecimal actualWeight, BigDecimal length, BigDecimal width,
+            BigDecimal height, Boolean crossing, List<UUID> crossingBranchIds, BigDecimal crossingCharge,
+            BigDecimal invoiceValue, EwayBillDataCommand ewayBill, UUID destinationAreaId,
+            BigDecimal ratePerKgOverride, Boolean appointmentDelivery, LocalDate appointmentDate,
+            String appointmentTimeSlot, BigDecimal appointmentDeliveryCharge, Boolean insuranceApplicable,
+            DeliveryType deliveryType, BigDecimal doorDeliveryCharge, FlowType flowType, UUID deliveryBranchId,
+            UUID businessCustomerId, BigDecimal codAmount) {
+        this(bookingBranchId, manualShipmentNumber, pickupPincode, deliveryPincode, senderName, senderAddress,
+                senderContact, receiverName, receiverAddress, receiverContact, serviceTypeId, packageTypeId,
+                paymentModeId, shipmentType, bookingDate, declaredValue, numberOfPackages, remarks, otherCharges,
+                odaCharge, freightFactorOverride, items, actualWeight, length, width, height, crossing,
+                crossingBranchIds, crossingCharge, invoiceValue, ewayBill, destinationAreaId, ratePerKgOverride,
+                appointmentDelivery, appointmentDate, appointmentTimeSlot, appointmentDeliveryCharge,
+                insuranceApplicable, deliveryType, doorDeliveryCharge, flowType, deliveryBranchId, businessCustomerId,
+                codAmount, null);
+    }
+
     /** Without a COD collection amount (every payment mode but COD). */
     public CreateShipmentCommand(
             UUID bookingBranchId, String manualShipmentNumber, String pickupPincode, String deliveryPincode,
