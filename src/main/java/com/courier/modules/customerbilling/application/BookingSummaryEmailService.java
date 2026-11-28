@@ -125,6 +125,64 @@ public class BookingSummaryEmailService {
         return attempted;
     }
 
+    /** What "Send now" sent. */
+    public record SendNowResult(String to, String subject, int bookings, LocalDate day) {
+    }
+
+    private static final java.util.regex.Pattern EMAIL =
+            java.util.regex.Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
+
+    /**
+     * Sends one business customer's daily booking e-mail now — the same subject, logo, table and closing as the nightly
+     * run — for the day's window (23:30 the day before → 23:30 on {@code day}, or now when that is earlier). Goes to
+     * {@code to} when given (e.g. the admin's own inbox, to see it), else to the customer's address. Not recorded in the
+     * nightly ledger, so tonight's e-mail still goes out. Refused when the customer booked nothing in that window.
+     */
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('" + com.courier.shared.security.Roles.COMPANY_ADMIN + "')")
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public SendNowResult sendNow(UUID customerId, String to, LocalDate day) {
+        UUID companyId = CompanyContext.getCompanyId().orElseThrow(() -> new com.courier.shared.exception.BusinessRuleException(
+                "No company is bound to this request."));
+        Customer customer = customers.findByIdWithinCompany(customerId, companyId)
+                .orElseThrow(() -> new com.courier.shared.exception.ResourceNotFoundException("Customer", customerId));
+        String recipient = to != null && !to.isBlank() ? to.trim() : customer.getEmail() == null ? "" : customer.getEmail().trim();
+        if (!EMAIL.matcher(recipient).matches()) {
+            throw new com.courier.shared.exception.BusinessRuleException(recipient.isEmpty()
+                    ? "This customer has no e-mail address. Type one to send to."
+                    : "\"" + recipient + "\" is not an e-mail address.");
+        }
+        ZoneId z = ZoneId.of(zone);
+        LocalDate d = day != null ? day : LocalDate.now(z);
+        Instant from = d.minusDays(1).atTime(BookingSummaryEmailJob.CUTOFF).atZone(z).toInstant();
+        Instant end = d.atTime(BookingSummaryEmailJob.CUTOFF).atZone(z).toInstant();
+        Instant now = Instant.now();
+        Instant until = end.isAfter(now) ? now : end;
+        List<Shipment> list = shipments.findBusinessBookingsCreatedBetween(companyId, from, until, ShipmentStatus.CANCELLED).stream()
+                .filter(s -> customerId.equals(s.getBusinessCustomerId())).toList();
+        if (list.isEmpty()) {
+            throw new com.courier.shared.exception.BusinessRuleException("%s booked nothing between %s and %s. Pick a day with bookings."
+                    .formatted(customer.displayName(), WHEN.format(from.atZone(z)), WHEN.format(until.atZone(z))));
+        }
+        Map<UUID, String> services = serviceTypes.findAll(MasterDataSpecifications.matching(
+                        MasterDataCriteria.none().withCompanyId(companyId))).stream()
+                .collect(Collectors.toMap(ServiceType::getId, ServiceType::getName, (a, b) -> a));
+        EmailProvider.EmailIdentity identity = companyIdentity.identity(companyId);
+        Logo logo = logo(companyId);
+        String subject = subject(d, list.size());
+        List<EmailProvider.InlineImage> images = logo == null || logo.inline() == null ? List.of() : List.of(logo.inline());
+        try {
+            emailProvider.send(new EmailProvider.EmailMessage(recipient, subject,
+                    html(identity.fromName(), logo == null ? null : logo.src(), customer.displayName(), list, services, from, until),
+                    images), identity);
+        } catch (RuntimeException e) {
+            String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            log.warn("Booking summary 'send now' failed: company={} customer={} to={} — {}", companyId, customerId, recipient, message);
+            throw new com.courier.shared.exception.BusinessRuleException("The e-mail could not be sent: " + message);
+        }
+        log.info("Booking summary sent now: company={} customer={} to={} bookings={}", companyId, customerId, recipient, list.size());
+        return new SendNowResult(recipient, subject, list.size(), d);
+    }
+
     /** The row to retry, a fresh one, or null when this customer is already done for the day or out of attempts. */
     private BookingSummaryEmailLog claim(UUID companyId, UUID customerId, LocalDate reportDate, String email) {
         BookingSummaryEmailLog existing = logs

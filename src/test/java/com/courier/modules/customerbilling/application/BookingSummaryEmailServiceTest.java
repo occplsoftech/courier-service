@@ -24,6 +24,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -182,5 +183,54 @@ class BookingSummaryEmailServiceTest {
         s.setCreatedAt(Instant.parse("2026-11-28T04:52:52Z"));
         s.setActualWeight(new BigDecimal("2.75"));
         return s;
+    }
+
+    // ------------------------------------------------------------ send now
+
+    @Test
+    @DisplayName("send now: the customer's real e-mail goes to the typed address, and the nightly ledger is not touched")
+    void sendNowToTypedAddress() {
+        com.courier.shared.company.CompanyContext.setCompanyId(COMPANY);
+        try {
+            Customer acme = customer("ACME Traders", "orders@acme.test", true);
+            Shipment s = shipment(acme.getId(), "26110000029", "E2E Test Receiver", "Pune City", "411030");
+            s.setCreatedAt(Instant.parse("2026-11-28T04:52:52Z"));
+            when(shipments.findBusinessBookingsCreatedBetween(eq(COMPANY), any(), any(), eq(ShipmentStatus.CANCELLED))).thenReturn(List.of(s));
+
+            var r = service.sendNow(acme.getId(), "info@occpllogistics.com", DAY);
+
+            assertThat(r.to()).isEqualTo("info@occpllogistics.com");
+            assertThat(r.bookings()).isEqualTo(1);
+            assertThat(r.subject()).isEqualTo("Your booking details dated: 28 Nov 2026 - 1 shipment");
+            ArgumentCaptor<EmailProvider.EmailMessage> msg = ArgumentCaptor.forClass(EmailProvider.EmailMessage.class);
+            verify(email).send(msg.capture(), any());
+            assertThat(msg.getValue().toEmail()).isEqualTo("info@occpllogistics.com");
+            assertThat(msg.getValue().htmlBody()).contains("Dear ACME Traders", "26110000029", "Thanks,<br>Team OCCPL COURIER");
+            verify(logs, never()).save(any());
+            verify(logs, never()).saveAndFlush(any());
+        } finally {
+            com.courier.shared.company.CompanyContext.clear();
+        }
+    }
+
+    @Test
+    @DisplayName("send now: refused without an address, with a bad address, or when the customer booked nothing that day")
+    void sendNowRefusals() {
+        com.courier.shared.company.CompanyContext.setCompanyId(COMPANY);
+        try {
+            Customer none = customer("No Mail Ltd", null, true);
+            assertThatThrownBy(() -> service.sendNow(none.getId(), " ", DAY))
+                    .isInstanceOf(com.courier.shared.exception.BusinessRuleException.class).hasMessageContaining("no e-mail address");
+            assertThatThrownBy(() -> service.sendNow(none.getId(), "not-an-email", DAY))
+                    .isInstanceOf(com.courier.shared.exception.BusinessRuleException.class).hasMessageContaining("is not an e-mail address");
+
+            Customer acme = customer("ACME", "orders@acme.test", true);
+            when(shipments.findBusinessBookingsCreatedBetween(eq(COMPANY), any(), any(), eq(ShipmentStatus.CANCELLED))).thenReturn(List.of());
+            assertThatThrownBy(() -> service.sendNow(acme.getId(), null, DAY))
+                    .isInstanceOf(com.courier.shared.exception.BusinessRuleException.class).hasMessageContaining("booked nothing");
+            verify(email, never()).send(any(), any());
+        } finally {
+            com.courier.shared.company.CompanyContext.clear();
+        }
     }
 }
