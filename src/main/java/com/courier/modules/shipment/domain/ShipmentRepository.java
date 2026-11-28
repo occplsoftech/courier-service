@@ -454,4 +454,14 @@ public interface ShipmentRepository extends JpaRepository<Shipment, UUID>,
 
         long getTotal();
     }
+
+    /** A company's business-customer bookings created in [from, to), cancelled ones left out — the nightly booking
+     *  summary e-mail, oldest first within each customer. */
+    @Query("select s from Shipment s where s.companyId = :companyId and s.businessCustomerId is not null"
+            + " and s.createdAt >= :from and s.createdAt < :to and s.status <> :cancelled"
+            + " order by s.businessCustomerId, s.createdAt")
+    List<Shipment> findBusinessBookingsCreatedBetween(@Param("companyId") UUID companyId,
+                                                      @Param("from") java.time.Instant from,
+                                                      @Param("to") java.time.Instant to,
+                                                      @Param("cancelled") ShipmentStatus cancelled);
 }

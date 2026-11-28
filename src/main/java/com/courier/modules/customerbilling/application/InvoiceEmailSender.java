@@ -64,7 +64,9 @@ public class InvoiceEmailSender {
     }
 
     @SuppressWarnings("unchecked")
-    private EmailProvider.EmailIdentity identity(UUID companyId) {
+    /** The company's sender identity: its e-mail channel identity, else its name and the billing fallback address.
+     *  Package-private: the nightly booking summary sends as the company too. */
+    EmailProvider.EmailIdentity identity(UUID companyId) {
         String name = null;
         String from = null;
         try {
