@@ -32,10 +32,15 @@ public class SmtpEmailProvider implements EmailProvider {
         }
         try {
             MimeMessage mime = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(mime, false, "UTF-8");
+            boolean inline = !message.inlineImages().isEmpty();
+            MimeMessageHelper helper = new MimeMessageHelper(mime, inline, "UTF-8");
             helper.setTo(message.toEmail());
             helper.setSubject(message.subject() == null ? "" : message.subject());
             helper.setText(message.htmlBody() == null ? "" : message.htmlBody(), true);
+            // Inline parts go after the body (JavaMail requires the text first).
+            for (EmailProvider.InlineImage img : message.inlineImages()) {
+                helper.addInline(img.contentId(), new org.springframework.core.io.ByteArrayResource(img.bytes()), img.contentType());
+            }
             String fromEmail = identity.fromEmail() == null || identity.fromEmail().isBlank()
                     ? null : identity.fromEmail();
             if (fromEmail != null) {

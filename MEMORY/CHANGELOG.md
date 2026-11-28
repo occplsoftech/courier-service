@@ -8,6 +8,15 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-28 — Booking summary e-mail: owner's format, logo on top
+
+- Subject "Your booking details dated: 28 Nov 2026 - 4 shipments". Columns now #, AWB No., Consignee, Destination (city),
+  Pieces, Service: booking time, pincode and status removed. Ends "Thanks, Team <company e-mail From name>" (dev: OCCPL Logistics).
+- The company logo on top: the uploaded one (Settings → Company Logo) is sent inside the e-mail as an inline image
+  (`cid:company-logo`; Gmail does not show data: images), else the logo link on the company record, else none.
+- `EmailProvider.EmailMessage` gains optional `inlineImages`; `SmtpEmailProvider` sends them as inline parts. Existing
+  messages (no images) are unchanged.
+
 ## 2026-11-28 — Pincode Master Sheet: Premium / Air Cargo / Surface Cargo switches
 
 - `GET /global-masters/pincode-sheet` rows gain the pincode master's live coverage (what bookings check) for Premium, Air

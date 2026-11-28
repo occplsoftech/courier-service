@@ -75,12 +75,14 @@ class BookingSummaryEmailServiceTest {
         ArgumentCaptor<EmailProvider.EmailMessage> msg = ArgumentCaptor.forClass(EmailProvider.EmailMessage.class);
         verify(email).send(msg.capture(), eq(new EmailProvider.EmailIdentity("OCCPL COURIER", "support@occpl.test")));
         assertThat(msg.getValue().toEmail()).isEqualTo("orders@acme.test");
-        assertThat(msg.getValue().subject()).isEqualTo("Your bookings on 28 Nov 2026 — 1 shipment");
+        assertThat(msg.getValue().subject()).isEqualTo("Your booking details dated: 28 Nov 2026 - 1 shipment");
         String html = msg.getValue().htmlBody();
-        assertThat(html).contains("Dear ACME Traders", "26110000029", "E2E Test Receiver", "Pune City – 411030",
-                "Surface", "Booked", "27 Nov 2026, 11:30 PM", "28 Nov 2026, 11:30 PM", "OCCPL COURIER");
+        assertThat(html).contains("Dear ACME Traders", "26110000029", "E2E Test Receiver", "Pune City", "Surface",
+                "27 Nov 2026, 11:30 PM", "28 Nov 2026, 11:30 PM", "Thanks,<br>Team OCCPL COURIER");
         // the shipment carries a weight and a price; neither may appear in what the reader sees
         String text = html.replaceAll("<[^>]*>", " ");
+        // owner: no booking time, no pincode, no status column
+        assertThat(text).doesNotContain("Booked on").doesNotContain("411030").doesNotContain("Status").doesNotContain("10:22 AM");
         assertThat(text).doesNotContainIgnoringCase("weight").doesNotContainIgnoringCase("rate")
                 .doesNotContain("kg").doesNotContain("₹").doesNotContain("2.75").doesNotContain("90.00");
         ArgumentCaptor<BookingSummaryEmailLog> row = ArgumentCaptor.forClass(BookingSummaryEmailLog.class);
@@ -133,9 +135,25 @@ class BookingSummaryEmailServiceTest {
     }
 
     @Test
-    @DisplayName("statuses read as words")
-    void statusLabel() {
-        assertThat(BookingSummaryEmailService.statusLabel(ShipmentStatus.OUT_FOR_DELIVERY)).isEqualTo("Out for delivery");
+    @DisplayName("subject: 'Your booking details dated: 28 Nov 2026 - 4 shipments'")
+    void subjectFormat() {
+        assertThat(BookingSummaryEmailService.subject(DAY, 4)).isEqualTo("Your booking details dated: 28 Nov 2026 - 4 shipments");
+        assertThat(BookingSummaryEmailService.subject(DAY, 1)).isEqualTo("Your booking details dated: 28 Nov 2026 - 1 shipment");
+    }
+
+    @Test
+    @DisplayName("an uploaded logo is sent inside the e-mail and shown on top; a logo link is used as is; none → no image")
+    void logo() {
+        var uploaded = BookingSummaryEmailService.logoFrom("data:image/png;base64,iVBORw0KGgo=", "https://x.test/logo.png");
+        assertThat(uploaded.src()).isEqualTo("cid:company-logo");
+        assertThat(uploaded.inline().contentType()).isEqualTo("image/png");
+        assertThat(uploaded.inline().bytes()).hasSize(8);
+        assertThat(BookingSummaryEmailService.logoFrom(null, "https://x.test/logo.png").src()).isEqualTo("https://x.test/logo.png");
+        assertThat(BookingSummaryEmailService.logoFrom(null, null)).isNull();
+
+        String html = service.html("OCCPL Logistics", "cid:company-logo", "ACME", List.of(), java.util.Map.of(), FROM, TO);
+        assertThat(html.indexOf("<img src=\"cid:company-logo\"")).isLessThan(html.indexOf("Dear ACME"));
+        assertThat(html).contains("Thanks,<br>Team OCCPL Logistics");
     }
 
     private Customer customer(String name, String mail, boolean enabled) {
