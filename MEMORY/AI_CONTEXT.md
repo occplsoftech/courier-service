@@ -23,7 +23,7 @@ sheet's zone column, region = the sheet's Region column"**:
   Region REST OF INDIA has no row, so those pincodes take their Zone's (NORTH/SOUTH/WEST/CENTRAL) rate; METRO and EAST
   rows are never reached (no pincode has METRO; every EAST pincode is Region NORTH EAST, which matches first).
   **No rate cards** yet — upload customers' sheets (Business Customer → Upload Rates) on these zones.
-**Next free Flyway migration: V189.**
+**Next free Flyway migration: V190** (V189 = the business customers' nightly booking summary e-mail log, CS#158).
 
 ## HANDOFF — V187: zones, regions and customer rates cleared (2026-11-27, read before anything about pricing)
 
@@ -43,7 +43,7 @@ V187. (Next free migration: see the V188 block above.)
 > still true for the code and the rules (Upload Rates, Per Box, cargo networks, pincode coverage); the zones, cards,
 > uploads and prices it lists describe dev *before* V187 and are gone until the owner sets them up again.
 
-All merged and live on dev: CS#149, #151, #152 and CW#89, #93. **Next free Flyway migration: V188** (V187 is taken). Details are in
+All merged and live on dev: CS#149, #151, #152 and CW#89, #93. **Next free Flyway migration: V190** (see the top block). Details are in
 `MEMORY/CHANGELOG.md` (2026-11-27 entries) and `modules/zone-tariff.md` ("A business customer's own card", "Rate zones").
 
 **Business customer rates from Excel (the old software's export: Sr, Courier, From zone, To zone, State, City, Mode,
@@ -91,7 +91,7 @@ Do that for any data migration: CI does not run migrations, and a V184 column mi
 ## HANDOFF — update on 2026-11-27 (read this, then the 2026-11-20 block below)
 
 Two Claude accounts work on these repos at the same time: fetch `main` before branching, and check open PRs first.
-Next free Flyway migration: **V188** (see the blocks above). Details of everything
+Next free Flyway migration: **V190** (see the top block). Details of everything
 below are in `MEMORY/CHANGELOG.md` → 2026-11-27.
 
 **Scan screen (OCCPL Operation → Scan), all merged and checked live on dev:**

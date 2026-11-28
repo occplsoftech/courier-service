@@ -8,6 +8,17 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-11-28 — Nightly booking summary e-mail to business customers
+
+- Every night at **23:30 IST** (`BookingSummaryEmailJob`, retry ticks 23:40 / 23:50) each business customer who booked
+  in the last 24 hours (23:30 the day before → 23:30) gets one plain HTML e-mail listing those shipments: AWB, booked on,
+  consignee, destination (city – pincode), pieces, service, status. **No rate, no weight.** Cancelled bookings are left
+  out. Customers without an e-mail address, or with e-mail notifications off (`customers.email_enabled`), get nothing.
+- Sent as the company (its e-mail channel identity, else its name), through `EmailProvider`: real SMTP only when
+  `spring.mail.host` is configured, otherwise logged.
+- **V189** `booking_summary_email_log`: one row per (company, customer, day); the unique key stops duplicates, 3 attempts max.
+- Settings: `app.booking-summary-email.enabled` (default true), `.cron`, `.zone`.
+
 ## 2026-11-27 — Latest pincode master (V185) and the customers' rate zones (V186)
 
 - **V185** (generated from `Pincode_Master_NEW - SHUBHAM.xls`, 19,127 pincodes): zone (Region) and regional zone (zone
